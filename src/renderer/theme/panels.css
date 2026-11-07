@@ -74,3 +74,10 @@
 .change-letter.kind-untracked, .change-letter.kind-added { color: var(--wb-status-ready); }
 .change-letter.kind-deleted, .change-letter.kind-conflicted { color: var(--wb-status-error); }
 .change-letter.kind-renamed { color: var(--wb-accent); }
+
+.commit-area label { display: grid; gap: 6px; color: var(--wb-text-secondary); font-size: 12px; }
+.commit-area input, .commit-area select {
+  width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--wb-border);
+  border-radius: 6px; background: var(--wb-bg-field); color: var(--wb-text-primary); font: inherit;
+}
+.commit-area p { margin: 0; color: var(--wb-text-secondary); font-size: 12px; }

@@ -74,3 +74,28 @@ test("creates worktrees beside the workspace and rejects invalid branches", asyn
   await assert.rejects(service.createWorktree(root, "bad name"), /not a valid branch/);
   await assert.rejects(service.createWorktree(root, "wb/first-task"), /already exists/);
 });
+
+
+test("checks out a selected branch and refuses to carry uncommitted changes across", async () => {
+  const { root } = await repository();
+  const service = new SourceControlService([new GitSourceControlProvider()]);
+  git(root, 'branch', 'feature/chosen');
+  assert.deepEqual(await service.branches(root), ['feature/chosen', 'main']);
+  await service.checkout(root, 'feature/chosen');
+  assert.equal((await service.status(root)).branch, 'feature/chosen');
+  await writeFile(join(root, 'tracked.txt'), 'keep my edits');
+  await assert.rejects(service.checkout(root, 'main'), /Commit your changes/);
+  assert.equal((await service.status(root)).branch, 'feature/chosen');
+  await assert.rejects(service.checkout(root, '--force'), /Invalid branch/);
+});
+
+test('remote branches open as local tracking branches', async () => {
+  const { root } = await repository();
+  git(root, 'remote', 'add', 'origin', root);
+  git(root, 'update-ref', 'refs/remotes/origin/feature/remote', 'HEAD');
+  const service = new SourceControlService([new GitSourceControlProvider()]);
+  assert.ok((await service.branches(root)).includes('origin/feature/remote'));
+  await service.checkout(root, 'origin/feature/remote');
+  assert.equal((await service.status(root)).branch, 'feature/remote');
+  assert.equal((await service.status(root)).upstream, 'origin/feature/remote');
+});

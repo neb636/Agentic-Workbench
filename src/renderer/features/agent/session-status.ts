@@ -22,9 +22,10 @@ export function agentRuntimeStatus(runtime: AgentRuntime): ViewStatus {
   }
 }
 
-/** Agent views without a running CLI are still being set up. */
+/** Agent views without a running CLI: new ones start when shown, older ones stopped when Studio did. */
 export function agentIdleStatus(view: WorkbenchView): ViewStatus {
-  return { label: "Setup", tone: "idle", detail: providerLabel((view.state as AgentViewState | undefined)?.providerId) };
+  const state = view.state as AgentViewState | undefined;
+  return { label: state?.autoStart ? "Starts when opened" : "Not running", tone: "idle", detail: providerLabel(state?.providerId) };
 }
 
 /** Publishes CLI session status for every agent view, including views that are not mounted. */

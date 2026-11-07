@@ -37,7 +37,7 @@ test("lists directories first and hides .git", async () => {
 
 test("reads text, flags binary, and caps large files", async () => {
   const { root, files } = await fixture();
-  assert.deepEqual(await files.read(root, "README.md"), { path: "README.md", content: "# Hello\n", size: 8, truncated: false, binary: false });
+  assert.deepEqual(await files.read(root, "README.md"), { path: "README.md", content: "# Hello\n", size: 8, truncated: false, binary: false, hash: "6927d6085806d0d0a22404d0c2b23b55fb0663a7" });
   assert.equal((await files.read(root, "binary.bin")).binary, true);
   await writeFile(join(root, "large.txt"), "a".repeat(2 * 1024 * 1024 + 10));
   const large = await files.read(root, "large.txt");

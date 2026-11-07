@@ -1,4 +1,5 @@
 /*
+ * The game's pastels (pink, lavender, cream, ink) and Fredoka, flat and matte, no gloss.
  * Hybrid theme: light chrome (sidebars, tabs, composer) around dark code surfaces
  * (terminals, file viewer). Feature styles consume only these tokens.
  */
@@ -6,35 +7,35 @@
   color-scheme: light;
 
   /* Chrome surfaces */
-  --wb-bg-app: #f8f7f7;
-  --wb-bg-panel: #fcfcfc;
+  --wb-bg-app: #fbf1f5;
+  --wb-bg-panel: #fffbfc;
   --wb-bg-raised: #ffffff;
-  --wb-bg-field: #f1f1f1;
-  --wb-bg-hover: #f1f1f1;
-  --wb-bg-selected: #ececec;
-  --wb-border: #e2e2e2;
-  --wb-border-subtle: #ececec;
+  --wb-bg-field: #f7eef3;
+  --wb-bg-hover: #f8ecf2;
+  --wb-bg-selected: #efe8ff;
+  --wb-border: #ecdce5;
+  --wb-border-subtle: #f3e6ec;
   --wb-highlight: #ffffff;
 
   /* Text */
-  --wb-text-primary: #121212;
-  --wb-text-secondary: #7b7b7b;
-  --wb-text-muted: #a8a8a8;
+  --wb-text-primary: #2b2330;
+  --wb-text-secondary: #6b5d73;
+  --wb-text-muted: #a596ad;
   --wb-text-inverse: #fcfcfc;
 
   /* Accent and emphasis */
-  --wb-accent: #3582ff;
-  --wb-accent-hover: #0d7dfd;
-  --wb-accent-soft: #3582ff1a;
+  --wb-accent: #c23a78;
+  --wb-accent-hover: #a92f67;
+  --wb-accent-soft: #ff8fb826;
   --wb-accent-text: #ffffff;
-  --wb-strong-start: #323232;
-  --wb-strong-end: #222222;
-  --wb-strong-ring: #333333;
-  --wb-focus-ring: #3582ff66;
+  --wb-strong-start: #2b2330;
+  --wb-strong-end: #2b2330;
+  --wb-strong-ring: #2b2330;
+  --wb-focus-ring: #b9a6f5aa;
 
   /* Status */
   --wb-status-ready: #55b93e;
-  --wb-status-working: #3582ff;
+  --wb-status-working: #8f74e8;
   --wb-status-warning: #e36323;
   --wb-status-error: #fe5938;
   --wb-status-idle: #a8a8a8;
@@ -45,11 +46,11 @@
   --wb-tooltip-text: #fcfcfc;
   --wb-shadow-card: 0 1px 2px #00000008, 0 8px 16px -12px #0000001f;
   --wb-shadow-toolbar: 0 1px 4px -4px #00000013, 0 8px 16px -12px #00000020;
-  --wb-shadow-prompt: inset 0 2px 0 0 #ffffff, 0 18px 24px -20px #00000020, 0 8px 16px -12px #00000013;
+  --wb-shadow-prompt: 0 8px 18px -14px #2b233026;
   --wb-shadow-popover: 0 38px 38px #0000000f, 0 10px 21px #00000014, 0 0 0 1px #0000000a;
-  --wb-shadow-thumb: 0 1.25px 3px #3232321a, inset 0 1.25px 1px #ffffff;
+  --wb-shadow-thumb: 0 1px 2px #2b23301f;
   --wb-shadow-inset: inset 0 1px 2px #3232321a;
-  --wb-shadow-strong: inset 0 0.5px 1px #ffffff26, 0 2px 4px -1px #0d0d0d80, 0 0 0 1px var(--wb-strong-ring);
+  --wb-shadow-strong: 0 0 0 1px var(--wb-strong-ring);
 
   /* Shape and type */
   --wb-radius-xs: 6px;
@@ -59,7 +60,7 @@
   --wb-radius-xl: 16px;
   --wb-radius-2xl: 20px;
   --wb-radius-3xl: 24px;
-  --wb-font-ui: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wb-font-ui: Fredoka, Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --wb-font-mono: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   /* Dark code surfaces */

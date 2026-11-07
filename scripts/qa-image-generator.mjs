@@ -1,0 +1,45 @@
+// One-image concept workflow with a deterministic PTY agent; no model/credit calls.
+import { _electron as electron } from 'playwright';
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import assert from 'node:assert/strict';
+const directory = await realpath(await mkdtemp(join(tmpdir(), 'gamepack-concept-qa-')));
+const workspace = join(directory, 'workspace'), executable = join(directory, 'fixture-agent'), log = join(directory, 'agent.jsonl');
+await mkdir(workspace);
+const quote = s => `'${s.replaceAll("'", "'\\''")}'`;
+await writeFile(executable, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(resolve('scripts/fixtures/image-agent-cli.mjs'))} "$@"\n`, { mode: 0o755 });
+await writeFile(join(directory, 'workbench-state.json'), JSON.stringify({workspaces:[{id:'qa',name:'Concept QA',path:workspace,activeViewId:'images',views:[{id:'images',workspaceId:'qa',type:'image-generator',title:'Character concepts',state:{providerId:'claude.cli',count:1}}]}],activeWorkspaceId:'qa'}));
+let app;
+try {
+  app = await electron.launch({args:['.'],env:{...process.env,STUDIO_REPO_ROOT:workspace,WORKBENCH_USER_DATA_DIR:directory,WORKBENCH_CLAUDE_PATH:executable,IMAGE_QA_LOG:log}});
+  const page = await app.firstWindow(); page.setDefaultTimeout(15000);
+  const errors=[]; page.on('pageerror', e=>errors.push(e.message));
+  await page.getByRole('heading',{name:'Make a vinyl character'}).waitFor();
+  await page.getByRole('textbox',{name:'Image prompt'}).fill('A mint unicorn in his approved brown tee and khaki shorts.');
+  await page.getByRole('button',{name:'Generate images'}).click();
+  await page.getByRole('button',{name:'Open Take 1'}).waitFor();
+  await page.getByText(/1024 × 1024 · real transparency checked/).waitFor();
+  assert.equal(await page.locator('.image-card').count(),1);
+  const entries=(await readFile(log,'utf8')).trim().split('\n').map(JSON.parse);
+  assert.match(entries[1].prompt,/Create ONE character concept/);
+  assert.match(entries[1].prompt,/real alpha channel/);
+  assert.match(entries[1].prompt,/gpt-6\.1-sol/);
+  await page.getByRole('button',{name:'Open Take 1'}).click();
+  const lightbox=page.getByRole('dialog');
+  await lightbox.getByRole('button',{name:'Choose',exact:true}).click();
+  await lightbox.getByRole('button',{name:'Unchoose',exact:true}).waitFor();
+  await lightbox.getByRole('button',{name:'Refine from this'}).click();
+  await lightbox.waitFor({state:'detached'});
+  assert.match(await page.getByRole('textbox',{name:'Image prompt'}).inputValue(),/Redraw the SAME attached character\. Change only:/);
+  await page.getByRole('button',{name:'Remove Take 1.png'}).waitFor();
+  assert.equal(await page.locator('.image-attachment').count(),1);
+  await page.getByLabel('Character ID',{exact:true}).fill('nick');
+  await page.getByLabel('Character workflow stage').selectOption('3');
+  await page.getByRole('button',{name:'Prepare stage prompt for Claude or Codex'}).click();
+  await page.getByRole('textbox',{name:'Prompt',exact:true}).waitFor();
+  const draft=await page.getByRole('textbox',{name:'Prompt',exact:true}).inputValue();
+  assert.match(draft,/docs\/3d-characters\.md/); assert.match(draft,/rigid pivots, no skeleton/);
+  assert.deepEqual(errors,[]);
+  console.log(`Single-concept generation, pixel validation, choose/refine and Blender prompt handoff passed. Profile: ${directory}`);
+} finally { await app?.close(); }

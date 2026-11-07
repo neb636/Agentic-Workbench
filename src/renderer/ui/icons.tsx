@@ -42,3 +42,8 @@ export const ArrowUpIcon = ({ size }: IconProps) => <Icon size={size}><path d="M
 export const NewChatIcon = ({ size }: IconProps) => <Icon size={size}><path d="M20.5 12.5v4a3 3 0 0 1-3 3h-7l-5 3v-3a3 3 0 0 1-2-3v-9a3 3 0 0 1 3-3h6.5" /><path d="M18 3v6M15 6h6" /></Icon>;
 export const MemoryIcon = ({ size }: IconProps) => <Icon size={size}><rect x="3.5" y="7" width="17" height="10" rx="2" /><path d="M7 17v2.5M12 17v2.5M17 17v2.5M7 10.5v3M10.5 10.5v3M14 10.5v3M17.5 10.5v3" /></Icon>;
 export const CommitIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="12" cy="12" r="3.5" /><path d="M3 12h5.5M15.5 12H21" /></Icon>;
+export const ImageIcon = ({ size }: IconProps) => <Icon size={size}><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" /><circle cx="9" cy="10" r="1.6" /><path d="m20.5 15.5-4.5-4.5-8.5 8.5" /></Icon>;
+export const PaperclipIcon = ({ size }: IconProps) => <Icon size={size}><path d="m20 11.5-7.8 7.8a5 5 0 0 1-7.1-7.1l8.2-8.2a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6" /></Icon>;
+export const GameIcon = ({ size }: IconProps) => <Icon size={size}><rect x="2.5" y="7" width="19" height="11" rx="5.5" /><path d="M7.5 10.5v4M5.5 12.5h4M15.5 11.5h.01M18 13.5h.01" /></Icon>;
+export const RocketIcon = ({ size }: IconProps) => <Icon size={size}><path d="M14.5 4.5c2.5-1 5-1 5-1s0 2.5-1 5L13 14l-3-3z" /><path d="M10 11 6.5 10.5 4 13l4 1M13 14l.5 3.5L11 20l-1-4M7 17l-2.5 2.5" /></Icon>;
+export const SectionsIcon = ({ size }: IconProps) => <Icon size={size}><path d="M4 5.5h16M4 12h16M4 18.5h10" /><circle cx="19" cy="18.5" r="1.5" /></Icon>;

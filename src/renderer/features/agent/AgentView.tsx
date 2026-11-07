@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { modelSettings } from "../../../shared/agent-models";
 import type { AgentProviderInfo, AgentViewState } from "../../../shared/models";
 import { services } from "../../core/services";
 import { acknowledgeAgentCompletion, startAgentRuntime, useAgentRuntimes } from "../../core/agent-runtimes";
@@ -43,17 +44,33 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     void window.workbench.agent.providers().then((items) => { if (active) setProviders(items); }).catch((e: unknown) => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, []);
-  const selected = state.providerId ?? providers.find((p) => p.available)?.id ?? providers[0]?.id;
+  const lastProvider = useWorkbenchStore((s) => s.layout.lastAgentProvider);
+  const usable = (id?: string) => (id && providers.find((p) => p.id === id && p.available) ? id : undefined);
+  const selected = state.providerId ?? usable(lastProvider) ?? providers.find((p) => p.available)?.id ?? providers[0]?.id;
   const patch = (value: Partial<AgentViewState>) => update(workspace.id, view.id, value);
   const start = async (resume = false) => {
     if (busy) return;
     const provider = services.sessions.get(selected ?? "");
     if (provider?.kind !== "agent") return;
-    setBusy(true); setError(""); patch({ providerId: provider.id });
-    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }), resume }); }
+    setBusy(true); setError("");
+    patch({ providerId: provider.id, autoStart: false, resume: false });
+    useWorkbenchStore.getState().updateLayout({ lastAgentProvider: provider.id });
+    // Until the first prompt names it, the tab says which CLI it is.
+    if (state.autoTitle && (view.title === "Untitled" || services.sessions.list().some((item) => item.label === view.title))) useWorkbenchStore.getState().renameView(workspace.id, view.id, provider.label);
+    // A new conversation launches with the composer's model and effort; a resumed one keeps its own.
+    const settings = resume ? undefined : modelSettings(provider.id, state.modelSettings?.[provider.id]);
+    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }), resume, settings }); }
     catch (e) { if (alive.current) setError(errorMessage(e)); }
     finally { if (alive.current) setBusy(false); }
   };
+  // A new tab starts its CLI straight away: no setup form, just type.
+  const startRef = useRef(start);
+  startRef.current = start;
+  useEffect(() => {
+    if (runtime || !state.autoStart || !providers.length || !usable(selected)) return;
+    void startRef.current(Boolean(state.resume));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providers, runtime, state.autoStart]);
   const session: ComposerSession | undefined = runtime && {
     status: runtime.status,
     display: agentRuntimeStatus(runtime),
@@ -63,8 +80,9 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     focusTerminal: () => terminalRef.current?.focus(),
   };
   const top = runtime
-    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection} /></div>
-    : <SessionLauncher workspace={workspace} state={state} providers={providers} selected={selected} busy={busy} error={error}
+    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection}
+      root={workspace.path} onOpenPath={(path, line) => void services.commands.execute("file.open", { workspaceId: workspace.id, root: workspace.path, path, line, preview: true })} /></div>
+    : <SessionLauncher state={state} providers={providers} selected={selected} busy={busy || Boolean(state.autoStart && usable(selected))} error={error}
         onChange={patch} onStart={(resume) => void start(resume)} />;
   const composer = <AgentComposer key={runtime?.controller.id ?? "setup"} workspaceId={workspace.id} viewId={view.id} agentLabel={services.sessions.get(runtime?.providerId ?? selected ?? "")?.label ?? "the agent"}
     state={{ ...state, providerId: selected }} session={session} canLaunch={Boolean(providers.find((p) => p.id === selected)?.available)}

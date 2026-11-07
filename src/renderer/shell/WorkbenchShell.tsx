@@ -2,12 +2,19 @@ import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
-import { AgentIcon, FolderIcon, PlusIcon, TerminalIcon } from "../ui/icons";
-import { Button } from "../ui/controls";
+import { focusGame } from "../features/game/game-store";
+import { openExplorer, toggleExplorer } from "../features/explorer/explorer-store";
+import { QuickOpen } from "../features/files/QuickOpen";
+import { FolderIcon, SidebarRightIcon } from "../ui/icons";
+import { Button, IconButton } from "../ui/controls";
 import { LeftSidebar } from "./LeftSidebar";
+import { CenterArea } from "./CenterArea";
 import { RightSidebar } from "./RightSidebar";
 import { StatusBar } from "./StatusBar";
-import { ViewTabs } from "./ViewTabs";
+
+/** With no game tab left in the piece of work on screen, its server waits this long (it may come back), then stops. */
+const NO_GAME_GRACE_MS = 60_000;
+const EXPLORER_SIZE = 22;
 
 /** Keeps a collapsible panel in step with its persisted collapsed flag. */
 function useCollapsible(collapsed: boolean) {
@@ -28,63 +35,69 @@ export function WorkbenchShell() {
   const layout = useWorkbenchStore((state) => state.layout);
   const updateLayout = useWorkbenchStore((state) => state.updateLayout);
   const leftRef = useCollapsible(layout.leftCollapsed);
-  const rightRef = useCollapsible(layout.rightCollapsed);
+  const explorerCollapsed = Boolean(layout.explorer?.collapsed);
+  const rightRef = useCollapsible(explorerCollapsed);
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
-  const activeView = activeWorkspace?.views.find((view) => view.id === activeWorkspace.activeViewId);
-  const definition = activeView ? services.views.get(activeView.type) : undefined;
+  const hasGame = Boolean(activeWorkspace?.views.some((view) => view.type === "game"));
 
   useEffect(() => { void hydrate(); }, [hydrate]);
 
-  if (!isHydrated) return <div className="launch-screen"><div className="brand-mark large"><span>AW</span></div><p>Opening workbench…</p></div>;
+  // No game tab here: stop the game servers after a grace period (an 8 GB Mac; a new Game tab restarts it in seconds).
+  useEffect(() => {
+    if (hasGame) return;
+    const timer = setTimeout(() => void window.workbench.studio.trimServers(0).catch(() => undefined), NO_GAME_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [hasGame]);
 
+  // Menu shortcuts (main catches them for the whole window, game frame included).
+  const menuRef = useRef<(command: string) => void>(() => {});
+  menuRef.current = (command) => {
+    if (!activeWorkspace) return;
+    if (command === "game") focusGame(activeWorkspace.id);
+    else if (command === "explorer") toggleExplorer();
+    else if (command === "quick-open") void services.commands.execute("file.quickOpen");
+    else if (command === "find-in-files") openExplorer("files", { search: "contents" });
+  };
+  useEffect(() => window.workbench.studio.onMenu((command) => menuRef.current(command)), []);
+
+  if (!isHydrated) return <div className="launch-screen"><div className="brand-mark large"><span>KG</span></div><p>Opening Gamepack Studio…</p></div>;
+
+  // The work on the left, one tab on screen in the middle (an agent most of the time), the explorer on the right.
   return <div className={`app-shell ${layout.leftCollapsed ? "is-left-collapsed" : ""}`}>
-    <PanelGroup direction="horizontal" className="shell-panels" onLayout={([left, , right]) => {
-      const patch: { leftSize?: number; rightSize?: number } = {};
+    <PanelGroup direction="horizontal" className="shell-panels" onLayout={(sizes) => {
+      const [left, , right] = sizes;
+      const patch: Partial<typeof layout> = {};
       if (left > 0 && Math.abs(left - (layout.leftSize ?? 0)) > 0.2) patch.leftSize = left;
-      if (right > 0 && Math.abs(right - (layout.rightSize ?? 0)) > 0.2) patch.rightSize = right;
-      if (patch.leftSize !== undefined || patch.rightSize !== undefined) updateLayout(patch);
+      if (right > 0 && Math.abs(right - (layout.explorer?.size ?? 0)) > 0.2) patch.explorer = { ...useWorkbenchStore.getState().layout.explorer, size: right };
+      if (Object.keys(patch).length) updateLayout(patch);
     }}>
       <Panel id="left" order={1} ref={leftRef} className="shell-panel" collapsible collapsedSize={0} minSize={14} maxSize={32}
         defaultSize={layout.leftCollapsed ? 0 : layout.leftSize ?? 18}
         onCollapse={() => updateLayout({ leftCollapsed: true })} onExpand={() => updateLayout({ leftCollapsed: false })}>
         <LeftSidebar onCollapse={() => updateLayout({ leftCollapsed: true })} />
       </Panel>
-      <PanelResizeHandle className="shell-resize" aria-label="Resize workspaces sidebar" />
-      <Panel id="center" order={2} className="shell-panel" minSize={36}>
-        <main className="center-column">
-          <ViewTabs workspace={activeWorkspace} showLeftToggle={layout.leftCollapsed} showRightToggle={layout.rightCollapsed}
-            onShowLeft={() => updateLayout({ leftCollapsed: false })} onShowRight={() => updateLayout({ rightCollapsed: false })} />
-          <div className="active-view-region">
-            {!activeWorkspace ? (
-              <div className="welcome-view">
-                <div className="welcome-icon"><FolderIcon size={25} /></div>
-                <h1>Bring your work into one place</h1>
-                <p>Add a local folder to create a workspace. Everything stays on this machine.</p>
-                <Button className="primary-button" onPress={() => void services.commands.execute("workspace.add")}><PlusIcon size={16} /> Add workspace</Button>
-              </div>
-            ) : activeView && definition ? (
-              <definition.component key={activeView.id} view={activeView} workspace={activeWorkspace} />
-            ) : activeView ? (
-              <div className="missing-view"><h2>View unavailable</h2><p>No view is registered for <code>{activeView.type}</code>.</p></div>
-            ) : (
-              <div className="empty-workspace">
-                <h2>Open a view</h2><p>Nothing is open in {activeWorkspace.name}.</p>
-                <div className="empty-actions">
-                  <Button onPress={() => void services.commands.execute("view.create", { workspaceId: activeWorkspace.id, viewType: "agent" })}><AgentIcon size={16} />Agent session</Button>
-                  <Button onPress={() => void services.commands.execute("view.create", { workspaceId: activeWorkspace.id, viewType: "terminal" })}><TerminalIcon size={16} />Terminal</Button>
-                </div>
-              </div>
-            )}
+      <PanelResizeHandle className="shell-resize" aria-label="Resize work sidebar" />
+      <Panel id="middle" order={2} className="shell-panel" minSize={30}>
+        {!activeWorkspace ? <main className="center-column">
+          <div className="welcome-view">
+            <div className="welcome-icon"><FolderIcon size={25} /></div>
+            <h1>Open Kaylee's Gamepack</h1>
+            <p>Pick your Kaylee-Gamepack checkout once. Studio lists its worktrees and PRs by itself.</p>
+            <Button className="primary-button" onPress={() => void services.commands.execute("repo.open")}><FolderIcon size={16} /> Open the Gamepack repo</Button>
           </div>
-        </main>
+        </main> : <CenterArea workspace={activeWorkspace}
+          onShowLeft={layout.leftCollapsed ? () => updateLayout({ leftCollapsed: false }) : undefined}
+          trailing={explorerCollapsed ? <IconButton label="Show the explorer (⌘⌥B)" onPress={() => toggleExplorer()}><SidebarRightIcon size={16} /></IconButton> : undefined} />}
       </Panel>
-      <PanelResizeHandle className="shell-resize" aria-label="Resize side panel" />
-      <Panel id="right" order={3} ref={rightRef} className="shell-panel" collapsible collapsedSize={0} minSize={16} maxSize={36}
-        defaultSize={layout.rightCollapsed ? 0 : layout.rightSize ?? 21}
-        onCollapse={() => updateLayout({ rightCollapsed: true })} onExpand={() => updateLayout({ rightCollapsed: false })}>
-        <RightSidebar workspace={activeWorkspace} onCollapse={() => updateLayout({ rightCollapsed: true })} />
+      <PanelResizeHandle className="shell-resize" aria-label="Resize explorer" />
+      <Panel id="right" order={3} ref={rightRef} className="shell-panel" collapsible collapsedSize={0} minSize={14} maxSize={40}
+        defaultSize={explorerCollapsed ? 0 : layout.explorer?.size ?? EXPLORER_SIZE}
+        onCollapse={() => { if (!useWorkbenchStore.getState().layout.explorer?.collapsed) toggleExplorer(true); }}
+        onExpand={() => { if (useWorkbenchStore.getState().layout.explorer?.collapsed) toggleExplorer(false); }}>
+        {activeWorkspace && <RightSidebar workspace={activeWorkspace} />}
       </Panel>
     </PanelGroup>
+    <QuickOpen />
     <StatusBar />
   </div>;
 }

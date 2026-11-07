@@ -1,33 +1,46 @@
-import { ToggleButton, ToggleButtonGroup, Tooltip, TooltipTrigger } from "react-aria-components";
-import type { Workspace } from "../../shared/models";
-import { services } from "../core/services";
+import type { ExplorerTab, Workspace } from "../../shared/models";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
-import { SidebarRightIcon } from "../ui/icons";
+import { BranchIcon, FilesIcon, RocketIcon, SectionsIcon, SidebarRightIcon } from "../ui/icons";
+import { FilesPanel } from "../features/files/FilesPanel";
+import { SourceControlPanel } from "../features/source-control/SourceControlPanel";
+import { useSourceControlStatus } from "../features/source-control/source-control-store";
+import { SectionTree } from "../features/game/SectionTree";
+import { ShipPanel } from "../features/ship/ShipPanel";
+import { openExplorer, toggleExplorer } from "../features/explorer/explorer-store";
 
-export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace; onCollapse: () => void }) {
-  const panels = services.panels.ordered();
-  const selected = useWorkbenchStore((state) => state.layout.rightPanel);
-  const updateLayout = useWorkbenchStore((state) => state.updateLayout);
-  const active = panels.find((panel) => panel.id === selected) ?? panels[0];
-  const Panel = active?.component;
+const TABS: { id: ExplorerTab; label: string; icon: (props: { size?: number }) => React.ReactNode }[] = [
+  { id: "files", label: "Files", icon: FilesIcon },
+  { id: "changes", label: "Changes", icon: BranchIcon },
+  { id: "sections", label: "Sections", icon: SectionsIcon },
+  { id: "ship", label: "Ship", icon: RocketIcon },
+];
 
-  return <aside className="sidebar-card right-sidebar" aria-label="Side panels">
-    <div className="activity-bar">
-      <IconButton label="Hide side panel" onPress={onCollapse}><SidebarRightIcon size={16} /></IconButton>
-      <ToggleButtonGroup aria-label="Side panel" className="activity-buttons" selectionMode="single" disallowEmptySelection
-        selectedKeys={active ? [active.id] : []} onSelectionChange={(keys) => { const key = [...keys][0]; if (key) updateLayout({ rightPanel: String(key) }); }}>
-        {panels.map((panel) => {
-          const Icon = panel.icon;
-          return <TooltipTrigger key={panel.id} delay={400}>
-            <ToggleButton id={panel.id} className="activity-button" aria-label={panel.label}><Icon size={16} /></ToggleButton>
-            <Tooltip className="wb-tooltip">{panel.label}</Tooltip>
-          </TooltipTrigger>;
-        })}
-      </ToggleButtonGroup>
+/**
+ * The right sidebar for the selected piece of work, like Orca's: Files (the tree and search), Changes (diffs and the
+ * commit box), Sections (open any moment in the game) and Ship (verify, screens, voices, the PR). ⌘⌥B hides it.
+ */
+export function RightSidebar({ workspace }: { workspace: Workspace }) {
+  const tab = useWorkbenchStore((state) => state.layout.explorer?.tab ?? "files");
+  const changes = useSourceControlStatus(workspace.path, true)?.status?.changes.length ?? 0;
+  return <aside className="sidebar-card right-sidebar" aria-label="Explorer">
+    <div className="explorer-bar" role="tablist" aria-label="Explorer">
+      {TABS.map((item) => {
+        const Icon = item.icon;
+        const selected = item.id === tab;
+        return <button key={item.id} role="tab" aria-selected={selected} aria-label={item.label} className={`explorer-tab ${selected ? "is-selected" : ""}`}
+          title={item.label} onClick={() => openExplorer(item.id)}>
+          <Icon size={15} /><span>{item.label}</span>
+          {item.id === "changes" && changes > 0 && <span className="count-badge">{changes}</span>}
+        </button>;
+      })}
+      <span className="explorer-bar-end"><IconButton label="Hide the explorer (⌘⌥B)" onPress={() => toggleExplorer(true)}><SidebarRightIcon size={15} /></IconButton></span>
     </div>
-    <div className="side-panel-region">
-      {workspace && active && Panel ? <Panel key={`${active.id}-${workspace.id}`} workspace={workspace} /> : <p className="panel-empty">Add a workspace to browse its files and changes.</p>}
+    <div className="explorer-body" role="tabpanel" aria-label={TABS.find((item) => item.id === tab)?.label}>
+      {tab === "files" && <FilesPanel workspace={workspace} />}
+      {tab === "changes" && <SourceControlPanel workspace={workspace} />}
+      {tab === "sections" && <SectionTree workspace={workspace} />}
+      {tab === "ship" && <ShipPanel workspaceId={workspace.id} docked />}
     </div>
   </aside>;
 }

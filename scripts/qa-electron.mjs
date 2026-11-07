@@ -19,7 +19,7 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
     { id: "claude", workspaceId: "qa", type: "agent", title: "Claude QA", state: { providerId: "claude.cli" } },
   ] }], activeWorkspaceId: "qa", personas: [], selectedPersonaByWorkspace: {}, appendedInstructions: [],
 }));
-let app = await electron.launch({ args: ["."], env: { ...process.env, WORKBENCH_USER_DATA_DIR: directory } });
+let app = await electron.launch({ args: ["."], env: { ...process.env, STUDIO_REPO_ROOT: process.cwd(), WORKBENCH_USER_DATA_DIR: directory } });
 try {
   const page = await app.firstWindow();
   await page.evaluate(() => { globalThis.qaAgentEvents = []; globalThis.workbench.agent.onEvent((event) => globalThis.qaAgentEvents.push(event)); });
@@ -114,7 +114,7 @@ try {
   await page.waitForTimeout(350);
   assert.deepEqual(errors, []);
   await app.close();
-  app = await electron.launch({ args: ["."], env: { ...process.env, WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: join(directory, "missing-codex") } });
+  app = await electron.launch({ args: ["."], env: { ...process.env, STUDIO_REPO_ROOT: process.cwd(), WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: join(directory, "missing-codex") } });
   const restored = await app.firstWindow();
   await restored.getByRole("heading", { name: "Choose your coding harness" }).waitFor();
   assert(await restored.getByRole("radio", { name: /Codex/ }).isDisabled());

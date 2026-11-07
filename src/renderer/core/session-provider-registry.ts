@@ -7,6 +7,10 @@ export interface SessionCreateContext {
   rows?: number;
   viewId?: string;
   resume?: boolean;
+  /** A main-process launch profile; see AgentSessionCreateOptions. */
+  profile?: string;
+  /** Model and effort for a new conversation (launch arguments; a resumed one keeps its own). */
+  settings?: import("../../shared/agent-models").AgentModelSettings;
 }
 
 export interface SessionController {

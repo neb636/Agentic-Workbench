@@ -1,16 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogTrigger, GridList, GridListItem, Heading, Modal, ModalOverlay, TextArea, TextField, Label } from "react-aria-components";
-import type { SourceControlChange } from "../../../shared/models";
 import { errorMessage } from "../../core/errors";
 import type { PanelProps } from "../../core/panel-registry";
 import { services } from "../../core/services";
-import type { WidgetProps } from "../../core/widget-registry";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button, IconButton } from "../../ui/controls";
 import { BranchIcon, CheckIcon, FileIcon, RefreshIcon } from "../../ui/icons";
-import { activeRoot, refreshSourceControl, useSourceControlStatus } from "./source-control-store";
+import { activeRoot, CHANGE_LETTERS as LETTERS, refreshSourceControl, useSourceControlStatus } from "./source-control-store";
 
-const LETTERS: Record<SourceControlChange["kind"], string> = { modified: "M", added: "A", deleted: "D", renamed: "R", untracked: "U", conflicted: "C" };
 
 function folderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
@@ -20,6 +17,27 @@ export function SourceControlPanel({ workspace }: PanelProps) {
   const root = activeRoot(workspace);
   const entry = useSourceControlStatus(root, true);
   const status = entry?.status;
+  const [branches, setBranches] = useState<string[]>([]);
+  const [branch, setBranch] = useState('');
+  const [newBranch, setNewBranch] = useState('');
+  const [switching, setSwitching] = useState(false);
+  useEffect(() => {
+    let current = true;
+    window.workbench.sourceControl.branches(root).then(items => { if (current) setBranches(items); }).catch(() => {});
+    return () => { current = false; };
+  }, [root, status]);
+  const changeBranch = async (worktree: boolean) => {
+    setSwitching(true); setError('');
+    try {
+      if (worktree) {
+        const result = await window.workbench.sourceControl.createWorktree(root, newBranch.trim());
+        useWorkbenchStore.getState().addWorkspace(result.path);
+        setNewBranch('');
+      } else { await window.workbench.sourceControl.checkout(root, branch); setBranch(''); }
+      await refreshSourceControl(root);
+    } catch (error) { setError(errorMessage(error)); }
+    finally { setSwitching(false); }
+  };
   const [message, setMessage] = useState("");
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState("");
@@ -42,6 +60,17 @@ export function SourceControlPanel({ workspace }: PanelProps) {
         {(status.ahead > 0 || status.behind > 0) && <small>↑{status.ahead} ↓{status.behind}</small>}
         <small className="branch-provider">{status.providerLabel}</small>
       </div>
+      <details className="commit-area branch-area">
+        <summary>Switch branch or make a worktree</summary>
+        <label>Branch<select aria-label="Checkout branch" value={branch} onChange={event => setBranch(event.target.value)}>
+          <option value="">Choose a branch…</option>
+          {branches.map(name => <option key={name} value={name}>{name}</option>)}
+        </select></label>
+        <Button isDisabled={!branch || switching || branch === status.branch || count > 0} onPress={() => void changeBranch(false)}>Switch branch</Button>
+        {count > 0 && <p>Commit changes or create a worktree to switch branches.</p>}
+        <label>New worktree branch<input aria-label="New worktree branch" value={newBranch} onChange={event => setNewBranch(event.target.value)} /></label>
+        <Button isDisabled={!newBranch.trim() || switching} onPress={() => void changeBranch(true)}>Create worktree</Button>
+      </details>
       <div className="commit-area">
         <TextField aria-label="Commit message" value={message} onChange={setMessage}>
           <TextArea placeholder="Commit message" rows={3} />
@@ -62,10 +91,10 @@ export function SourceControlPanel({ workspace }: PanelProps) {
         </DialogTrigger>
         {error && <p role="alert" className="agent-error">{error}</p>}
       </div>
-      <div className="panel-section-header"><Label>Changes</Label><span className="count-badge">{count}{status.truncated ? "+" : ""}</span></div>
+      <div className="panel-section-header"><Label>Changes</Label><small className="panel-hint">click for the diff</small><span className="count-badge">{count}{status.truncated ? "+" : ""}</span></div>
       <GridList aria-label="Changes" className="panel-list change-list" items={status.changes.map((change) => ({ ...change, id: change.path }))}
         disabledKeys={status.changes.filter((change) => change.kind === "deleted").map((change) => change.path)}
-        onAction={(key) => void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key) })}
+        onAction={(key) => void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key), diff: true, preview: true })}
         renderEmptyState={() => <p className="panel-empty">No uncommitted changes.</p>}>
         {(change) => <GridListItem id={change.id} textValue={change.path} className="panel-list-item">
           <FileIcon size={14} />
@@ -76,13 +105,6 @@ export function SourceControlPanel({ workspace }: PanelProps) {
       </GridList>
     </>}
   </div>;
-}
-
-/** Branch name for a workspace row in the sidebar. */
-export function WorkspaceBranch({ workspaceId }: WidgetProps) {
-  const path = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === workspaceId)?.path);
-  const branch = useSourceControlStatus(path, false)?.status?.branch;
-  return branch ? <span className="workspace-branch">{branch}</span> : null;
 }
 
 /** Branch of the active view's folder in the status bar. */

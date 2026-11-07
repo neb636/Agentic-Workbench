@@ -1,8 +1,0 @@
-node_modules
-dist
-dist-electron
-playwright-report
-test-results
-.DS_Store
-*.log
-release

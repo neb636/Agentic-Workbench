@@ -260,3 +260,33 @@
   box-shadow: var(--wb-shadow-prompt), 0 0 0 1px var(--wb-border-subtle);
 }
 .brand-mark { background: linear-gradient(var(--wb-strong-start), var(--wb-strong-end)); color: var(--wb-text-inverse); font-weight: 700; box-shadow: var(--wb-shadow-strong); }
+
+/* Work list: the one repo and its worktrees */
+.left-sidebar .work-scroll { flex: 1; min-height: 0; overflow: auto; }
+.left-sidebar .work-scroll .workspace-tree { flex: none; overflow: visible; }
+.header-actions { display: flex; align-items: center; gap: 2px; }
+.work-meta { display: flex; flex-wrap: nowrap; gap: 6px; }
+.work-meta > span { flex: none; }
+.work-pr { font-weight: 600; }
+.work-pr.is-open { color: #1f883d; }
+.work-pr.is-draft { color: var(--wb-text-secondary); }
+.work-pr.is-merged { color: #8250df; }
+.work-pr.is-closed { color: #cf222e; }
+.work-ci.is-passing { color: #1f883d; }
+.work-ci.is-failing, .work-bad { color: #cf222e; }
+.work-ci.is-pending { color: #9a6700; }
+.work-row.is-missing strong { color: var(--wb-text-muted); text-decoration: line-through; }
+.work-notice { white-space: pre-line; cursor: pointer; }
+.work-subheader { margin-top: 10px; }
+.work-toggle { display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; outline: none; cursor: default; }
+.work-toggle[data-focus-visible] { box-shadow: 0 0 0 2px var(--wb-focus-ring); border-radius: 4px; }
+.small-button { height: 24px; padding: 0 8px; font-size: 11px; }
+.new-work { display: grid; gap: 6px; margin: 0 10px 10px; padding: 10px; border-radius: var(--wb-radius-lg); background: var(--wb-bg-field); }
+.new-work label { font-weight: 600; }
+.new-work input { height: 30px; padding: 0 9px; border: 1px solid var(--wb-border-subtle); border-radius: var(--wb-radius-sm); background: var(--wb-bg-raised); font: inherit; outline: none; }
+.new-work input:focus { box-shadow: 0 0 0 2px var(--wb-focus-ring); }
+.new-work small { color: var(--wb-text-secondary); font-size: 11px; line-height: 15px; }
+.new-work-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 0 10px; }
+.new-work .new-work-actions { padding: 0; }
+.other-folder { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px 4px 16px; color: var(--wb-text-secondary); }
+.other-folder span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

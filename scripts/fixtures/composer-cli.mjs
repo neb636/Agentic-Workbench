@@ -8,11 +8,16 @@ const screen = (text) => process.stdout.write(`\x1b[2J\x1b[H\x1b[?2004h${text}`)
 const ready = () => screen("ERROR: Connection refused\r\n› ");
 let pending = "";
 let prompt = "";
+// Model and effort arrive as launch arguments, like Codex: --model <id> -c model_reasoning_effort="<effort>".
+const argv = process.argv.slice(2);
+const model = argv[argv.indexOf("--model") + 1] ?? "";
+const effort = argv.find((arg) => arg.startsWith("model_reasoning_effort="))?.match(/"(.*)"/)?.[1] ?? "";
 ready();
 process.stdin.on("data", (data) => {
   if (data === "\x03") { pending = ""; prompt = ""; ready(); return; }
-  pending += data;
-  if (pending === "/plan ") screen("› /plan ");
+  // Mouse reports from the window's terminal are not input to the editor.
+  // eslint-disable-next-line no-control-regex
+  pending += data.replace(/\x1b\[<\d+;\d+;\d+[Mm]/g, "");
   const start = pending.indexOf("\x1b[200~");
   const end = pending.indexOf("\x1b[201~");
   if (start >= 0 && end >= start) {
@@ -21,7 +26,7 @@ process.stdin.on("data", (data) => {
     screen("› pasted draft");
   }
   if (pending.includes("\r") && prompt) {
-    appendFileSync(process.env.COMPOSER_QA_LOG, JSON.stringify({ prompt, cwd: process.cwd() }) + "\n");
+    appendFileSync(process.env.COMPOSER_QA_LOG, JSON.stringify({ prompt, model, effort, cwd: process.cwd() }) + "\n");
     const sent = prompt;
     pending = ""; prompt = "";
     setTimeout(() => {

@@ -14,7 +14,7 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   ] }], activeWorkspaceId: "qa", personas: [{ id: "p", name: "Test persona", instructions: "Do not use tools or change any files.", description: "Read-only integration check", scope: "global" }],
   selectedPersonaByWorkspace: { qa: "p" }, appendedInstructions: [{ id: "i", workspaceId: "qa", content: "Keep the response brief.", enabled: true }],
 }));
-const app = await electron.launch({ args: ["."], env: { ...process.env, WORKBENCH_USER_DATA_DIR: directory } });
+const app = await electron.launch({ args: ["."], env: { ...process.env, STUDIO_REPO_ROOT: process.cwd(), WORKBENCH_USER_DATA_DIR: directory } });
 try {
   const page = await app.firstWindow();
   page.setDefaultTimeout(10_000);

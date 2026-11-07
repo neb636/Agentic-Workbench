@@ -21,6 +21,12 @@ export interface ViewDefinition {
   defaultTitle?: string;
   /** Views of this type are listed under their workspace in the left sidebar. */
   listInSidebar?: boolean;
+  /** Several entries in the + menu instead of one (the game and each lab); `open` makes or brings forward that tab. */
+  menuItems?: { id: string; label: string; description: string; icon?: ComponentType<{ size?: number }>; open: (workspaceId: string) => void }[];
+  /** The tab's title is in italics (a preview tab, replaced by the next one). */
+  isPreview?: (view: WorkbenchView) => boolean;
+  /** Items for the tab's menu (right-click), after Close and Close others. */
+  tabMenu?: (view: WorkbenchView) => { id: string; label: string; run: () => void }[];
   /** Status shown when no live status has been published for the view. */
   idleStatus?: (view: WorkbenchView) => ViewStatus | undefined;
 }

@@ -1,6 +1,9 @@
+import { execFile, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import { promises as fs, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
-import type { FileContent, FileEntry } from "../shared/models";
+import type { FileContent, FileEntry, FileWriteResult, SearchMatch, SearchResult } from "../shared/models";
+import { executablePath } from "./executables";
 
 const HIDDEN = new Set([".git", ".DS_Store"]);
 const SKIP_WHEN_SEARCHING = new Set([".git", "node_modules"]);
@@ -8,6 +11,20 @@ const READ_LIMIT = 2 * 1024 * 1024;
 const LIST_LIMIT = 5_000;
 const WALK_LIMIT = 50_000;
 const INDEX_TTL = 10_000;
+const WRITE_LIMIT = 2 * 1024 * 1024;
+const IMAGE_LIMIT = 8 * 1024 * 1024;
+const SEARCH_MATCHES = 500;
+const SEARCH_MS = 2_000;
+const IMAGE_TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", avif: "image/avif", bmp: "image/bmp", ico: "image/x-icon" };
+
+/** The picture type for a file name, or undefined for anything that isn't a picture. */
+export function imageType(file: string): string | undefined {
+  return IMAGE_TYPES[file.slice(file.lastIndexOf(".") + 1).toLowerCase()];
+}
+
+export function contentHash(bytes: Buffer): string {
+  return createHash("sha1").update(bytes).digest("hex");
+}
 
 function isInside(target: string, base: string): boolean {
   const relative = path.relative(base, target);
@@ -16,6 +33,20 @@ function isInside(target: string, base: string): boolean {
 
 function toPortable(relative: string): string {
   return relative.split(path.sep).join("/");
+}
+
+// Build output, dependencies and QA screenshots change by the thousand during npm ci, builds and QA; nothing in the
+// Studio shows them live. Inside .git only what changes the status or branch counts: every other worktree's git
+// activity lands in the main checkout's .git/worktrees and objects, and used to restart git status non-stop.
+const QUIET_FOLDERS = new Set(["node_modules", "dist", "dist-electron", "release", "qa-output", "test-results", "playwright-report", ".vite", ".cache"]);
+const GIT_SIGNALS = /^\.git\/(HEAD|index|packed-refs|MERGE_HEAD|refs\/.*)$/;
+
+/** True for a changed path (relative, portable) the Studio's file and source control views care about. */
+export function isWatchedChange(changed: string): boolean {
+  if (!changed) return true;
+  if (changed === ".DS_Store" || changed.endsWith("/.DS_Store")) return false;
+  if (changed === ".git" || changed.startsWith(".git/")) return GIT_SIGNALS.test(changed);
+  return !changed.split("/").some((segment) => QUIET_FOLDERS.has(segment));
 }
 
 /** Worktrees for a workspace are created beside it, in `<workspace>-worktrees/`. */
@@ -29,6 +60,16 @@ export function worktreeContainer(root: string): string {
  */
 export class WorkspaceRoots {
   private roots = new Set<string>();
+  /** Every worktree of the repo, wherever git keeps it (refreshed each time the Work list is read). */
+  private worktrees = new Set<string>();
+
+  setWorktrees(paths: string[]): void {
+    this.worktrees = new Set(paths.map((item) => path.resolve(item)));
+  }
+
+  worktreeList(): string[] {
+    return [...this.worktrees];
+  }
 
   replace(paths: string[]): void {
     this.roots = new Set(paths.map((item) => path.resolve(item)));
@@ -40,6 +81,7 @@ export class WorkspaceRoots {
 
   isAllowed(root: string): boolean {
     const requested = path.resolve(root);
+    if (this.worktrees.has(requested)) return true;
     return [...this.roots].some((allowed) => requested === allowed || isInside(requested, worktreeContainer(allowed)));
   }
 
@@ -56,6 +98,45 @@ async function resolveInside(base: string, relative: string): Promise<string> {
   return target;
 }
 
+/** A path that may not exist yet (a new file, a rename target): its folder must exist inside the base. */
+async function resolveNew(base: string, relative: string): Promise<string> {
+  if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
+  const target = path.resolve(base, relative);
+  const name = path.basename(target);
+  if (!name || name === "." || name === ".." || name === ".git" || name.includes("\0")) throw new Error("That name can't be used.");
+  const parent = await fs.realpath(path.dirname(target));
+  if (parent !== base && !isInside(parent, base)) throw new Error("Path is outside the workspace.");
+  const resolved = path.join(parent, name);
+  if (toPortable(path.relative(base, resolved)).split("/")[0] === ".git") throw new Error("Studio never changes .git.");
+  return resolved;
+}
+
+/** An existing entry itself (a symlink stays the link, not its target): its folder must be inside the base. */
+async function resolveEntry(base: string, relative: string): Promise<string> {
+  if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
+  const target = path.resolve(base, relative || ".");
+  if (target === base) return base;
+  const parent = await fs.realpath(path.dirname(target));
+  if (parent !== base && !isInside(parent, base)) throw new Error("Path is outside the workspace.");
+  const entry = path.join(parent, path.basename(target));
+  await fs.lstat(entry);
+  return entry;
+}
+
+/** Parses `git grep -n -z` output: `path\0line\0text` per line. */
+export function parseGrep(output: string, limit = SEARCH_MATCHES): SearchMatch[] {
+  const matches: SearchMatch[] = [];
+  for (const record of output.split("\n")) {
+    if (!record) continue;
+    const [file, line, ...rest] = record.split("\0");
+    const number = Number(line);
+    if (!file || !Number.isFinite(number)) continue;
+    matches.push({ path: file, line: number, text: rest.join("\0").slice(0, 400) });
+    if (matches.length >= limit) break;
+  }
+  return matches;
+}
+
 interface Watch {
   watcher: FSWatcher;
   listeners: Set<(paths: string[]) => void>;
@@ -66,8 +147,11 @@ interface Watch {
 export class WorkspaceFiles {
   private readonly indexes = new Map<string, { files: string[]; at: number }>();
   private readonly watches = new Map<string, Watch>();
+  private readonly searches = new Map<string, ChildProcess>();
+  private readonly saving = new Map<string, Promise<FileWriteResult>>();
 
-  constructor(private readonly roots: WorkspaceRoots) {}
+  /** `trash` moves a path to the Trash (Electron's shell.trashItem); tests pass their own. */
+  constructor(private readonly roots: WorkspaceRoots, private readonly trashItem: (absolute: string) => Promise<void> = async () => { throw new Error("Trash is not available."); }) {}
 
   async list(root: string, relative: string): Promise<FileEntry[]> {
     const base = await this.roots.resolve(root);
@@ -97,8 +181,137 @@ export class WorkspaceFiles {
       const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
       const bytes = buffer.subarray(0, bytesRead);
       const binary = bytes.subarray(0, 8000).includes(0);
-      return { path: toPortable(path.relative(base, file)), content: binary ? "" : bytes.toString("utf8"), size: stats.size, truncated: stats.size > bytesRead, binary };
+      return { path: toPortable(path.relative(base, file)), content: binary ? "" : bytes.toString("utf8"), size: stats.size, truncated: stats.size > bytesRead, binary, hash: contentHash(bytes) };
     } finally { await handle.close(); }
+  }
+
+  /**
+   * Saves text inside the root, only over the version that was opened (`expectedHash`; null for a file that must not
+   * exist yet). When the file changed on disk since, nothing is written and the disk version comes back instead.
+   */
+  async write(root: string, relative: string, content: string, expectedHash: string | null): Promise<FileWriteResult> {
+    // One save per file at a time: a second save waits, then finds the hash moved on and returns a conflict.
+    const key = `${root}\0${relative}`;
+    const previous = this.saving.get(key) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(() => this.writeNow(root, relative, content, expectedHash));
+    this.saving.set(key, next);
+    try { return await next; } finally { if (this.saving.get(key) === next) this.saving.delete(key); }
+  }
+
+  private async writeNow(root: string, relative: string, content: string, expectedHash: string | null): Promise<FileWriteResult> {
+    const base = await this.roots.resolve(root);
+    const bytes = Buffer.from(content, "utf8");
+    if (bytes.length > WRITE_LIMIT) throw new Error("Files over 2 MB can't be saved from Studio.");
+    if (bytes.subarray(0, 8000).includes(0)) throw new Error("Only text files can be saved from Studio.");
+    let file: string;
+    try { file = await resolveInside(base, relative); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      file = await resolveNew(base, relative);
+    }
+    if (toPortable(path.relative(base, file)).split("/")[0] === ".git") throw new Error("Studio never changes .git.");
+    const current = await fs.stat(file).then((stats) => stats, () => undefined);
+    if (current && !current.isFile()) throw new Error("Only files can be saved.");
+    if (current && current.size > WRITE_LIMIT) throw new Error("Files over 2 MB can't be saved from Studio.");
+    const disk = current ? await fs.readFile(file) : undefined;
+    if (disk ? contentHash(disk) !== expectedHash : expectedHash !== null) {
+      return { ok: false, disk: disk ? await this.read(root, relative) : null };
+    }
+    if (disk?.subarray(0, 8000).includes(0)) throw new Error("Only text files can be saved from Studio.");
+    // Write beside it, then rename: a crash never leaves half a file, and the mode stays.
+    const temporary = `${file}.studio-${process.pid}-${Date.now()}`;
+    await fs.writeFile(temporary, bytes, current ? { mode: current.mode } : {});
+    // Check again right before replacing it: an agent may have written while the new version was being written.
+    const now = await fs.readFile(file).then((value) => contentHash(value), () => null);
+    if (now !== (disk ? contentHash(disk) : null)) {
+      await fs.rm(temporary, { force: true });
+      return { ok: false, disk: now === null ? null : await this.read(root, relative) };
+    }
+    await fs.rename(temporary, file).catch(async (error) => { await fs.rm(temporary, { force: true }); throw error; });
+    this.indexes.delete(base);
+    return { ok: true, hash: contentHash(bytes) };
+  }
+
+  /** Text search inside files with `git grep` (tracked and untracked, not ignored). One search per root at a time. */
+  async search(root: string, query: string, options: { caseSensitive?: boolean; regex?: boolean } = {}): Promise<SearchResult> {
+    const base = await this.roots.resolve(root);
+    const git = executablePath("git");
+    if (!git) throw new Error("Git was not found on this machine.");
+    this.searches.get(base)?.kill();
+    const args = ["-c", "core.quotePath=false", "grep", "-n", "-I", "--untracked", "--no-color", "-z", "--full-name",
+      ...(options.caseSensitive ? [] : ["-i"]), options.regex ? "-E" : "-F", "-e", query, "--", "."];
+    return new Promise((resolve, reject) => {
+      let output = "";
+      let limited = false;
+      const child = execFile(git, args, { cwd: base, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" } }, (error) => {
+        clearTimeout(timer);
+        if (this.searches.get(base) === child) this.searches.delete(base);
+        const matches = parseGrep(output);
+        // Exit 1 = no matches; a kill = the time or match limit (or a newer search).
+        if (error && (error as { code?: unknown }).code !== 1 && !child.killed) { reject(new Error(String((error as Error).message).split("\n").at(-1) || "Search failed")); return; }
+        resolve({ matches, limited: limited || matches.length >= SEARCH_MATCHES });
+      });
+      this.searches.set(base, child);
+      const timer = setTimeout(() => { limited = true; child.kill(); }, SEARCH_MS);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        output += chunk.toString("utf8");
+        if ((output.match(/\n/g)?.length ?? 0) >= SEARCH_MATCHES) { limited = true; child.kill(); }
+      });
+    });
+  }
+
+  /** A picture inside the root as a data URL. */
+  async image(root: string, relative: string): Promise<string> {
+    const base = await this.roots.resolve(root);
+    const file = await resolveInside(base, relative);
+    const type = imageType(file);
+    if (!type) throw new Error("That file isn't a picture.");
+    const stats = await fs.stat(file);
+    if (!stats.isFile()) throw new Error("Only files can be opened.");
+    if (stats.size > IMAGE_LIMIT) throw new Error("Pictures over 8 MB aren't shown.");
+    return `data:${type};base64,${(await fs.readFile(file)).toString("base64")}`;
+  }
+
+  /** The paths in the list that are files inside the root. */
+  async exists(root: string, paths: string[]): Promise<string[]> {
+    const base = await this.roots.resolve(root);
+    const found = await Promise.all(paths.map(async (relative) => {
+      try { return (await fs.stat(await resolveInside(base, relative))).isFile() ? relative : undefined; } catch { return undefined; }
+    }));
+    return found.filter((item): item is string => Boolean(item));
+  }
+
+  async create(root: string, relative: string, kind: "file" | "directory"): Promise<void> {
+    const base = await this.roots.resolve(root);
+    const target = await resolveNew(base, relative);
+    if (kind === "directory") await fs.mkdir(target);
+    else await fs.writeFile(target, "", { flag: "wx" });
+    this.indexes.delete(base);
+  }
+
+  async rename(root: string, from: string, to: string): Promise<void> {
+    const base = await this.roots.resolve(root);
+    const source = await resolveEntry(base, from);
+    if (source === base) throw new Error("The checkout itself can't be renamed.");
+    if (toPortable(path.relative(base, source)).split("/")[0] === ".git") throw new Error("Studio never changes .git.");
+    const target = await resolveNew(base, to);
+    if (await fs.lstat(target).then(() => true, () => false)) throw new Error(`${to} already exists.`);
+    await fs.rename(source, target);
+    this.indexes.delete(base);
+  }
+
+  async trash(root: string, relative: string): Promise<void> {
+    const base = await this.roots.resolve(root);
+    const target = await resolveEntry(base, relative);
+    if (target === base) throw new Error("The checkout itself can't be moved to the Trash.");
+    if (toPortable(path.relative(base, target)).split("/")[0] === ".git") throw new Error("Studio never changes .git.");
+    await this.trashItem(target);
+    this.indexes.delete(base);
+  }
+
+  /** The absolute path of something inside the root (for Reveal in Finder). */
+  async locate(root: string, relative: string): Promise<string> {
+    return resolveInside(await this.roots.resolve(root), relative);
   }
 
   async find(root: string, query: string, limit = 200): Promise<string[]> {
@@ -121,6 +334,7 @@ export class WorkspaceFiles {
     if (!entry) {
       const created: Watch = { listeners: new Set(), pending: new Set(), watcher: watch(base, { recursive: true }, (_type, name) => {
         const changed = name ? toPortable(String(name)) : "";
+        if (!isWatchedChange(changed)) return;
         created.pending.add(changed.startsWith(".git/") ? ".git" : changed);
         this.indexes.delete(base);
         clearTimeout(created.timer);

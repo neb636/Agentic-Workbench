@@ -4,6 +4,7 @@ import type {
   AgentSessionCreateOptions,
   AgentSessionEvent,
   FilesChangedEvent,
+  MenuCommand,
   PersistedState,
   PtyCreateOptions,
   PtyDataEvent,
@@ -13,6 +14,26 @@ import type {
 
 const api: WorkbenchApi = {
   platform: process.platform,
+  studio: {
+    copyText: text => ipcRenderer.invoke("studio:copy-text", text),
+    repoRoot: () => ipcRenderer.invoke('studio:repo-root'),
+    useCheckout: root => ipcRenderer.invoke('studio:use-checkout', root),
+    sections: (root, refresh) => ipcRenderer.invoke('studio:sections', { root, refresh }),
+    trimServers: (keep, root) => ipcRenderer.invoke('studio:trim-servers', keep, root),
+    tune: input => ipcRenderer.invoke('studio:tune', input),
+    cancel: id => ipcRenderer.send('studio:cancel', id),
+    onMenu: listener => {
+      const handler = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
+      ipcRenderer.on('studio:menu', handler);
+      return () => { ipcRenderer.removeListener('studio:menu', handler); };
+    },
+  },
+  work: {
+    list: (root, refresh) => ipcRenderer.invoke(IPC.workList, { root, refresh }),
+    create: (root, name) => ipcRenderer.invoke(IPC.workCreate, { root, name }),
+    remove: (root, path) => ipcRenderer.invoke(IPC.workRemove, { root, path }),
+    install: (root, path) => ipcRenderer.invoke(IPC.workInstall, { root, path }),
+  },
   persistence: {
     load: () => ipcRenderer.invoke(IPC.persistenceLoad) as Promise<PersistedState>,
     save: (state) => ipcRenderer.invoke(IPC.persistenceSave, state) as Promise<void>,
@@ -22,11 +43,20 @@ const api: WorkbenchApi = {
   },
   app: {
     metrics: () => ipcRenderer.invoke(IPC.appMetrics),
+    badge: (count) => ipcRenderer.send(IPC.appBadge, count),
   },
   files: {
     list: (root, path) => ipcRenderer.invoke(IPC.filesList, { root, path }),
     read: (root, path) => ipcRenderer.invoke(IPC.filesRead, { root, path }),
     find: (root, query) => ipcRenderer.invoke(IPC.filesFind, { root, query }),
+    write: (root, path, content, expectedHash) => ipcRenderer.invoke(IPC.filesWrite, { root, path, content, expectedHash }),
+    search: (root, query, options) => ipcRenderer.invoke(IPC.filesSearch, { root, query, ...options }),
+    image: (root, path) => ipcRenderer.invoke(IPC.filesImage, { root, path }),
+    exists: (root, paths) => ipcRenderer.invoke(IPC.filesExists, { root, paths }),
+    create: (root, path, kind) => ipcRenderer.invoke(IPC.filesCreate, { root, path, kind }),
+    rename: (root, from, to) => ipcRenderer.invoke(IPC.filesRename, { root, from, to }),
+    trash: (root, path) => ipcRenderer.invoke(IPC.filesTrash, { root, path }),
+    reveal: (root, path) => ipcRenderer.send(IPC.filesReveal, { root, path }),
     watch: (root) => ipcRenderer.send(IPC.filesWatch, { root }),
     unwatch: (root) => ipcRenderer.send(IPC.filesUnwatch, { root }),
     onChanged: (listener) => {
@@ -36,10 +66,14 @@ const api: WorkbenchApi = {
     },
   },
   sourceControl: {
+    branches: root => ipcRenderer.invoke(IPC.sourceControlBranches, { root }),
+    checkout: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCheckout, { root, branch }),
     detect: (root) => ipcRenderer.invoke(IPC.sourceControlDetect, { root }),
     status: (root) => ipcRenderer.invoke(IPC.sourceControlStatus, { root }),
     commit: (root, message) => ipcRenderer.invoke(IPC.sourceControlCommit, { root, message }),
     createWorktree: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCreateWorktree, { root, branch }),
+    fileAt: (root, path, base) => ipcRenderer.invoke(IPC.sourceControlFileAt, { root, path, base }),
+    ignored: (root) => ipcRenderer.invoke(IPC.sourceControlIgnored, { root }),
   },
   pty: {
     create: (options: PtyCreateOptions) => ipcRenderer.invoke(IPC.ptyCreate, options) as Promise<string>,
@@ -56,6 +90,14 @@ const api: WorkbenchApi = {
       ipcRenderer.on(IPC.ptyExit, wrapped);
       return () => ipcRenderer.removeListener(IPC.ptyExit, wrapped);
     },
+  },
+  images: {
+    folder: (viewId) => ipcRenderer.invoke(IPC.imagesFolder, { viewId }),
+    importData: (viewId, name, data) => ipcRenderer.invoke(IPC.imagesImportData, { viewId, name, data }),
+    prepareRun: (viewId, runId, attachments) => ipcRenderer.invoke(IPC.imagesPrepareRun, { viewId, runId, attachments }),
+    inspectRun: (viewId, runId) => ipcRenderer.invoke(IPC.imagesInspectRun, { viewId, runId }),
+    read: (viewId, file) => ipcRenderer.invoke(IPC.imagesRead, { viewId, file }),
+    reveal: (viewId, file) => ipcRenderer.send(IPC.imagesReveal, { viewId, file }),
   },
   agent: {
     providers: () => ipcRenderer.invoke(IPC.agentProviders),
