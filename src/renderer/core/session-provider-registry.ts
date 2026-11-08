@@ -1,5 +1,5 @@
 import { Registry } from "./registry";
-import type { AgentDeliveryResult, AgentPromptRequest, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
 
 export interface SessionCreateContext {
   workspacePath: string;
@@ -7,6 +7,8 @@ export interface SessionCreateContext {
   rows?: number;
   viewId?: string;
   resume?: boolean;
+  /** Model and effort for a new conversation (launch arguments; a resumed one keeps its own). */
+  settings?: AgentModelSettings;
 }
 
 export interface SessionController {

@@ -1,13 +1,13 @@
 import { create } from "zustand";
-import type { AgentDeliveryResult, AgentPromptRequest, AgentSessionStatus, AgentViewState, PromptQuotation } from "../../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptQuotation } from "../../../shared/models";
 import { resetSelections, resolveOptions, type PromptSelections } from "../../../shared/prompt-options";
 import type { AssembledPrompt } from "../../core/prompt-assembler";
 import { createId } from "../../core/id";
 import { errorMessage } from "../../core/errors";
 import { services } from "../../core/services";
-import { closeAgentRuntime, startAgentRuntime, useAgentRuntimes } from "../../core/agent-runtimes";
-import type { AgentSessionController } from "../../core/session-provider-registry";
+import { closeAgentRuntime, isUnusedConversation, markAgentPrompted, startAgentRuntime, untilSubmittable, useAgentRuntimes, type AgentRuntime } from "../../core/agent-runtimes";
 import { useWorkbenchStore } from "../../state/workbench-store";
+import { modelSettings } from "./agent-models";
 
 export interface ComposerTarget { workspaceId: string; viewId: string; }
 export interface PromptPreview extends AssembledPrompt { intent: AgentPromptRequest["intent"]; }
@@ -29,7 +29,6 @@ interface ComposerRuntime {
 const emptyRuntime: ComposerRuntime = { history: [], sending: false, launching: false };
 export const useComposerState = create<{ views: Record<string, ComposerRuntime> }>(() => ({ views: {} }));
 export const emptyComposerRuntime = emptyRuntime;
-const READY_TIMEOUT = 45_000;
 
 function stateFor({ workspaceId, viewId }: ComposerTarget): AgentViewState | undefined {
   return useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId)?.views.find((v) => v.id === viewId)?.state as AgentViewState | undefined;
@@ -37,7 +36,7 @@ function stateFor({ workspaceId, viewId }: ComposerTarget): AgentViewState | und
 function patchView(target: ComposerTarget, patch: Partial<AgentViewState>): void {
   useWorkbenchStore.getState().updateViewState(target.workspaceId, target.viewId, patch);
 }
-export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "quotations" | "intent">): void {
+export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "quotations" | "intent" | "modelSettings">): void {
   patchView(target, { ...patch, composerRevision: (stateFor(target)?.composerRevision ?? 0) + 1 });
 }
 export function setPromptSelections(target: ComposerTarget, promptSelections: PromptSelections): void {
@@ -48,6 +47,10 @@ function exists({ workspaceId, viewId }: ComposerTarget): boolean {
 }
 function updateRuntime(viewId: string, patch: Partial<ComposerRuntime>): void {
   useComposerState.setState((state) => ({ views: { ...state.views, [viewId]: { ...(state.views[viewId] ?? emptyRuntime), ...patch } } }));
+}
+/** A new choice (model, effort) makes the last delivery's message stale. */
+export function clearComposerResult(viewId: string): void {
+  if (useComposerState.getState().views[viewId]?.result) updateRuntime(viewId, { result: undefined });
 }
 export function clearComposerRuntime(viewId: string): void {
   useComposerState.setState((state) => { const views = { ...state.views }; delete views[viewId]; return { views }; });
@@ -72,19 +75,6 @@ function notSent(viewId: string, message: string): void {
   updateRuntime(viewId, { result: { outcome: "not-sent", stage: "none", message } });
 }
 
-/** Waits until the CLI shows an input it can accept a prompt in; trust and sign-in prompts are answered in the terminal. */
-function untilSubmittable(controller: AgentSessionController): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let off = () => {};
-    const timer = setTimeout(() => { off(); reject(new Error("The CLI is not ready for a prompt yet. Answer it in the terminal, then send again.")); }, READY_TIMEOUT);
-    const settle = (status: AgentSessionStatus) => {
-      if (status.canSubmit) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); }
-      else if (status.lifecycle === "exited" || status.lifecycle === "failed") { clearTimeout(timer); queueMicrotask(() => off()); reject(new Error(status.reason)); }
-    };
-    off = controller.onStatus(settle);
-  });
-}
-
 /** Persona-style menus clear after a send; options may keep or clear themselves regardless of their menu. */
 function resetMenusAfterSend(target: ComposerTarget): void {
   let selections = stateFor(target)?.promptSelections ?? {};
@@ -103,6 +93,20 @@ export async function prepareSessionFolder(target: ComposerTarget): Promise<stri
     : workspace.path;
   patchView(target, { cwd });
   return cwd;
+}
+
+const sameSettings = (a: AgentModelSettings | null, b: AgentModelSettings | null) => a?.model === b?.model && a?.effort === b?.effort;
+/**
+ * The composer's model and effort when they differ from what the running conversation was launched with
+ * (null: the CLI's defaults). Undefined when nothing is pending, or for a resumed conversation, whose settings are its own.
+ */
+export function pendingSettings(runtime: AgentRuntime | undefined, state: AgentViewState | undefined): AgentModelSettings | null | undefined {
+  if (!runtime || runtime.settings === undefined) return undefined;
+  const wanted = modelSettings(runtime.providerId, state?.modelSettings?.[runtime.providerId]);
+  return sameSettings(wanted, runtime.settings) ? undefined : wanted;
+}
+function launchSettings(providerId: string, target: ComposerTarget): AgentModelSettings | undefined {
+  return modelSettings(providerId, stateFor(target)?.modelSettings?.[providerId]) ?? undefined;
 }
 
 function titleFromPrompt(draft: string): string {
@@ -146,8 +150,27 @@ export function registerComposerContributions(): void {
   });
   services.commands.register<ComposerTarget>("agent.composer.send", async (target) => {
     const runtime = useAgentRuntimes.getState().sessions[target.viewId];
+    if (!runtime || !stateFor(target)?.draft?.trim() || useComposerState.getState().views[target.viewId]?.sending) return;
+    // Model and effort are launch arguments. Nothing has gone to this conversation yet, so start it again with the
+    // ones chosen in the composer, then send.
+    if (isUnusedConversation(runtime) && pendingSettings(runtime, stateFor(target)) !== undefined) {
+      closeAgentRuntime(target.viewId);
+      await services.commands.execute("agent.session.launch", { ...target, providerId: runtime.providerId });
+      return;
+    }
+    // The CLI is still starting (or asking something in the terminal): hold the prompt until it can take one.
+    if (!runtime.status?.canSubmit) {
+      const lifecycle = runtime.status?.lifecycle;
+      if (lifecycle === "exited" || lifecycle === "failed") { notSent(target.viewId, runtime.status?.reason ?? "The CLI stopped."); return; }
+      if (useComposerState.getState().views[target.viewId]?.launching) return;
+      updateRuntime(target.viewId, { launching: true, result: undefined });
+      try { await untilSubmittable(runtime.controller); }
+      catch (error) { updateRuntime(target.viewId, { launching: false }); notSent(target.viewId, errorMessage(error)); return; }
+      updateRuntime(target.viewId, { launching: false });
+      if (!exists(target)) return;
+    }
     const state = stateFor(target);
-    if (!runtime || !state?.draft?.trim() || useComposerState.getState().views[target.viewId]?.sending) return;
+    if (!state?.draft?.trim()) return;
     const entry = entryFor(target, "not-sent", "");
     if (entry.preview.content.length > 500_000) {
       notSent(target.viewId, "The composed prompt exceeds 500,000 characters. Shorten the prompt or remove quoted context.");
@@ -165,6 +188,7 @@ export function registerComposerContributions(): void {
     if (!exists(target)) return;
     remember(target.viewId, { ...entry, outcome: result.outcome, message: result.message });
     updateRuntime(target.viewId, { sending: false, result });
+    if (result.outcome !== "not-sent") markAgentPrompted(target.viewId);
     if (result.outcome !== "submitted") return;
     resetMenusAfterSend(target);
     if (stateFor(target)?.autoTitle && entry.draft.trim()) {
@@ -188,7 +212,7 @@ export function registerComposerContributions(): void {
     updateRuntime(target.viewId, { launching: true, result: undefined });
     try {
       const cwd = await prepareSessionFolder(target);
-      await untilSubmittable(await startAgentRuntime(target.viewId, provider, { workspacePath: cwd }));
+      await untilSubmittable(await startAgentRuntime(target.viewId, provider, { workspacePath: cwd, settings: launchSettings(provider.id, target) }));
     } catch (error) {
       updateRuntime(target.viewId, { launching: false });
       notSent(target.viewId, errorMessage(error));
@@ -196,6 +220,16 @@ export function registerComposerContributions(): void {
     }
     updateRuntime(target.viewId, { launching: false });
     await services.commands.execute("agent.composer.send", target);
+  });
+  // A new conversation with the composer's model and effort; the draft stays.
+  services.commands.register<ComposerTarget>("agent.session.restart", async (target) => {
+    const runtime = useAgentRuntimes.getState().sessions[target.viewId];
+    const provider = services.sessions.get(runtime?.providerId ?? "");
+    if (!runtime || provider?.kind !== "agent" || useComposerState.getState().views[target.viewId]?.sending) return;
+    closeAgentRuntime(target.viewId);
+    updateRuntime(target.viewId, { result: undefined });
+    try { await startAgentRuntime(target.viewId, provider, { workspacePath: await prepareSessionFolder(target), settings: launchSettings(provider.id, target) }); }
+    catch (error) { notSent(target.viewId, errorMessage(error)); }
   });
   services.commands.register<ComposerTarget>("agent.session.reset", (target) => {
     closeAgentRuntime(target.viewId);

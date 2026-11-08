@@ -3,14 +3,20 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import type { AgentSessionController, TerminalSessionController } from "../../core/session-provider-registry";
+import { pathsInLine } from "../../../shared/terminal-paths";
 
 export interface TerminalSurfaceHandle { focus: () => void; }
 
-export function TerminalSurface({ controller, ref, onSelectionChange }: {
+export function TerminalSurface({ controller, ref, onSelectionChange, root, onOpenPath }: {
   controller: AgentSessionController | TerminalSessionController;
   ref?: Ref<TerminalSurfaceHandle>;
   onSelectionChange?: (text: string) => void;
+  /** The folder the session runs in: paths in the output that are its files become links (`onOpenPath` opens them). */
+  root?: string;
+  onOpenPath?: (path: string, line?: number) => void;
 }) {
+  const openPath = useRef(onOpenPath);
+  useEffect(() => { openPath.current = onOpenPath; }, [onOpenPath]);
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const selectionCallback = useRef(onSelectionChange);
@@ -32,6 +38,26 @@ export function TerminalSurface({ controller, ref, onSelectionChange }: {
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(host);
     terminalRef.current = terminal;
     const selection = terminal.onSelectionChange(() => selectionCallback.current?.(terminal.getSelection()));
+    // Paths in the output open that file (at that line) when clicked; only real files under the root are links.
+    const known = new Map<string, boolean>();
+    const links = root ? terminal.registerLinkProvider({
+      provideLinks: (y, callback) => {
+        const text = terminal.buffer.active.getLine(y - 1)?.translateToString(true) ?? "";
+        const candidates = pathsInLine(text, root);
+        if (!candidates.length) { callback(undefined); return; }
+        const unknown = [...new Set(candidates.map((item) => item.path).filter((path) => !known.has(path)))];
+        const ready = unknown.length ? window.workbench.files.exists(root, unknown).then((found) => {
+          for (const path of unknown) known.set(path, found.includes(path));
+          if (known.size > 2000) known.clear();
+        }).catch(() => undefined) : Promise.resolve();
+        void ready.then(() => callback(candidates.filter((item) => known.get(item.path)).map((item) => ({
+          range: { start: { x: item.start + 1, y }, end: { x: item.start + item.length, y } },
+          text: text.slice(item.start, item.start + item.length),
+          decorations: { underline: true, pointerCursor: true },
+          activate: () => openPath.current?.(item.path, item.line),
+        }))));
+      },
+    }) : undefined;
     let active = true;
     let attached = false;
     let followOutput = true;
@@ -55,6 +81,8 @@ export function TerminalSurface({ controller, ref, onSelectionChange }: {
       for (const identifier of [{ final: "c" }, { prefix: ">", final: "c" }, { final: "n" }, { prefix: "?", final: "n" }, { final: "t" }]) {
         terminal.parser.registerCsiHandler(identifier, () => true);
       }
+      // Colour queries too (Codex asks for the foreground and background): answering them here sent a second reply.
+      for (const ident of [10, 11, 12]) terminal.parser.registerOscHandler(ident, (data) => data.split(";").includes("?"));
       // The headless terminal answers protocol queries; this surface only forwards user input.
       detach = controller.attach((snapshot) => {
         terminal.resize(snapshot.cols, snapshot.rows);
@@ -69,9 +97,9 @@ export function TerminalSurface({ controller, ref, onSelectionChange }: {
     const observer = new ResizeObserver(resize); observer.observe(host);
     return () => {
       active = false; observer.disconnect(); detach?.(); offExit?.(); input.dispose(); scroll.dispose();
-      selection.dispose(); terminalRef.current = null;
+      selection.dispose(); links?.dispose(); terminalRef.current = null;
       host.removeEventListener("wheel", wheel); host.removeEventListener("pointerdown", pointer); terminal.dispose();
     };
-  }, [controller]);
+  }, [controller, root]);
   return <div className="terminal-host" ref={hostRef} aria-label="Native CLI terminal" />;
 }

@@ -1,0 +1,104 @@
+{
+ "cli": "claude",
+ "version": "2.1.319 (Claude Code)",
+ "cols": 120,
+ "rows": 40,
+ "recordedAt": "2026-11-06",
+ "steps": [
+  "wait:8000",
+  "mark:ready",
+  "mouse",
+  "wait:300",
+  "mark:mouse",
+  "key:shift-tab",
+  "wait:1200",
+  "mark:cycle1",
+  "key:shift-tab",
+  "wait:1200",
+  "mark:cycle2",
+  "key:shift-tab",
+  "wait:1200",
+  "mark:plan",
+  "key:shift-tab",
+  "wait:1200",
+  "mark:cycle4"
+ ],
+ "chunks": [
+  {
+   "at": 324,
+   "data": "\u001b7\u001b[r\u001b8\u001b[?25h"
+  },
+  {
+   "at": 424,
+   "data": "\u001b[?25l"
+  },
+  {
+   "at": 424,
+   "data": "\u001b[?2004h\u001b[?2031h\u001b[?1004h"
+  },
+  {
+   "at": 424,
+   "data": "\u001b]0;✳ Claude Code\u0007"
+  },
+  {
+   "at": 444,
+   "data": "\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude\u001b[19GCode\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.319\u001b[39m\r\r\n\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mOpus\u001b[17G5.5\u001b[21Gwith\u001b[26Gmedium\u001b[33Geffort\u001b[40G·\u001b[42GClaude\u001b[49GMax\u001b[39m\r\r\n\u001b[38;2;215;119;87m ▝▝\u001b[7G▝▝\u001b[12G\u001b[38;2;153;153;153m~/repos/sample-projects\u001b[39m\r\r\n\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n❯ \u001b[2mTry\u001b[7G\"how\u001b[12Gdoes\u001b[17Gqa-screens.mjs\u001b[32Gwork?\"\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────────────────────────"
+  },
+  {
+   "at": 630,
+   "data": "───────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[101G◐\u001b[103Gmedium\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[>0q\u001b[?u\u001b]7501;?\u0007\u001b[c"
+  },
+  {
+   "at": 8006,
+   "mark": "ready"
+  },
+  {
+   "at": 8010,
+   "data": "\u001b(B\u000f\u001b[?2004h"
+  },
+  {
+   "at": 8310,
+   "mark": "mouse"
+  },
+  {
+   "at": 8339,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[1A\u001b[38;2;153;153;153m⏸ manual mode on · ← for agents\u001b[39m                    \r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 9515,
+   "mark": "cycle1"
+  },
+  {
+   "at": 9546,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[1A\u001b[38;2;175;135;255m⏵⏵ accept edits on\u001b[22G\u001b[38;2;153;153;153m(shift+tab to cycle) · ← for agents\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 10437,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[100C\u001b[1A\u001b[K\r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 10452,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[41C\u001b[1A\u001b[K\r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 10718,
+   "mark": "cycle2"
+  },
+  {
+   "at": 10748,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[1A\u001b[38;2;72;150;140m⏸ plan mode on\u001b[38;2;153;153;153m (shift+tab \u001b[30Go cycle)\u001b[39m\u001b[K\r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 11922,
+   "mark": "plan"
+  },
+  {
+   "at": 11951,
+   "data": "\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[1A\u001b[38;2;255;193;7m⏵⏵ auto mode on\u001b[38;2;153;153;153m (shift+tab to cycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h"
+  },
+  {
+   "at": 13128,
+   "mark": "cycle4"
+  }
+ ]
+}

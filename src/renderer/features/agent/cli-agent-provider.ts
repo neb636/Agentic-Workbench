@@ -5,7 +5,7 @@ export function cliAgentProvider(id: string, label: string, description?: string
   return { id, label, description, kind: "agent", async create(context) {
     if (!context.viewId) throw new Error("Agent sessions require an owning view.");
     const sessionId = await window.workbench.agent.create({ providerId: id, workspacePath: context.workspacePath,
-      viewId: context.viewId, cols: context.cols ?? 100, rows: context.rows ?? 24, resume: context.resume });
+      viewId: context.viewId, cols: context.cols ?? 100, rows: context.rows ?? 24, resume: context.resume, settings: context.settings });
     let status: AgentSessionStatus | undefined;
     let statusSequence = 0;
     const listeners = new Set<(status: AgentSessionStatus) => void>();

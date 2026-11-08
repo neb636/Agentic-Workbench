@@ -19,8 +19,11 @@ export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace;
         selectedKeys={active ? [active.id] : []} onSelectionChange={(keys) => { const key = [...keys][0]; if (key) updateLayout({ rightPanel: String(key) }); }}>
         {panels.map((panel) => {
           const Icon = panel.icon;
+          const Badge = panel.badge;
           return <TooltipTrigger key={panel.id} delay={400}>
-            <ToggleButton id={panel.id} className="activity-button" aria-label={panel.label}><Icon size={16} /></ToggleButton>
+            <ToggleButton id={panel.id} className="activity-button" aria-label={panel.label}>
+              <Icon size={16} />{workspace && Badge && <Badge workspace={workspace} />}
+            </ToggleButton>
             <Tooltip className="wb-tooltip">{panel.label}</Tooltip>
           </TooltipTrigger>;
         })}

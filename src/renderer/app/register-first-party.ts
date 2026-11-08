@@ -1,19 +1,22 @@
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
+import type { FileViewState } from "../../shared/models";
 import { AgentView } from "../features/agent/AgentView";
 import { cliAgentProvider } from "../features/agent/cli-agent-provider";
 import { closeAgentRuntime } from "../core/agent-runtimes";
+import { fileBuffers, isViewDirty, setViewDirty } from "../core/dirty-views";
 import { TerminalView } from "../features/terminal/TerminalView";
 import { localTerminalProvider } from "../features/terminal/terminal-provider";
 import { clearComposerRuntime, registerComposerContributions } from "../features/agent/composer-state";
 import { agentIdleStatus, publishAgentStatuses } from "../features/agent/session-status";
 import { personaMenu } from "../features/personas/persona-menu";
 import { instructionsMenu } from "../features/instructions/instructions-menu";
+import { openPanel } from "../features/explorer/explorer-store";
 import { FileView } from "../features/files/FileView";
 import { FilesPanel } from "../features/files/FilesPanel";
 import { registerFileCommands } from "../features/files/file-commands";
 import { ActiveViewsPanel } from "../features/views/ActiveViewsPanel";
-import { SourceControlPanel, StatusBranch, WorkspaceBranch } from "../features/source-control/SourceControlPanel";
+import { SourceControlBadge, SourceControlPanel, StatusBranch, WorkspaceBranch } from "../features/source-control/SourceControlPanel";
 import { MemoryUsage, SessionSummary, TerminalCount } from "../features/status/StatusItems";
 import { SettingsButton } from "../features/settings/SettingsButton";
 import { AgentIcon, BranchIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
@@ -46,10 +49,21 @@ export function registerFirstPartyContributions(): void {
   services.views.register({
     id: "file",
     label: "File",
-    description: "A read-only file from the workspace.",
+    description: "A file from the workspace.",
     icon: FileIcon,
     component: FileView,
     creatable: false,
+    isPreview: (view) => Boolean((view.state as FileViewState | undefined)?.preview),
+    tabMenu: (view) => {
+      const { root, path, preview } = (view.state ?? {}) as FileViewState;
+      const keep = preview ? [{ id: "keep", label: "Keep open", run: () => useWorkbenchStore.getState().updateViewState(view.workspaceId, view.id, { preview: false }) }] : [];
+      return [
+        ...keep,
+        { id: "copy-path", label: "Copy path", run: () => void navigator.clipboard.writeText(path).catch(() => undefined) },
+        { id: "reveal", label: "Reveal in files", run: () => openPanel("files") },
+        { id: "reveal-system", label: "Reveal in system file manager", run: () => window.workbench.files.reveal(root, path) },
+      ];
+    },
   });
 
   services.sessions.register(cliAgentProvider("claude.cli", "Claude Code", "Anthropic"));
@@ -58,7 +72,7 @@ export function registerFirstPartyContributions(): void {
 
   services.panels.register({ id: "views", label: "Active views", icon: LayersIcon, order: 10, component: ActiveViewsPanel });
   services.panels.register({ id: "files", label: "Files", icon: FilesIcon, order: 20, component: FilesPanel });
-  services.panels.register({ id: "source-control", label: "Source control", icon: BranchIcon, order: 30, component: SourceControlPanel });
+  services.panels.register({ id: "source-control", label: "Source control", icon: BranchIcon, order: 30, component: SourceControlPanel, badge: SourceControlBadge });
 
   services.promptMenus.register(personaMenu);
   services.promptMenus.register(instructionsMenu);
@@ -94,6 +108,10 @@ export function registerFirstPartyContributions(): void {
     useWorkbenchStore.getState().selectView(workspaceId, viewId);
   });
   services.commands.register<{ workspaceId: string; viewId: string }>("view.close", ({ workspaceId, viewId }) => {
+    const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);
+    if (isViewDirty(viewId) && !window.confirm(`${view?.title ?? "This tab"} has unsaved changes. Close it and lose them?`)) return;
+    setViewDirty(viewId, false);
+    fileBuffers.delete(viewId);
     closeAgentRuntime(viewId);
     clearComposerRuntime(viewId);
     useWorkbenchStore.getState().closeView(workspaceId, viewId);
