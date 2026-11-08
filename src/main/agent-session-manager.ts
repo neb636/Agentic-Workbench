@@ -93,7 +93,7 @@ export class AgentSessionManager {
       id: randomUUID(), viewId: options.viewId, owner, provider, process: processInstance, terminal, serialize,
       sequence: 0, interrupted: false, working: false, sending: false, disposed: false, inputWasEdited: false,
       lastOutputAt: Date.now(), settled: false, pendingData: "", createdAt: Date.now(), resized: false, title: "",
-      status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0 },
+      status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0, started: 0 },
     };
     this.sessions.set(session.id, session);
     const reported = provider.reportedState;
@@ -332,16 +332,17 @@ export class AgentSessionManager {
     }
     if (detection.inputState === "empty") s.inputWasEdited = false;
     let completed = s.status.completed;
-    // Startup work (a CLI may report "working" while it loads) is not a finished turn.
-    if (detection.activity === "working" && s.settled) s.working = true;
+    let started = s.status.started;
+    // Startup work (a CLI may report "working" while it loads) is not a turn.
+    if (detection.activity === "working" && s.settled && !s.working) { s.working = true; started++; }
     if (detection.activity === "ready" && s.working) {
       if (!s.interrupted) completed++;
       s.working = false;
     }
-    const next: AgentSessionStatus = { ...detection, lifecycle, completed, observedAt: Date.now() };
+    const next: AgentSessionStatus = { ...detection, lifecycle, completed, started, observedAt: Date.now() };
     const previous = s.status;
     s.status = next;
-    if (previous.activity !== next.activity || previous.canSubmit !== next.canSubmit || previous.lifecycle !== next.lifecycle || previous.rule !== next.rule || previous.completed !== completed) this.emit(s, { type: "status", status: next });
+    if (previous.activity !== next.activity || previous.canSubmit !== next.canSubmit || previous.lifecycle !== next.lifecycle || previous.rule !== next.rule || previous.completed !== completed || previous.started !== started) this.emit(s, { type: "status", status: next });
   }
   private observe(s: Session): ScreenObservation {
     const buffer = s.terminal.buffer.active;

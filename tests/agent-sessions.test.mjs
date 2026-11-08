@@ -177,14 +177,19 @@ test("completion differs from interruption; unknown screens never imply completi
   try {
     // Work before the CLI first settles is startup, not a turn.
     await render("• Working (esc to interrupt)\r\n› ");
-    assert.equal((await render("› ")).completed, 0);
+    const settled = await render("› ");
+    assert.equal(settled.completed, 0);
+    assert.equal(settled.started, 0);
     await sleep(350);
     assert.equal((await render("• Working (esc to interrupt)\r\n› ")).activity, "working");
     assert.equal((await render("new unknown display")).completed, 0);
     assert.equal((await render("› ")).completed, 1);
     await render("• Working (esc to interrupt)\r\n› ");
     s.manager.interrupt(s.id, s.owner);
-    assert.equal((await render("› ")).completed, 1);
+    const after = await render("› ");
+    assert.equal(after.completed, 1);
+    // An interrupted turn still counts as started, so the conversation is no longer unused.
+    assert.equal(after.started, 2);
   } finally { s.manager.terminateAll(); }
 });
 test("chunked ANSI redraws and bounded screen snapshots replay independently of viewport", async () => {

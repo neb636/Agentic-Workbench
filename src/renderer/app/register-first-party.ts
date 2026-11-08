@@ -96,7 +96,10 @@ export function registerFirstPartyContributions(): void {
   });
   services.commands.register<string>("workspace.remove", async (workspaceId) => {
     const workspace = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
-    for (const view of workspace?.views ?? []) await services.commands.execute("view.close", { workspaceId, viewId: view.id });
+    for (const view of workspace?.views ?? []) {
+      // A tab kept open (unsaved edits the person chose not to lose) keeps the workspace too.
+      if (!await services.commands.execute<boolean>("view.close", { workspaceId, viewId: view.id })) return;
+    }
     useWorkbenchStore.getState().removeWorkspace(workspaceId);
   });
   services.commands.register<{ workspaceId: string; viewType: string }>("view.create", ({ workspaceId, viewType }) => {
@@ -109,11 +112,12 @@ export function registerFirstPartyContributions(): void {
   });
   services.commands.register<{ workspaceId: string; viewId: string }>("view.close", ({ workspaceId, viewId }) => {
     const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);
-    if (isViewDirty(viewId) && !window.confirm(`${view?.title ?? "This tab"} has unsaved changes. Close it and lose them?`)) return;
+    if (isViewDirty(viewId) && !window.confirm(`${view?.title ?? "This tab"} has unsaved changes. Close it and lose them?`)) return false;
     setViewDirty(viewId, false);
     fileBuffers.delete(viewId);
     closeAgentRuntime(viewId);
     clearComposerRuntime(viewId);
     useWorkbenchStore.getState().closeView(workspaceId, viewId);
+    return true;
   });
 }

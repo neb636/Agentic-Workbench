@@ -62,6 +62,8 @@ export function FileView({ view, workspace }: ViewComponentProps) {
   const readOnly = useRef(new Compartment());
   const saved = useRef<Text>(Text.empty);
   const baseHash = useRef<string | null>(null);
+  /** The file couldn't be read, so the tab shows edits kept from before it was hidden. */
+  const missing = useRef(false);
   const previewRef = useRef(state.preview);
   previewRef.current = state.preview;
   const [file, setFile] = useState<FileContent>();
@@ -81,10 +83,18 @@ export function FileView({ view, workspace }: ViewComponentProps) {
     let active = true;
     window.workbench.files.read(root, path).then((content) => {
       if (!active) return;
-      setFile(content); setError(""); baseHash.current = content.hash;
-    }).catch((e: unknown) => { if (active) setError(errorMessage(e)); });
+      missing.current = false; setFile(content); setError(""); baseHash.current = content.hash;
+    }).catch((e: unknown) => {
+      if (!active) return;
+      // Gone from disk while the tab was hidden with edits: bring the edits back and say the file is gone.
+      const kept = fileBuffers.get(view.id);
+      if (!kept) { setError(errorMessage(e)); return; }
+      missing.current = true;
+      setFile({ path, content: kept.saved, size: new Blob([kept.saved]).size, truncated: false, binary: false, hash: kept.hash ?? "" });
+      setConflict({ disk: null, saving: false });
+    });
     return () => { active = false; };
-  }, [root, path, picture]);
+  }, [root, path, picture, view.id]);
 
   const replaceDoc = (content: FileContent) => {
     const editor = editorRef.current;
@@ -155,7 +165,7 @@ export function FileView({ view, workspace }: ViewComponentProps) {
       baseHash.current = kept.hash;
       markDirty(true);
       // The file changed on disk while the tab was away: ask, as when it changes on screen.
-      if (kept.hash !== file.hash) setConflict({ disk: file, saving: false });
+      if (!missing.current && kept.hash !== file.hash) setConflict({ disk: file, saving: false });
     }
     const editor = new EditorView({
       parent: host,

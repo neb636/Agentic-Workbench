@@ -85,6 +85,8 @@ export interface AgentSessionStatus {
   rule: string;
   observedAt: number;
   completed: number;
+  /** Turns started since the CLI settled, from the composer or typed in the terminal, interrupted or not. */
+  started: number;
   exitCode?: number;
 }
 

@@ -48,7 +48,7 @@ export function markAgentPrompted(viewId: string): void {
 /** Nothing has happened in this conversation yet, from the composer or typed in the terminal, so restarting it loses nothing. */
 export function isUnusedConversation(runtime: AgentRuntime): boolean {
   const status = runtime.status;
-  return !runtime.prompted && Boolean(status) && status!.completed === 0 && status!.activity !== "working" && status!.inputState !== "draft";
+  return !runtime.prompted && Boolean(status) && status!.started === 0 && status!.activity !== "working" && status!.inputState !== "draft";
 }
 
 /** Waits until the CLI shows an input it can accept a prompt in; trust and sign-in prompts are answered in the terminal. */
