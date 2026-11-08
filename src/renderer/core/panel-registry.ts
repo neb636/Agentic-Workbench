@@ -13,6 +13,8 @@ export interface PanelDefinition {
   icon: ComponentType<{ size?: number }>;
   order?: number;
   component: ComponentType<PanelProps>;
+  /** A small count or mark on the panel's activity button (such as how many files changed); renders nothing when empty. */
+  badge?: ComponentType<PanelProps>;
 }
 
 export class PanelRegistry extends Registry<PanelDefinition> {

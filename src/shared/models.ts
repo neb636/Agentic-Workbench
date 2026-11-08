@@ -85,7 +85,22 @@ export interface AgentSessionStatus {
   rule: string;
   observedAt: number;
   completed: number;
+  /** Turns started since the CLI settled, from the composer or typed in the terminal, interrupted or not. */
+  started: number;
   exitCode?: number;
+}
+
+/** A model the CLI can be launched with, and the reasoning efforts it accepts. */
+export interface AgentModelChoice {
+  id: string;
+  label: string;
+  efforts: string[];
+}
+
+/** Model and effort for a new conversation; omitted, the CLI uses its own defaults. */
+export interface AgentModelSettings {
+  model: string;
+  effort: string;
 }
 
 export interface AgentProviderInfo {
@@ -95,6 +110,8 @@ export interface AgentProviderInfo {
   reason?: string;
   resume: boolean;
   capabilities?: { planning: boolean };
+  /** Models offered for new conversations; absent when the adapter takes no model setting. */
+  models?: AgentModelChoice[];
 }
 
 export interface AgentPromptRequest {
@@ -104,7 +121,7 @@ export interface AgentPromptRequest {
 
 export interface AgentDeliveryResult {
   outcome: "submitted" | "not-sent" | "uncertain";
-  stage: "none" | "prefix" | "paste" | "enter" | "unknown";
+  stage: "none" | "mode" | "paste" | "enter" | "unknown";
   message: string;
 }
 
@@ -127,12 +144,25 @@ export interface AgentViewState {
   /** The title is replaced by the first sent prompt. */
   autoTitle?: boolean;
   composerCollapsed?: boolean;
+  /** The composer's model and effort per provider, for new conversations; absent means the CLI's defaults. */
+  modelSettings?: Record<string, AgentModelSettings>;
 }
 
 export interface FileViewState {
   root: string;
   path: string;
+  /** A preview tab (one click in the tree): the next one click replaces it; a double click or an edit keeps it. */
+  preview?: boolean;
+  /** Showing the changes against `diffBase` instead of plain editing. */
+  diff?: boolean;
+  diffBase?: DiffBase;
+  /** Open at this line (from a path in an agent's output); a new nonce jumps again. */
+  line?: number;
+  lineNonce?: number;
 }
+
+/** What a diff compares with: the last commit, or where this branch left the default branch (what a PR would show). */
+export type DiffBase = "head" | "default";
 
 export interface FileEntry {
   name: string;
@@ -147,7 +177,34 @@ export interface FileContent {
   size: number;
   truncated: boolean;
   binary: boolean;
+  /** sha1 of the bytes on disk, for saving only over the version that was opened. */
+  hash: string;
 }
+
+export type FileWriteResult =
+  | { ok: true; hash: string }
+  /** The file changed on disk since it was opened: nothing was written; here is what's there now. */
+  | { ok: false; disk: FileContent | null };
+
+export interface SearchOptions {
+  caseSensitive?: boolean;
+  regex?: boolean;
+}
+
+export interface SearchMatch {
+  path: string;
+  line: number;
+  text: string;
+}
+
+export interface SearchResult {
+  matches: SearchMatch[];
+  /** Stopped at the match or time limit. */
+  limited: boolean;
+}
+
+/** An application-menu shortcut that works wherever focus is (a terminal included). */
+export type MenuCommand = "quick-open" | "find-in-files";
 
 export interface FilesChangedEvent {
   root: string;
@@ -189,6 +246,8 @@ export interface AgentSessionCreateOptions {
   cols: number;
   rows: number;
   resume?: boolean;
+  /** Model and effort for a new conversation; a resumed one keeps what it was saved with. */
+  settings?: AgentModelSettings;
 }
 
 export type AgentSessionEvent = { sessionId: string; sequence: number } & (
@@ -216,11 +275,25 @@ export interface WorkbenchApi {
   };
   app: {
     metrics: () => Promise<AppMetrics>;
+    /** Returns unsubscribe. */
+    onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
   };
   files: {
     list: (root: string, path: string) => Promise<FileEntry[]>;
     read: (root: string, path: string) => Promise<FileContent>;
     find: (root: string, query: string) => Promise<string[]>;
+    /** Saves text over the version with `expectedHash` (null: a file that must not exist yet). */
+    write: (root: string, path: string, content: string, expectedHash: string | null) => Promise<FileWriteResult>;
+    /** Searches inside files (through source control), at most 500 matches or 2 s; a new search cancels the last. */
+    search: (root: string, query: string, options: SearchOptions) => Promise<SearchResult>;
+    /** A picture as a data URL (up to 8 MB). */
+    image: (root: string, path: string) => Promise<string>;
+    /** Which of these relative paths are files in the root (for clickable paths in terminals). */
+    exists: (root: string, paths: string[]) => Promise<string[]>;
+    create: (root: string, path: string, kind: "file" | "directory") => Promise<void>;
+    rename: (root: string, from: string, to: string) => Promise<void>;
+    trash: (root: string, path: string) => Promise<void>;
+    reveal: (root: string, path: string) => void;
     watch: (root: string) => void;
     unwatch: (root: string) => void;
     onChanged: (listener: (event: FilesChangedEvent) => void) => () => void;
@@ -230,6 +303,12 @@ export interface WorkbenchApi {
     status: (root: string) => Promise<SourceControlStatus | null>;
     commit: (root: string, message: string) => Promise<{ commitId: string }>;
     createWorktree: (root: string, branch: string) => Promise<WorktreeResult>;
+    branches: (root: string) => Promise<string[]>;
+    checkout: (root: string, branch: string) => Promise<void>;
+    /** A file's text at the last commit or where this branch left the default branch (null when it didn't exist there). */
+    fileAt: (root: string, path: string, base: DiffBase) => Promise<string | null>;
+    /** Ignored paths, folded to their top folder, to dim in the file tree. */
+    ignored: (root: string) => Promise<string[]>;
   };
   pty: {
     create: (options: PtyCreateOptions) => Promise<string>;

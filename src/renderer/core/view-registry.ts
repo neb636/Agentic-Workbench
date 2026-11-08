@@ -21,6 +21,10 @@ export interface ViewDefinition {
   defaultTitle?: string;
   /** Views of this type are listed under their workspace in the left sidebar. */
   listInSidebar?: boolean;
+  /** The tab's title is in italics (a preview tab, replaced by the next one). */
+  isPreview?: (view: WorkbenchView) => boolean;
+  /** Extra items for the tab's context menu, after Close and Close others. */
+  tabMenu?: (view: WorkbenchView) => { id: string; label: string; run: () => void }[];
   /** Status shown when no live status has been published for the view. */
   idleStatus?: (view: WorkbenchView) => ViewStatus | undefined;
 }

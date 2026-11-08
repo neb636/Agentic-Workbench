@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { services } from "../core/services";
+import { openPanel } from "../features/explorer/explorer-store";
+import { QuickOpen } from "../features/files/QuickOpen";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { AgentIcon, FolderIcon, PlusIcon, TerminalIcon } from "../ui/icons";
 import { Button } from "../ui/controls";
@@ -34,6 +36,11 @@ export function WorkbenchShell() {
   const definition = activeView ? services.views.get(activeView.type) : undefined;
 
   useEffect(() => { void hydrate(); }, [hydrate]);
+  // Application-menu shortcuts (⌘P, ⇧⌘F) work wherever focus is, a terminal included.
+  useEffect(() => window.workbench.app.onMenuCommand((command) => {
+    if (command === "quick-open") void services.commands.execute("file.quickOpen");
+    else if (command === "find-in-files") openPanel("files", { search: "contents" });
+  }), []);
 
   if (!isHydrated) return <div className="launch-screen"><div className="brand-mark large"><span>AW</span></div><p>Opening workbench…</p></div>;
 
@@ -86,5 +93,6 @@ export function WorkbenchShell() {
       </Panel>
     </PanelGroup>
     <StatusBar />
+    <QuickOpen />
   </div>;
 }

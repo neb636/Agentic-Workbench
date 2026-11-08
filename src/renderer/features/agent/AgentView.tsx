@@ -9,6 +9,7 @@ import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button } from "../../ui/controls";
 import { ChevronUpIcon } from "../../ui/icons";
 import { AgentComposer, type ComposerSession } from "./AgentComposer";
+import { modelSettings, rememberAgentModels } from "./agent-models";
 import { prepareSessionFolder } from "./composer-state";
 import { SessionLauncher } from "./SessionLauncher";
 import { agentRuntimeStatus } from "./session-status";
@@ -40,7 +41,7 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     let active = true;
-    void window.workbench.agent.providers().then((items) => { if (active) setProviders(items); }).catch((e: unknown) => { if (active) setError(String(e)); });
+    void window.workbench.agent.providers().then((items) => { rememberAgentModels(items); if (active) setProviders(items); }).catch((e: unknown) => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, []);
   const selected = state.providerId ?? providers.find((p) => p.available)?.id ?? providers[0]?.id;
@@ -50,7 +51,9 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     const provider = services.sessions.get(selected ?? "");
     if (provider?.kind !== "agent") return;
     setBusy(true); setError(""); patch({ providerId: provider.id });
-    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }), resume }); }
+    // A new conversation launches with the composer's model and effort; a resumed one keeps its own.
+    const settings = resume ? undefined : modelSettings(provider.id, state.modelSettings?.[provider.id]) ?? undefined;
+    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }), resume, settings }); }
     catch (e) { if (alive.current) setError(errorMessage(e)); }
     finally { if (alive.current) setBusy(false); }
   };
@@ -63,7 +66,8 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     focusTerminal: () => terminalRef.current?.focus(),
   };
   const top = runtime
-    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection} /></div>
+    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection}
+      root={state.cwd ?? workspace.path} onOpenPath={(path, line) => void services.commands.execute("file.open", { workspaceId: workspace.id, root: state.cwd ?? workspace.path, path, line, preview: true })} /></div>
     : <SessionLauncher workspace={workspace} state={state} providers={providers} selected={selected} busy={busy} error={error}
         onChange={patch} onStart={(resume) => void start(resume)} />;
   const composer = <AgentComposer key={runtime?.controller.id ?? "setup"} workspaceId={workspace.id} viewId={view.id} agentLabel={services.sessions.get(runtime?.providerId ?? selected ?? "")?.label ?? "the agent"}

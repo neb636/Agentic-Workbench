@@ -27,7 +27,7 @@ git("add", ".");
 git("commit", "--quiet", "-m", "initial");
 await writeFile(join(repo, "tracked.txt"), "two\n");
 await writeFile(join(repo, "notes.md"), "# Notes\n");
-await writeFile(executable, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(resolve("scripts/fixtures/composer-cli.mjs"))}\n`, { mode: 0o755 });
+await writeFile(executable, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(resolve("scripts/fixtures/composer-cli.mjs"))} "$@"\n`, { mode: 0o755 });
 // Written in the pre-prompt-options format, so loading also exercises the migration.
 await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   workspaces: [{ id: "qa", name: "Composer QA", path: repo, activeViewId: "agent", views: [
@@ -64,7 +64,8 @@ try {
   };
   const prompts = async () => (await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   const prompt = () => page.getByRole("textbox", { name: "Prompt", exact: true });
-  const waitFeedback = (value) => page.waitForFunction((text) => document.querySelector(".composer-feedback")?.textContent.includes(text), value);
+  const waitFeedback = (value) => page.waitForFunction((text) => document.querySelector(".composer-feedback")?.textContent.includes(text), value)
+    .catch(async (error) => { throw new Error(`Waiting for "${value}", the composer says "${await page.locator(".composer-feedback").first().textContent().catch(() => "?")}": ${error.message}`); });
   const sidebar = page.getByRole("treegrid", { name: "Workspaces" });
 
   // Shell: three panes, nested sessions, and the launcher for a session that has not started.
@@ -96,6 +97,12 @@ try {
   await shot("instructions-menu");
   await page.keyboard.press("Escape");
 
+  // Model and effort are launch arguments of the new conversation.
+  await page.getByRole("button", { name: /Model/ }).click();
+  await page.getByRole("option", { name: "gpt-6-astra", exact: true }).click();
+  await page.getByRole("button", { name: /Effort/ }).click();
+  await page.getByRole("option", { name: "high", exact: true }).click();
+
   // First send creates the worktree, starts the CLI, waits for its input, and delivers the composed prompt.
   await prompt().fill("Explain this failure.");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
@@ -103,6 +110,8 @@ try {
   const [first] = await prompts();
   assert.equal(first.prompt, ["Be concise.", "Explain this failure.", OPEN_PR, WRITE_TESTS, "Focus the new tests on error handling.", "Explain the tradeoffs."].join("\n\n"));
   assert.equal(first.cwd, join(directory, "repo-worktrees", "wb-qa-task"));
+  assert.equal(first.model, "gpt-6-astra");
+  assert.equal(first.effort, "high");
   assert.equal(git("worktree", "list").includes("wb-qa-task"), true);
   assert.equal(await prompt().inputValue(), "");
   await page.getByRole("button", { name: "Persona", exact: true }).waitFor();
@@ -137,7 +146,21 @@ try {
   await page.keyboard.press("Control+c");
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
 
-  // Files: lazy tree and a read-only file view with no session.
+  // Changing the model after a prompt offers a restart that keeps the draft.
+  await page.getByRole("button", { name: /Model/ }).click();
+  await page.getByRole("option", { name: "gpt-6-luna", exact: true }).click();
+  await waitFeedback("Restart to use gpt-6-luna high");
+  await shot("restart-model");
+  await page.getByRole("button", { name: "Restart with gpt-6-luna high" }).click();
+  await prompt().fill("After the restart");
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await waitFeedback("Prompt handed");
+  const restarted = (await prompts()).at(-1);
+  assert.match(restarted.prompt, /After the restart/);
+  assert.equal(restarted.model, "gpt-6-luna");
+  assert.equal(restarted.effort, "high");
+
+  // Files: lazy tree, a preview tab you can edit and save (⌘S), search by name.
   await page.getByRole("radio", { name: "Files" }).click();
   const tree = page.getByRole("treegrid", { name: "Files in Composer QA" });
   await tree.getByRole("row", { name: "src" }).waitFor();
@@ -145,9 +168,16 @@ try {
   await tree.getByRole("row", { name: "app.ts" }).click();
   await page.getByRole("tab", { name: "app.ts" }).waitFor();
   await page.waitForFunction(() => document.querySelector(".cm-content")?.textContent.includes("export const answer"));
-  await page.getByRole("searchbox", { name: "Search files" }).fill("notes");
+  await page.locator(".cm-content").click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+End" : "Control+End");
+  await page.keyboard.type("// saved from QA\n");
+  await page.locator(".view-tab .dirty-dot").waitFor();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Saved"));
+  assert.match(await readFile(join(repo, "src", "app.ts"), "utf8"), /saved from QA/);
+  await page.getByRole("searchbox", { name: "Find files" }).fill("notes");
   await page.getByRole("grid", { name: "Matching files" }).getByRole("row", { name: /notes\.md/ }).waitFor();
-  await page.getByRole("searchbox", { name: "Search files" }).fill("");
+  await page.getByRole("searchbox", { name: "Find files" }).fill("");
   await shot("file-view");
 
   // Source control for the workspace checkout: list changes, commit them all.
@@ -155,9 +185,13 @@ try {
   const changes = page.getByRole("grid", { name: "Changes" });
   await changes.getByRole("row", { name: /tracked\.txt/ }).waitFor();
   assert.match(await changes.getByRole("row", { name: /notes\.md/ }).innerText(), /U/);
+  // A change opens as a diff against the last commit.
+  await changes.getByRole("row", { name: /tracked\.txt/ }).click();
+  await page.getByRole("tab", { name: "tracked.txt" }).waitFor();
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("diff vs last commit"));
   await shot("source-control");
   await page.getByRole("textbox", { name: "Commit message" }).fill("QA commit");
-  await page.getByRole("button", { name: "Commit 2 changes" }).click();
+  await page.getByRole("button", { name: "Commit 3 changes" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Commit", exact: true }).click();
   await page.getByText("No uncommitted changes.").waitFor();
   assert.equal(git("log", "-1", "--format=%s").trim(), "QA commit");
@@ -165,7 +199,8 @@ try {
   // Active views panel and the tab overflow menu.
   await page.getByRole("radio", { name: "Active views" }).click();
   await page.getByRole("grid", { name: "Agent session" }).getByRole("row").first().waitFor();
-  assert.equal(await page.getByRole("grid", { name: "File" }).getByRole("row").count(), 1);
+  // The edited app.ts stays open; the tracked.txt diff is a preview tab.
+  assert.equal(await page.getByRole("grid", { name: "File" }).getByRole("row").count(), 2);
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760));
   for (let index = 0; index < 5; index += 1) {
     await page.getByRole("button", { name: "Create view" }).click();

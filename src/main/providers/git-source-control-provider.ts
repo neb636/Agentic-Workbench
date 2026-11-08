@@ -1,12 +1,15 @@
-import { execFile } from "node:child_process";
+import { execFile, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { SourceControlChange } from "../../shared/models";
+import type { DiffBase, SearchMatch, SearchOptions, SearchResult, SourceControlChange } from "../../shared/models";
 import { executablePath } from "../executables";
 import type { ProviderStatus, SourceControlProvider } from "../source-control/source-control-provider";
 
 const OUTPUT_LIMIT = 8 * 1024 * 1024;
 const CHANGE_LIMIT = 5_000;
+const SEARCH_MATCHES = 500;
+const SEARCH_MS = 2_000;
+const GIT_ENV = { GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
 // Mirrors git-check-ref-format rules closely enough to reject anything git would; git re-checks below.
 const BRANCH_PATTERN = /^(?!-)(?!.*(?:\.\.|\/\/|@\{|\\|\.lock(?:\/|$)|\/\.|\/$|\.$))[A-Za-z0-9._\-/]+$/;
 
@@ -53,6 +56,20 @@ export function parsePorcelainV2(output: string): ProviderStatus {
   return status;
 }
 
+/** Parses `git grep -n -z` output: `path\0line\0text` per line. */
+export function parseGrep(output: string, limit = SEARCH_MATCHES): SearchMatch[] {
+  const matches: SearchMatch[] = [];
+  for (const record of output.split("\n")) {
+    if (!record) continue;
+    const [file, line, ...rest] = record.split("\0");
+    const number = Number(line);
+    if (!file || !Number.isFinite(number)) continue;
+    matches.push({ path: file, line: number, text: rest.join("\0").slice(0, 400) });
+    if (matches.length >= limit) break;
+  }
+  return matches;
+}
+
 export function isValidBranchName(branch: string): boolean {
   return BRANCH_PATTERN.test(branch) && branch !== "@" && branch !== "HEAD";
 }
@@ -60,6 +77,8 @@ export function isValidBranchName(branch: string): boolean {
 export class GitSourceControlProvider implements SourceControlProvider {
   readonly id = "git";
   readonly label = "Git";
+
+  private readonly searches = new Map<string, ChildProcess>();
 
   constructor(private readonly executable = () => executablePath("git")) {}
 
@@ -86,11 +105,86 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return { path: target, branch };
   }
 
+  async branches(root: string): Promise<string[]> {
+    return (await this.git(root, ["for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes"]))
+      .trim().split("\n").filter((branch) => branch && !branch.endsWith("/HEAD"));
+  }
+
+  async checkout(root: string, branch: string): Promise<void> {
+    if (!isValidBranchName(branch)) throw new Error("Invalid branch name.");
+    if ((await this.status(root)).changes.length) throw new Error("Commit your changes or open a new worktree before switching branches.");
+    // Remote refs become local tracking branches; local branches switch directly.
+    const local = await this.git(root, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]).then(() => true, () => false);
+    await this.git(root, local ? ["switch", "--", branch] : ["switch", "--track", "--", branch]);
+  }
+
+  /**
+   * A file's text at the last commit (`head`) or where this branch left the default branch (`default`: the merge base
+   * with origin's HEAD, else main, else master). Null when it didn't exist there. The ref is never taken from the renderer.
+   * The path is relative to `root` (the workspace), which may be below the repository's top.
+   */
+  async fileAt(root: string, file: string, base: DiffBase): Promise<string | null> {
+    if (!file || file.startsWith("/") || file.split("/").includes("..")) throw new Error("Paths must be relative to the workspace.");
+    let ref = "HEAD";
+    if (base === "default") {
+      ref = "";
+      for (const candidate of await this.defaultBranchCandidates(root)) {
+        ref = (await this.git(root, ["merge-base", "HEAD", candidate]).catch(() => "")).trim();
+        if (ref) break;
+      }
+      if (!/^[0-9a-f]{7,64}$/.test(ref)) throw new Error("Could not find where this branch left the default branch.");
+    }
+    return this.git(root, ["show", `${ref}:./${file}`]).catch(() => null);
+  }
+
+  /** What git ignores, folded to the top folder (build output, node_modules), to dim in the file tree. */
+  async ignored(root: string): Promise<string[]> {
+    const output = await this.git(root, ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
+    return output.split("\0").filter(Boolean).map((entry) => entry.replace(/\/$/, "")).slice(0, 5_000);
+  }
+
+  /** `git grep` over tracked and untracked files (not ignored). One search per root at a time; capped in matches and time. */
+  search(root: string, query: string, options: SearchOptions): Promise<SearchResult> {
+    const executable = this.executable();
+    if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
+    this.searches.get(root)?.kill();
+    // The query follows -e so it is never read as an option.
+    const args = ["-c", "core.quotePath=false", "grep", "-n", "-I", "--untracked", "--no-color", "-z",
+      ...(options.caseSensitive ? [] : ["-i"]), options.regex ? "-E" : "-F", "-e", query, "--", "."];
+    return new Promise((resolve, reject) => {
+      let output = "";
+      let limited = false;
+      const child = execFile(executable, args, { cwd: root, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, ...GIT_ENV } }, (error) => {
+        clearTimeout(timer);
+        if (this.searches.get(root) === child) this.searches.delete(root);
+        const matches = parseGrep(output);
+        // Exit 1 = no matches; a kill = the time or match limit (or a newer search).
+        if (error && (error as { code?: unknown }).code !== 1 && !child.killed) {
+          reject(new Error(String(error.message).split("\n").at(-1) || "Search failed"));
+          return;
+        }
+        resolve({ matches, limited: limited || matches.length >= SEARCH_MATCHES });
+      });
+      this.searches.set(root, child);
+      const timer = setTimeout(() => { limited = true; child.kill(); }, SEARCH_MS);
+      child.stdout?.on("data", (chunk: Buffer) => {
+        output += chunk.toString("utf8");
+        if ((output.match(/\n/g)?.length ?? 0) >= SEARCH_MATCHES) { limited = true; child.kill(); }
+      });
+    });
+  }
+
+  /** origin's default branch when the remote says, then the usual names. */
+  private async defaultBranchCandidates(root: string): Promise<string[]> {
+    const remoteHead = (await this.git(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"]).catch(() => "")).trim();
+    return [...new Set([remoteHead, "origin/main", "main", "origin/master", "master"].filter(Boolean))];
+  }
+
   private git(cwd: string, args: string[]): Promise<string> {
     const executable = this.executable();
     if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
     return new Promise((resolve, reject) => {
-      execFile(executable, args, { cwd, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" } }, (error, stdout, stderr) => {
+      execFile(executable, args, { cwd, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV } }, (error, stdout, stderr) => {
         if (error) reject(new Error(String(stderr || error.message).trim()));
         else resolve(stdout);
       });

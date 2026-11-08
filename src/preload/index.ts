@@ -4,6 +4,7 @@ import type {
   AgentSessionCreateOptions,
   AgentSessionEvent,
   FilesChangedEvent,
+  MenuCommand,
   PersistedState,
   PtyCreateOptions,
   PtyDataEvent,
@@ -22,11 +23,24 @@ const api: WorkbenchApi = {
   },
   app: {
     metrics: () => ipcRenderer.invoke(IPC.appMetrics),
+    onMenuCommand: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
+      ipcRenderer.on(IPC.menuCommand, wrapped);
+      return () => ipcRenderer.removeListener(IPC.menuCommand, wrapped);
+    },
   },
   files: {
     list: (root, path) => ipcRenderer.invoke(IPC.filesList, { root, path }),
     read: (root, path) => ipcRenderer.invoke(IPC.filesRead, { root, path }),
     find: (root, query) => ipcRenderer.invoke(IPC.filesFind, { root, query }),
+    write: (root, path, content, expectedHash) => ipcRenderer.invoke(IPC.filesWrite, { root, path, content, expectedHash }),
+    search: (root, query, options) => ipcRenderer.invoke(IPC.filesSearch, { root, query, ...options }),
+    image: (root, path) => ipcRenderer.invoke(IPC.filesImage, { root, path }),
+    exists: (root, paths) => ipcRenderer.invoke(IPC.filesExists, { root, paths }),
+    create: (root, path, kind) => ipcRenderer.invoke(IPC.filesCreate, { root, path, kind }),
+    rename: (root, from, to) => ipcRenderer.invoke(IPC.filesRename, { root, from, to }),
+    trash: (root, path) => ipcRenderer.invoke(IPC.filesTrash, { root, path }),
+    reveal: (root, path) => ipcRenderer.send(IPC.filesReveal, { root, path }),
     watch: (root) => ipcRenderer.send(IPC.filesWatch, { root }),
     unwatch: (root) => ipcRenderer.send(IPC.filesUnwatch, { root }),
     onChanged: (listener) => {
@@ -40,6 +54,10 @@ const api: WorkbenchApi = {
     status: (root) => ipcRenderer.invoke(IPC.sourceControlStatus, { root }),
     commit: (root, message) => ipcRenderer.invoke(IPC.sourceControlCommit, { root, message }),
     createWorktree: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCreateWorktree, { root, branch }),
+    branches: (root) => ipcRenderer.invoke(IPC.sourceControlBranches, { root }),
+    checkout: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCheckout, { root, branch }),
+    fileAt: (root, path, base) => ipcRenderer.invoke(IPC.sourceControlFileAt, { root, path, base }),
+    ignored: (root) => ipcRenderer.invoke(IPC.sourceControlIgnored, { root }),
   },
   pty: {
     create: (options: PtyCreateOptions) => ipcRenderer.invoke(IPC.ptyCreate, options) as Promise<string>,

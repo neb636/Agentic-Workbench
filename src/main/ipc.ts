@@ -1,14 +1,21 @@
-import { app, dialog, ipcMain, type WebContents } from "electron";
+import { app, dialog, ipcMain, shell, type WebContents } from "electron";
 import { basename } from "node:path";
 import { IPC } from "../shared/ipc";
 import {
   agentPromptSchema,
   agentSessionActionSchema,
   agentSessionCreateOptionsSchema,
+  checkoutSchema,
   commitSchema,
   createWorktreeSchema,
+  fileAtSchema,
+  fileCreateSchema,
+  fileExistsSchema,
   fileFindSchema,
   fileLocationSchema,
+  fileRenameSchema,
+  fileSearchSchema,
+  fileWriteSchema,
   persistedStateSchema,
   ptyCreateOptionsSchema,
   ptyInputSchema,
@@ -64,23 +71,34 @@ class FileWatchOwners {
 
 function listen(channel: string, handler: (event: Electron.IpcMainEvent, input: unknown) => void): void {
   ipcMain.on(channel, (event, input: unknown) => {
-    try { handler(event, input); } catch (error) { console.warn(`Rejected ${channel}:`, String(error)); }
+    try {
+      if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
+      handler(event, input);
+    } catch (error) { console.warn(`Rejected ${channel}:`, String(error)); }
+  });
+}
+
+/** Only the app's own top frame may call privileged handlers. */
+function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown): void {
+  ipcMain.handle(channel, (event, input: unknown) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
+    return listener(event, input);
   });
 }
 
 export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices): void {
   const watches = new FileWatchOwners(workspace.files);
   const allowedRoot = async (root: string) => { await workspace.roots.resolve(root); return root; };
-  ipcMain.handle(IPC.persistenceLoad, async () => {
+  handle(IPC.persistenceLoad, async () => {
     const state = await loadState();
     workspace.roots.replace(state.workspaces.map((item) => item.path));
     return state;
   });
-  ipcMain.handle(IPC.persistenceSave, async (_event, input: unknown) => {
+  handle(IPC.persistenceSave, async (_event, input: unknown) => {
     const state = await saveState(persistedStateSchema.parse(input));
     workspace.roots.replace(state.workspaces.map((item) => item.path));
   });
-  ipcMain.handle(IPC.workspaceChooseDirectory, async () => {
+  handle(IPC.workspaceChooseDirectory, async () => {
     const result = await dialog.showOpenDialog({
       title: "Add workspace",
       properties: ["openDirectory", "createDirectory"],
@@ -90,38 +108,83 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     if (chosen) workspace.roots.add(chosen);
     return chosen;
   });
-  ipcMain.handle(IPC.appMetrics, () => ({
+  handle(IPC.appMetrics, () => ({
     memoryBytes: app.getAppMetrics().reduce((total, metric) => total + metric.memory.workingSetSize * 1024, 0),
   }));
-  ipcMain.handle(IPC.filesList, (_event, input: unknown) => {
+  handle(IPC.filesList, (_event, input: unknown) => {
     const { root, path } = fileLocationSchema.parse(input);
     return workspace.files.list(root, path);
   });
-  ipcMain.handle(IPC.filesRead, (_event, input: unknown) => {
+  handle(IPC.filesRead, (_event, input: unknown) => {
     const { root, path } = fileLocationSchema.parse(input);
     return workspace.files.read(root, path);
   });
-  ipcMain.handle(IPC.filesFind, (_event, input: unknown) => {
+  handle(IPC.filesFind, (_event, input: unknown) => {
     const { root, query } = fileFindSchema.parse(input);
     return workspace.files.find(root, query);
   });
+  handle(IPC.filesWrite, (_event, input: unknown) => {
+    const { root, path, content, expectedHash } = fileWriteSchema.parse(input);
+    return workspace.files.write(root, path, content, expectedHash);
+  });
+  handle(IPC.filesSearch, async (_event, input: unknown) => {
+    const { root, query, caseSensitive, regex } = fileSearchSchema.parse(input);
+    return workspace.sourceControl.search(await allowedRoot(root), query, { caseSensitive, regex });
+  });
+  handle(IPC.filesImage, (_event, input: unknown) => {
+    const { root, path } = fileLocationSchema.parse(input);
+    return workspace.files.image(root, path);
+  });
+  handle(IPC.filesExists, (_event, input: unknown) => {
+    const { root, paths } = fileExistsSchema.parse(input);
+    return workspace.files.exists(root, paths);
+  });
+  handle(IPC.filesCreate, (_event, input: unknown) => {
+    const { root, path, kind } = fileCreateSchema.parse(input);
+    return workspace.files.create(root, path, kind);
+  });
+  handle(IPC.filesRename, (_event, input: unknown) => {
+    const { root, from, to } = fileRenameSchema.parse(input);
+    return workspace.files.rename(root, from, to);
+  });
+  handle(IPC.filesTrash, (_event, input: unknown) => {
+    const { root, path } = fileLocationSchema.parse(input);
+    return workspace.files.trash(root, path);
+  });
+  listen(IPC.filesReveal, (_event, input: unknown) => {
+    const { root, path } = fileLocationSchema.parse(input);
+    void workspace.files.locate(root, path).then((target) => shell.showItemInFolder(target))
+      .catch((error: unknown) => console.warn("Could not reveal file", String(error)));
+  });
   listen(IPC.filesWatch, (event, input: unknown) => watches.watch(event.sender, workspaceRootSchema.parse(input).root));
   listen(IPC.filesUnwatch, (event, input: unknown) => watches.unwatch(event.sender, workspaceRootSchema.parse(input).root));
-  ipcMain.handle(IPC.sourceControlDetect, async (_event, input: unknown) => {
+  handle(IPC.sourceControlDetect, async (_event, input: unknown) => {
     const root = await allowedRoot(workspaceRootSchema.parse(input).root);
     return Boolean(await workspace.sourceControl.providerFor(root));
   });
-  ipcMain.handle(IPC.sourceControlStatus, async (_event, input: unknown) =>
+  handle(IPC.sourceControlStatus, async (_event, input: unknown) =>
     workspace.sourceControl.status(await allowedRoot(workspaceRootSchema.parse(input).root)));
-  ipcMain.handle(IPC.sourceControlCommit, async (_event, input: unknown) => {
+  handle(IPC.sourceControlCommit, async (_event, input: unknown) => {
     const { root, message } = commitSchema.parse(input);
     return workspace.sourceControl.commit(await allowedRoot(root), message);
   });
-  ipcMain.handle(IPC.sourceControlCreateWorktree, async (_event, input: unknown) => {
+  handle(IPC.sourceControlCreateWorktree, async (_event, input: unknown) => {
     const { root, branch } = createWorktreeSchema.parse(input);
     return workspace.sourceControl.createWorktree(await allowedRoot(root), branch);
   });
-  ipcMain.handle(IPC.ptyCreate, (event, input: unknown) =>
+  handle(IPC.sourceControlBranches, async (_event, input: unknown) =>
+    workspace.sourceControl.branches(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.sourceControlCheckout, async (_event, input: unknown) => {
+    const { root, branch } = checkoutSchema.parse(input);
+    return workspace.sourceControl.checkout(await allowedRoot(root), branch);
+  });
+  handle(IPC.sourceControlFileAt, async (_event, input: unknown) => {
+    const { root, path, base } = fileAtSchema.parse(input);
+    return workspace.sourceControl.fileAt(await allowedRoot(root), path, base);
+  });
+  handle(IPC.sourceControlIgnored, async (_event, input: unknown) =>
+    workspace.sourceControl.ignored(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.ptyCreate, (event, input: unknown) =>
     ptyManager.create(ptyCreateOptionsSchema.parse(input), event.sender),
   );
   listen(IPC.ptyInput, (event, input: unknown) => {
@@ -135,11 +198,11 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   listen(IPC.ptyTerminate, (event, input: unknown) => {
     ptyManager.terminate(ptyTerminateSchema.parse(input).sessionId, event.sender);
   });
-  ipcMain.handle(IPC.agentCreate, (event, input: unknown) =>
+  handle(IPC.agentCreate, (event, input: unknown) =>
     agentSessionManager.create(agentSessionCreateOptionsSchema.parse(input), event.sender),
   );
-  ipcMain.handle(IPC.agentProviders, () => agentSessionManager.discover());
-  ipcMain.handle(IPC.agentAttach, (event, input: unknown) => agentSessionManager.attach(agentSessionActionSchema.parse(input).sessionId, event.sender));
+  handle(IPC.agentProviders, () => agentSessionManager.discover());
+  handle(IPC.agentAttach, (event, input: unknown) => agentSessionManager.attach(agentSessionActionSchema.parse(input).sessionId, event.sender));
   listen(IPC.agentInput, (event, input: unknown) => {
     const p = ptyInputSchema.parse(input);
     agentSessionManager.input(p.sessionId, p.data, event.sender);
@@ -148,7 +211,7 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     const p = ptyResizeSchema.parse(input);
     agentSessionManager.resize(p.sessionId, p.cols, p.rows, event.sender);
   });
-  ipcMain.handle(IPC.agentSendPrompt, (event, input: unknown) => {
+  handle(IPC.agentSendPrompt, (event, input: unknown) => {
     const parsed = agentPromptSchema.parse(input);
     return agentSessionManager.sendPrompt(parsed.sessionId, { prompt: parsed.prompt, intent: parsed.intent }, event.sender);
   });

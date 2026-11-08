@@ -124,6 +124,7 @@ export const agentSessionCreateOptionsSchema = z.object({
   cols: z.number().int().min(2).max(1000),
   rows: z.number().int().min(1).max(1000),
   resume: z.boolean().optional(),
+  settings: z.object({ model: z.string().min(1).max(100), effort: z.string().min(1).max(20) }).optional(),
 });
 
 export const agentPromptSchema = z.object({
@@ -139,3 +140,10 @@ export const fileFindSchema = z.object({ root: z.string().min(1), query: z.strin
 export const workspaceRootSchema = z.object({ root: z.string().min(1) });
 export const commitSchema = z.object({ root: z.string().min(1), message: z.string().trim().min(1).max(10_000) });
 export const createWorktreeSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200) });
+export const checkoutSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200) });
+export const fileWriteSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), content: z.string().max(2 * 1024 * 1024), expectedHash: z.string().max(64).nullable() });
+export const fileSearchSchema = z.object({ root: z.string().min(1), query: z.string().min(1).max(256), caseSensitive: z.boolean().optional(), regex: z.boolean().optional() });
+export const fileExistsSchema = z.object({ root: z.string().min(1), paths: z.array(z.string().min(1).max(1024)).max(200) });
+export const fileCreateSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), kind: z.enum(["file", "directory"]) });
+export const fileRenameSchema = z.object({ root: z.string().min(1), from: z.string().min(1).max(4096), to: z.string().min(1).max(4096) });
+export const fileAtSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), base: z.enum(["head", "default"]) });
