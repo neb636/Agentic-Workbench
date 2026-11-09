@@ -8,6 +8,17 @@ export function rememberAgentModels(providers: AgentProviderInfo[]): void {
   useAgentModels.setState(Object.fromEntries(providers.filter((item) => item.models?.length).map((item) => [item.id, item.models!])));
 }
 
+/** The harness a view starts with until one is chosen: the first installed. */
+export function defaultHarness(providers: AgentProviderInfo[]): string | undefined {
+  return (providers.find((provider) => provider.available) ?? providers[0])?.id;
+}
+
+export const useDefaultHarness = create<{ id?: string }>(() => ({}));
+
+export function rememberDefaultHarness(providers: AgentProviderInfo[]): void {
+  useDefaultHarness.setState({ id: defaultHarness(providers) });
+}
+
 /**
  * The model and effort a new conversation launches with: the saved choice when the CLI still offers it, otherwise
  * null (nothing chosen).

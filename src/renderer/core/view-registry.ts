@@ -12,7 +12,8 @@ export interface ViewDefinition {
   id: string;
   label: string;
   description: string;
-  icon: ComponentType<{ size?: number }>;
+  /** Given a view when drawn for that open view, so the icon can reflect it; without one it stands for the view type. */
+  icon: ComponentType<{ size?: number; view?: WorkbenchView }>;
   component: ComponentType<ViewComponentProps>;
   createState?: () => unknown;
   /** Whether the new-view menus offer this type; views opened by commands set it false. */

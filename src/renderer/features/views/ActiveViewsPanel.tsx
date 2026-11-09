@@ -31,7 +31,7 @@ export function ActiveViewsPanel({ workspace }: PanelProps) {
           {(view) => {
             const status = viewStatus(view, statuses);
             return <GridListItem id={view.id} textValue={view.title} className={`panel-list-item ${view.id === workspace.activeViewId ? "is-current" : ""}`} {...menu.bind(() => viewActions(workspace, view))}>
-              <Icon size={14} />
+              <Icon size={14} view={view} />
               <span className="file-tree-name">{view.title}</span>
               {status && <small className={`tone-${status.tone}`}><span className="status-dot" />{status.label}</small>}
               {menu.overflow(viewActions(workspace, view), view.title)}

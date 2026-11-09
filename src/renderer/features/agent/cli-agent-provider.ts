@@ -1,8 +1,9 @@
+import type { ComponentType } from "react";
 import type { AgentProvider } from "../../core/session-provider-registry";
 import type { AgentSessionEvent, AgentSessionStatus } from "../../../shared/models";
 
-export function cliAgentProvider(id: string, label: string, description?: string): AgentProvider {
-  return { id, label, description, kind: "agent", async create(context) {
+export function cliAgentProvider(id: string, label: string, description?: string, icon?: ComponentType<{ size?: number }>): AgentProvider {
+  return { id, label, description, icon, kind: "agent", async create(context) {
     if (!context.viewId) throw new Error("Agent sessions require an owning view.");
     const sessionId = await window.workbench.agent.create({ providerId: id, workspacePath: context.workspacePath,
       viewId: context.viewId, cols: context.cols ?? 100, rows: context.rows ?? 24, resume: context.resume, settings: context.settings });

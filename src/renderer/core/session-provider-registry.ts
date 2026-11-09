@@ -1,3 +1,4 @@
+import type { ComponentType } from "react";
 import { Registry } from "./registry";
 import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentResume, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
 
@@ -40,6 +41,8 @@ interface SessionProviderBase {
   label: string;
   /** Short secondary text, such as the vendor. */
   description?: string;
+  /** The mark shown wherever this provider is named or chosen. */
+  icon?: ComponentType<{ size?: number }>;
 }
 
 export interface TerminalSessionProvider extends SessionProviderBase {

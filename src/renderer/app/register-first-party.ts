@@ -3,6 +3,8 @@ import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
 import type { FileViewState } from "../../shared/models";
 import { AgentView } from "../features/agent/AgentView";
+import { AgentViewIcon } from "../features/agent/AgentViewIcon";
+import { ClaudeCodeMark, CodexMark } from "../features/agent/harness-marks";
 import { cliAgentProvider } from "../features/agent/cli-agent-provider";
 import { closeAgentRuntime } from "../core/agent-runtimes";
 import { fileBuffers, isViewDirty, setViewDirty } from "../core/dirty-views";
@@ -19,7 +21,7 @@ import { ActiveViewsPanel } from "../features/views/ActiveViewsPanel";
 import { SourceControlBadge, SourceControlPanel, StatusBranch, WorkspaceBranch } from "../features/source-control/SourceControlPanel";
 import { MemoryUsage, SessionSummary, TerminalCount } from "../features/status/StatusItems";
 import { SettingsButton } from "../features/settings/SettingsButton";
-import { AgentIcon, BranchIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
+import { BranchIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
 
 let registered = false;
 
@@ -31,7 +33,7 @@ export function registerFirstPartyContributions(): void {
     id: "agent",
     label: "Agent session",
     description: "A native coding CLI with a prompt composer below it.",
-    icon: AgentIcon,
+    icon: AgentViewIcon,
     component: AgentView,
     defaultTitle: "Untitled",
     listInSidebar: true,
@@ -68,8 +70,8 @@ export function registerFirstPartyContributions(): void {
     },
   });
 
-  services.sessions.register(cliAgentProvider("claude.cli", "Claude Code", "Anthropic"));
-  services.sessions.register(cliAgentProvider("codex.cli", "Codex", "OpenAI"));
+  services.sessions.register(cliAgentProvider("claude.cli", "Claude Code", "Anthropic", ClaudeCodeMark));
+  services.sessions.register(cliAgentProvider("codex.cli", "Codex", "OpenAI", CodexMark));
   services.sessions.register(localTerminalProvider);
 
   services.panels.register({ id: "views", label: "Active views", icon: LayersIcon, order: 10, component: ActiveViewsPanel });
