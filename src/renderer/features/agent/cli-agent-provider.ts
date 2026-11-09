@@ -8,6 +8,7 @@ export function cliAgentProvider(id: string, label: string, description?: string
       viewId: context.viewId, cols: context.cols ?? 100, rows: context.rows ?? 24, resume: context.resume, settings: context.settings });
     let status: AgentSessionStatus | undefined;
     let statusSequence = 0;
+    let conversationId: string | undefined;
     const listeners = new Set<(status: AgentSessionStatus) => void>();
     const attachments = new Set<() => void>();
     const off = window.workbench.agent.onEvent((event) => {
@@ -20,9 +21,11 @@ export function cliAgentProvider(id: string, label: string, description?: string
     try {
       const initial = await window.workbench.agent.attach(sessionId);
       if (initial.sequence >= statusSequence) status = initial.status;
+      conversationId = initial.conversationId;
     } catch (error) { off(); window.workbench.agent.terminate(sessionId); throw error; }
     return {
       id: sessionId,
+      conversationId,
       input: (data) => window.workbench.agent.input(sessionId, data),
       resize: (cols, rows) => window.workbench.agent.resize(sessionId, cols, rows),
       sendPrompt: (request) => window.workbench.agent.sendPrompt(sessionId, request),

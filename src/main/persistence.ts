@@ -1,5 +1,5 @@
 import { app } from "electron";
-import { promises as fs } from "node:fs";
+import { mkdirSync, promises as fs, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { PersistedState } from "../shared/models";
 import { migratePersistedState, persistedStateSchema } from "../shared/schemas";
@@ -38,12 +38,27 @@ export async function loadState(): Promise<PersistedState> {
   }
 }
 
+/** Bumped by every save, so one still writing can't replace the state from a newer save. */
+let latestSave = 0;
+
 export async function saveState(input: unknown): Promise<PersistedState> {
   const state = persistedStateSchema.parse(input);
+  const save = ++latestSave;
   const target = statePath();
   const temporary = `${target}.next`;
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(temporary, JSON.stringify(state, null, 2), "utf8");
-  await fs.rename(temporary, target);
+  if (save === latestSave) await fs.rename(temporary, target);
   return state;
+}
+
+/** The last save of a closing window; written before returning because the app may exit right after. */
+export function saveStateNow(input: unknown): void {
+  const state = persistedStateSchema.parse(input);
+  latestSave++;
+  const target = statePath();
+  const temporary = `${target}.closing`;
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
+  renameSync(temporary, target);
 }

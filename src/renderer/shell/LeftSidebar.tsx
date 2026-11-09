@@ -36,7 +36,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     const workspace = workspaces.find((item) => item.id === key);
     if (workspace) { void services.commands.execute("workspace.select", workspace.id); return; }
     const owner = workspaces.find((item) => item.views.some((view) => view.id === key));
-    if (owner) void services.commands.execute("view.select", { workspaceId: owner.id, viewId: String(key) });
+    if (owner) void services.commands.execute("view.activate", { workspaceId: owner.id, viewId: String(key) });
   };
 
   return <aside className="sidebar-card left-sidebar" aria-label="Workspaces sidebar">

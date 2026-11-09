@@ -1,5 +1,5 @@
 // Deterministic interactive CLI fixture for Electron composer QA; no model calls.
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { setTimeout } from "node:timers";
 
 process.stdin.setRawMode(true);
@@ -10,6 +10,12 @@ let pending = "";
 let prompt = "";
 // Model and effort arrive as launch arguments, like Codex: --model <id> -c model_reasoning_effort="<effort>".
 const argv = process.argv.slice(2);
+if (process.env.COMPOSER_QA_LAUNCHES) appendFileSync(process.env.COMPOSER_QA_LAUNCHES, JSON.stringify({ argv, cwd: process.cwd() }) + "\n");
+// A conversation the CLI no longer has: it says so and exits, as the real ones do.
+if (argv[0] === "resume" && existsSync(`${process.env.COMPOSER_QA_LOG}.no-conversations`)) {
+  process.stdout.write("No conversation found\r\n");
+  process.exit(1);
+}
 const model = argv.includes("--model") ? argv[argv.indexOf("--model") + 1] : "";
 const effort = argv.find((arg) => arg.startsWith("model_reasoning_effort="))?.match(/"(.*)"/)?.[1] ?? "";
 ready();

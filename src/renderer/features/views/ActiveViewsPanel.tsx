@@ -3,13 +3,11 @@ import type { WorkbenchView } from "../../../shared/models";
 import type { PanelProps } from "../../core/panel-registry";
 import { services } from "../../core/services";
 import { useViewStatuses, viewStatus } from "../../core/view-status";
-import { useWorkbenchStore } from "../../state/workbench-store";
 import { CloseIcon } from "../../ui/icons";
 
 /** Groups views by type, in registration order: sessions, terminals, then files. */
 export function ActiveViewsPanel({ workspace }: PanelProps) {
   const statuses = useViewStatuses();
-  const selectView = useWorkbenchStore((state) => state.selectView);
   const groups = services.views.list()
     .map((definition) => ({ definition, views: workspace.views.filter((view) => view.type === definition.id) }))
     .filter((group) => group.views.length);
@@ -22,7 +20,7 @@ export function ActiveViewsPanel({ workspace }: PanelProps) {
       return <section key={definition.id} className="panel-section">
         <div className="panel-section-header"><span>{definition.label}</span><span className="count-badge">{views.length}</span></div>
         <GridList<WorkbenchView> aria-label={definition.label} className="panel-list" items={views}
-          dependencies={[statuses, workspace.activeViewId]} onAction={(key) => selectView(workspace.id, String(key))}>
+          dependencies={[statuses, workspace.activeViewId]} onAction={(key) => void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId: String(key) })}>
           {(view) => {
             const status = viewStatus(view, statuses);
             return <GridListItem id={view.id} textValue={view.title} className={`panel-list-item ${view.id === workspace.activeViewId ? "is-current" : ""}`}>

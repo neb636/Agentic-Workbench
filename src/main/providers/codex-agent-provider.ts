@@ -1,6 +1,6 @@
 import type { AgentProviderAdapter, AgentSubmission, ScreenObservation } from "../agent-provider";
 import { codexPlanMode, detectCliScreen, pasteChunks } from "./cli-screen";
-import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest } from "../../shared/models";
+import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest, AgentResume } from "../../shared/models";
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max", "ultra"];
 
@@ -13,7 +13,12 @@ export class CodexAgentProvider implements AgentProviderAdapter {
   readonly models: AgentModelChoice[] = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"].map((id) => ({
     id, label: id, efforts: id === "gpt-6-luna" ? EFFORTS.slice(0, -1) : EFFORTS,
   }));
-  args(resume: boolean) { return resume ? ["resume"] : []; }
+  // Codex can't be given an id for a new conversation; --last looks only at the folder it runs in.
+  args(resume?: AgentResume) {
+    if (resume?.kind === "id") return ["resume", resume.id];
+    if (resume?.kind === "latest") return ["resume", "--last"];
+    return resume ? ["resume"] : [];
+  }
   modelArgs(settings: AgentModelSettings) {
     // Plan mode has its own effort setting; without it, switching to Plan changes the chosen effort.
     return ["--model", settings.model, "-c", `model_reasoning_effort="${settings.effort}"`, "-c", `plan_mode_reasoning_effort="${settings.effort}"`];

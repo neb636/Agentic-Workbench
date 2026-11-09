@@ -33,6 +33,7 @@ interface Session {
   /** What the CLI reports about itself, when its adapter reads that; the window title may show it is starting up. */
   reportedState?: "idle" | "working";
   title: string;
+  conversationId?: string;
   /** The footer's mode when the CLI first took prompts; leaving Plan returns to it. */
   homeMode?: string;
   settleTimer?: ReturnType<typeof setTimeout>;
@@ -79,7 +80,12 @@ export class AgentSessionManager {
     if (!provider) throw new Error("Unknown agent provider.");
     const executable = executablePath(provider.executable);
     if (!executable) throw new Error(`${provider.label} executable was not found. Install it or configure its executable path.`);
-    const args = provider.args(Boolean(options.resume));
+    const args = provider.args(options.resume);
+    let conversationId = options.resume?.kind === "id" ? options.resume.id : undefined;
+    if (!options.resume && provider.conversationArgs) {
+      conversationId = randomUUID();
+      args.push(...provider.conversationArgs(conversationId));
+    }
     if (provider.readFolderArgs && this.attachmentFolder) args.push(...provider.readFolderArgs(this.attachmentFolder(options.viewId)));
     // Model and effort are launch arguments of a new conversation; a resumed one keeps what it was saved with.
     if (options.settings && !options.resume) {
@@ -98,7 +104,7 @@ export class AgentSessionManager {
     const session: Session = {
       id: randomUUID(), viewId: options.viewId, owner, provider, process: processInstance, terminal, serialize,
       sequence: 0, interrupted: false, working: false, sending: false, disposed: false, inputWasEdited: false,
-      lastOutputAt: Date.now(), settled: false, pendingData: "", createdAt: Date.now(), resized: false, title: "",
+      lastOutputAt: Date.now(), settled: false, pendingData: "", createdAt: Date.now(), resized: false, title: "", conversationId,
       status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0, started: 0 },
     };
     this.sessions.set(session.id, session);
@@ -134,7 +140,7 @@ export class AgentSessionManager {
     this.emitPending(s);
     // And a status read that was waiting: the snapshot's status is never older than its screen.
     if (s.detectTimer) { clearTimeout(s.detectTimer); s.detectTimer = undefined; this.detect(s); }
-    return { sessionId: id, sequence: s.sequence, screen: s.serialize.serialize(), cols: s.terminal.cols, rows: s.terminal.rows, status: s.status };
+    return { sessionId: id, sequence: s.sequence, screen: s.serialize.serialize(), cols: s.terminal.cols, rows: s.terminal.rows, status: s.status, conversationId: s.conversationId };
   }
 
   async sendPrompt(id: string, request: AgentPromptRequest, owner: WebContents): Promise<AgentDeliveryResult> {

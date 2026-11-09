@@ -28,7 +28,7 @@ import {
 } from "../shared/schemas";
 import type { FilesChangedEvent } from "../shared/models";
 import { AgentSessionManager } from "./agent-session-manager";
-import { loadState, saveState } from "./persistence";
+import { loadState, saveState, saveStateNow } from "./persistence";
 import type { PromptAttachments } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
 import type { SourceControlService } from "./source-control/source-control-provider";
@@ -106,6 +106,14 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   handle(IPC.persistenceSave, async (_event, input: unknown) => {
     const state = await saveState(persistedStateSchema.parse(input));
     workspace.roots.replace(state.workspaces.map((item) => item.path));
+  });
+  // Synchronous on purpose: the closing window waits here, so the write finishes before the app can exit.
+  ipcMain.on(IPC.persistenceSaveNow, (event, input: unknown) => {
+    try {
+      if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
+      saveStateNow(input);
+    } catch (error) { console.error("Could not save workbench state on close", error); }
+    event.returnValue = null;
   });
   handle(IPC.workspaceChooseDirectory, async () => {
     const result = await dialog.showOpenDialog({

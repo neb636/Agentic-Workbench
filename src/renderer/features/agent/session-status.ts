@@ -2,6 +2,7 @@ import type { AgentViewState, WorkbenchView } from "../../../shared/models";
 import { useAgentRuntimes, type AgentRuntime } from "../../core/agent-runtimes";
 import { services } from "../../core/services";
 import { publishViewStatus, type ViewStatus } from "../../core/view-status";
+import { savedConversation } from "../../../shared/agent-conversations";
 
 function providerLabel(providerId?: string): string | undefined {
   return providerId ? services.sessions.get(providerId)?.label : undefined;
@@ -22,9 +23,10 @@ export function agentRuntimeStatus(runtime: AgentRuntime): ViewStatus {
   }
 }
 
-/** Agent views without a running CLI are still being set up. */
+/** Agent views without a running CLI are either being set up or hold a conversation that can be reopened. */
 export function agentIdleStatus(view: WorkbenchView): ViewStatus {
-  return { label: "Setup", tone: "idle", detail: providerLabel((view.state as AgentViewState | undefined)?.providerId) };
+  const state = view.state as AgentViewState | undefined;
+  return { label: savedConversation(state) ? "Resumable" : "Setup", tone: "idle", detail: providerLabel(state?.providerId) };
 }
 
 /** Publishes CLI session status for every agent view, including views that are not mounted. */

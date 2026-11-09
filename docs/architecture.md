@@ -34,7 +34,7 @@ Agent view / prompt composer
   -> native interactive CLI
 ```
 
-Codex launches as an interactive executable, not `codex exec`; Claude Code uses the same session contract. Provider adapters own executable configuration, launch/resume arguments, interrupt keys, paste encoding, and native-screen interpretation.
+Codex launches as an interactive executable, not `codex exec`; Claude Code uses the same session contract. Provider adapters own executable configuration, launch/resume arguments, interrupt keys, paste encoding, and native-screen interpretation. A view remembers its conversation once something has happened in it; after a restart the CLI stays stopped until the person clicks the session, presses Resume, or sends, and then reopens that conversation in the view's folder.
 
 The main process parses every PTY chunk using xterm headless with 2,000 lines of scrollback. Attachments receive a serialized screen and sequence number, then consume only newer events. This prevents lost startup output and duplicate replay. Status remains available while the renderer surface is unmounted. The main terminal answers terminal queries; the renderer suppresses duplicate device-query responses.
 
