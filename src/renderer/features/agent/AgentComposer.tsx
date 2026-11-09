@@ -15,7 +15,7 @@ import {
   Tooltip,
   TooltipTrigger,
 } from "react-aria-components";
-import type { AgentSessionStatus, AgentViewState } from "../../../shared/models";
+import type { AgentModelSettings, AgentSessionStatus, AgentViewState } from "../../../shared/models";
 import { services } from "../../core/services";
 import type { ViewStatus } from "../../core/view-status";
 import { Button, IconButton } from "../../ui/controls";
@@ -23,7 +23,8 @@ import { ArrowUpIcon, ChevronDownIcon, CloseIcon, EyeIcon, FilesIcon, HistoryIco
 import { errorMessage } from "../../core/errors";
 import { MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
 import { isUnusedConversation, useAgentRuntimes } from "../../core/agent-runtimes";
-import { modelLabel, modelSettings, useAgentModels } from "./agent-models";
+import { savedConversation } from "../../../shared/agent-conversations";
+import { modelLabel, modelSettings, needsModelChoice, useAgentModels } from "./agent-models";
 import { clearComposerResult, emptyComposerRuntime, patchComposer, pendingSettings, useComposerState, type PromptPreview } from "./composer-state";
 import { ComposerAttachments } from "./ComposerAttachments";
 import { PromptMenuBar } from "./prompt-menus/PromptMenuBar";
@@ -55,12 +56,13 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const providerId = state.providerId ?? "";
   const choices = useAgentModels((s) => s[providerId]) ?? [];
   const settings = choices.length ? modelSettings(providerId, state.modelSettings?.[providerId]) : null;
-  const setSettings = (next: { model: string; effort: string } | undefined) => {
+  const setSettings = (next: AgentModelSettings) => {
     clearComposerResult(viewId);
-    const saved = { ...state.modelSettings };
-    if (next) saved[providerId] = next; else delete saved[providerId];
-    patch({ modelSettings: saved });
+    patch({ modelSettings: { ...state.modelSettings, [providerId]: next } });
   };
+  const efforts = choices.find((model) => model.id === settings?.model)?.efforts ?? [];
+  // A running or saved conversation already has its model; only a new one must be given one.
+  const needsModel = !session && !savedConversation(state) && needsModelChoice(providerId, state.modelSettings?.[providerId]);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState<PromptPreview>();
   const [historyId, setHistoryId] = useState<string>();
@@ -78,8 +80,6 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const unused = Boolean(agent && isUnusedConversation(agent));
   // A CLI that's still starting takes the prompt too: it's held until the CLI is ready.
   const starting = Boolean(session && !status?.canSubmit && status?.lifecycle !== "exited" && status?.lifecycle !== "failed");
-  // No model is preselected: a new conversation waits for one. A resumed conversation keeps the model it was started with.
-  const needsModel = choices.length > 0 && !settings && !(agent && agent.settings === undefined);
   const canSend = !runtime.attaching && hasDraft && !busy && !needsModel && (!wantsPlan || planning)
     && (session ? starting || Boolean(status?.canSubmit) : canLaunch);
   const historyEntry = runtime.history.find((entry) => entry.id === historyId) ?? runtime.history[0];
@@ -122,8 +122,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
     : runtime.sending ? (wantsPlan ? "Switching to Plan mode if needed, then delivering…" : "Delivering prompt…")
       : runtime.result?.outcome === "uncertain" ? `Delivery uncertain. ${runtime.result.message}`
         : runtime.result?.outcome === "not-sent" ? `Not sent. ${runtime.result.message}`
-          : needsModel && hasDraft ? "Choose a model to send."
-          : !session ? ""
+          : !session ? (needsModel ? "Choose a model to start." : "")
             : pending !== undefined ? (unused ? `Sending restarts the CLI with ${restartLabel}.` : `This conversation runs ${modelLabel(providerId, agent?.settings ?? null)}. Restart to use ${restartLabel}.`)
               : starting ? "The CLI is starting: send now and it goes as soon as it’s ready." : !status?.canSubmit ? status?.reason
                 : wantsPlan && status.activity !== "ready" ? "Plan mode switches once the CLI is ready."
@@ -221,19 +220,19 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
           {choices.length > 0 && <>
             <Select aria-label="Model" placeholder="Select model" selectedKey={settings?.model ?? null} isDisabled={busy}
               onSelectionChange={(key) => {
-                const model = choices.find((choice) => choice.id === key);
-                if (model) setSettings({ model: model.id, effort: model.efforts.includes(settings?.effort ?? "medium") ? settings?.effort ?? "medium" : model.efforts[0] });
+                const next = modelSettings(providerId, { model: String(key), effort: settings?.effort });
+                if (next) setSettings(next);
               }}>
               <AriaButton className="composer-chip"><SelectValue /><ChevronDownIcon size={12} /></AriaButton>
               <Popover className="wb-popover" placement="top end"><ListBox>
                 {choices.map((model) => <ListBoxItem key={model.id} id={model.id}>{model.label}</ListBoxItem>)}
               </ListBox></Popover>
             </Select>
-            {settings && <Select aria-label="Effort" selectedKey={settings.effort} isDisabled={busy}
+            {settings && efforts.length > 0 && <Select aria-label="Effort" selectedKey={settings.effort} isDisabled={busy}
               onSelectionChange={(key) => { if (key) setSettings({ model: settings.model, effort: String(key) }); }}>
               <AriaButton className="composer-chip"><SelectValue /><ChevronDownIcon size={12} /></AriaButton>
               <Popover className="wb-popover" placement="top end"><ListBox>
-                {choices.find((model) => model.id === settings.model)?.efforts.map((effort) => <ListBoxItem key={effort} id={effort}>{effort}</ListBoxItem>)}
+                {efforts.map((effort) => <ListBoxItem key={effort} id={effort}>{effort}</ListBoxItem>)}
               </ListBox></Popover>
             </Select>}
           </>}

@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import { _electron as electron } from "playwright";
 import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
@@ -176,6 +177,29 @@ try {
   await page.waitForFunction((text) => document.querySelector(".cm-content")?.textContent.includes(text), "after rename");
   assert.equal((await page.locator(".cm-content").innerText()).trim(), savedAfterRename.trim());
   assert.equal(await readFile(join(other, "relocated/reviewed.txt"), "utf8"), savedAfterRename);
+  // A workspace's custom icon: a wide picture is cropped square, survives a reload and can be removed; an unreadable one changes nothing.
+  const workspaceRow = page.locator(".workspace-row", { hasText: "Other" }).first();
+  const workspaceIcon = workspaceRow.locator(".workspace-icon img");
+  const pickFile = (file) => app.evaluate(({ dialog }, chosen) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] }); dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false }); }, file);
+  const widePicture = await app.evaluate(({ nativeImage }) => nativeImage.createFromBitmap(Buffer.alloc(120 * 40 * 4, Buffer.from([0xd0, 0x60, 0x20, 0xff])), { width: 120, height: 40 }).toPNG().toString("base64"));
+  await writeFile(join(directory, "wide.png"), Buffer.from(widePicture, "base64"));
+  await writeFile(join(directory, "broken.png"), "not a picture");
+  await pickFile(join(directory, "broken.png"));
+  await workspaceRow.click({ button: "right" }); await action("Set Custom Icon…").click();
+  await page.waitForTimeout(200);
+  assert.equal(await workspaceIcon.count(), 0);
+  await pickFile(join(directory, "wide.png"));
+  await workspaceRow.click({ button: "right" }); await action("Set Custom Icon…").click();
+  await workspaceIcon.waitFor();
+  assert.deepEqual(await workspaceIcon.evaluate((image) => [image.naturalWidth, image.naturalHeight]), [64, 64]);
+  await page.screenshot({ path: join(directory, "workspace-icon.png") });
+  await page.waitForTimeout(500); // Past the persistence debounce.
+  assert.match(await readFile(join(directory, "workbench-state.json"), "utf8"), /data:image\/png/);
+  await page.reload();
+  await workspaceIcon.waitFor();
+  await workspaceRow.click({ button: "right" }); await action("Change Custom Icon…").waitFor();
+  await action("Remove Custom Icon").click();
+  await workspaceIcon.waitFor({ state: "detached" });
   assert.deepEqual(errors, []);
   console.log(`Context menu QA passed. Artifacts: ${directory}`);
 } catch (error) {

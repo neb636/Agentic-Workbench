@@ -14,7 +14,7 @@ After application restart, Start launches a new CLI; Resume launches the selecte
 
 The shell is three resizable, collapsible cards over the app canvas plus a status bar, all built on accessible primitives:
 
-- Left sidebar: workspaces as a tree, with views whose definition sets `listInSidebar` nested beneath each one. Rows show `{status} · {provider}` from the generic view-status store. The `sidebar.workspace.meta` and `sidebar.footer` widget slots supply extra row detail and navigation.
+- Left sidebar: workspaces as a tree, with views whose definition sets `listInSidebar` nested beneath each one. Rows show `{status} · {provider}` from the generic view-status store. The `sidebar.workspace.meta` and `sidebar.footer` widget slots supply extra row detail and navigation. A workspace can replace its folder icon with a picture; main crops it to a 64px PNG data URL that persists on the Workspace.
 - Center: a tab strip over the active view. Tabs that do not fit move into a "+N more" menu, and the active tab always stays visible.
 - Right sidebar: panels from `PanelRegistry` (Active views, Files, Source control), switched from an activity bar. A panel may declare a `badge` component (Source control shows its change count).
 - Status bar: the `statusbar.start` and `statusbar.end` widget slots.
@@ -71,7 +71,7 @@ The first prompt waits for the CLI to settle: ready activity, a quiet period (`m
 
 Send stays available while a CLI starts or asks something in the terminal: the composer holds the prompt until the CLI can take it (45 s, or 5 minutes while it waits on the person).
 
-Adapters may offer `models` with per-model reasoning efforts and turn a choice into launch arguments (`modelArgs`). Discovery passes the catalogue to the renderer; the composer shows Model and Effort pickers with a "CLI default" choice that adds no arguments. Settings apply only to new conversations: before the first prompt, Send relaunches with the new choice; afterwards the composer offers "Restart with…". Main rejects any model or effort its adapter doesn't list.
+Adapters turn a model choice into launch arguments (`modelArgs`) and may say how to read the CLI's current models (`listModels`, which starts no conversation). `AgentModelCatalogue` runs those reads in main at startup and every 30 minutes, keeps the last good list in memory, and pushes a changed list to the renderer; an adapter's static `models` stand in until the first read succeeds. Nothing is chosen by default: the composer's Model picker starts empty, and Send and Start session stay disabled until a model is picked for each new conversation (New conversation clears the choice). Resumed conversations keep their own model. A harness offering no models isn't gated. Settings apply only to new conversations: before the first prompt, Send relaunches with the new choice; afterwards the composer offers "Restart with…". Main rejects any model or effort the catalogue doesn't list.
 
 `scripts/cli-probe.mjs` records what a real CLI draws into `tests/fixtures/*.json`; tests replay those recordings through the adapters. Re-record them when a CLI update changes its screens.
 

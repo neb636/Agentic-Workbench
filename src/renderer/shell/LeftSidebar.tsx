@@ -56,7 +56,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               {hasChildItems
                 ? <AriaButton slot="chevron" className={`tree-chevron ${isExpanded ? "is-expanded" : ""}`} aria-label={isExpanded ? `Collapse ${workspace.name}` : `Expand ${workspace.name}`}><ChevronRightIcon size={11} /></AriaButton>
                 : <span className="tree-chevron-spacer" />}
-              <span className="workspace-icon"><FolderIcon size={15} /></span>
+              <span className="workspace-icon">{workspace.icon ? <img src={workspace.icon} alt="" draggable={false} /> : <FolderIcon size={15} />}</span>
               <span className="workspace-copy">
                 <strong>{workspace.name}</strong>
                 <small>{sessions.length} {sessions.length === 1 ? "session" : "sessions"}{services.widgets.forSlot("sidebar.workspace.meta").map((widget) => {

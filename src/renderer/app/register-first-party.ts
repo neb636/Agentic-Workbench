@@ -100,9 +100,18 @@ export function registerFirstPartyContributions(): void {
     const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
     if (workspace) await terminalAt(workspace, { root: workspace.path, path: "" });
   });
+  services.commands.register<{ workspaceId: string }>("workspace.chooseIcon", async ({ workspaceId }) => {
+    const icon = await window.workbench.workspace.chooseIcon();
+    if (icon) useWorkbenchStore.getState().setWorkspaceIcon(workspaceId, icon);
+  });
+  services.commands.register<{ workspaceId: string }>("workspace.removeIcon", ({ workspaceId }) => {
+    useWorkbenchStore.getState().setWorkspaceIcon(workspaceId, undefined);
+  });
   services.contextMenus.register({ id: "workspace.actions", kind: "workspace", items: (context) => context.kind !== "workspace" ? [] : [
     ...services.views.list().filter((d) => d.creatable !== false).map((d) => ({ id: `new-${d.id}`, label: `New ${d.label}`, section: "create", run: () => services.commands.execute("view.create", { workspaceId: context.workspace.id, viewType: d.id }) })),
     ...[{ id: "reveal", label: "Reveal Folder", command: "workspace.reveal" }, { id: "terminal", label: "Open in Terminal", command: "workspace.terminal" }, { id: "copy", label: "Copy Path", command: "workspace.copyPath" }].map((item) => ({ ...item, section: "workspace", run: () => services.commands.execute(item.command, { workspaceId: context.workspace.id }) })),
+    { id: "choose-icon", label: context.workspace.icon ? "Change Custom Icon…" : "Set Custom Icon…", section: "icon", run: () => services.commands.execute("workspace.chooseIcon", { workspaceId: context.workspace.id }) },
+    ...(context.workspace.icon ? [{ id: "remove-icon", label: "Remove Custom Icon", section: "icon", run: () => services.commands.execute("workspace.removeIcon", { workspaceId: context.workspace.id }) }] : []),
     { id: "remove", label: "Remove Workspace", destructive: true, section: "remove", run: () => services.commands.execute("workspace.remove", context.workspace.id) },
   ] });
   registerFileActionContributions();
