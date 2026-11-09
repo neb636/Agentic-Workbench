@@ -55,7 +55,13 @@ function PictureView({ root, path }: { root: string; path: string }) {
  * Diff shows the changes against the last commit or the default branch. Pictures show as pictures.
  * Views like this have no session: they are only persisted UI state.
  */
-export function FileView({ view, workspace }: ViewComponentProps) {
+export function FileView(props: ViewComponentProps) {
+  const { root, path } = props.view.state as FileViewState;
+  // A view ID survives filesystem moves. Reload the editor at its new location before displaying text.
+  return <FileEditor key={JSON.stringify([root, path])} {...props} />;
+}
+
+function FileEditor({ view, workspace }: ViewComponentProps) {
   const menu = useContextMenu("Editor actions");
   const state = (view.state ?? {}) as FileViewState;
   const { root, path } = state;

@@ -141,3 +141,34 @@ test("a cross-device move stops if the source changes after publication, retaini
     await assert.rejects(lstat(target));
   } finally { fs.rename = rename; await operations.dispose(); }
 });
+
+for (const partial of [false, true]) test(`failed cross-device source removal retains the complete destination (${partial ? "partially deleted source" : "untouched source"})`, async () => {
+  const { promises: fs } = await import("node:fs");
+  const { root, other, operations, loc } = await fixture();
+  await writeFile(join(root, "src/two.txt"), "second payload\n");
+  const source = join(await realpath(root), "src"), target = join(await realpath(other), "src");
+  const rename = fs.rename, remove = fs.rm;
+  fs.rename = async (from, to) => {
+    if (from === source) throw Object.assign(new Error("different device"), { code: "EXDEV" });
+    return rename(from, to);
+  };
+  fs.rm = async (file, options) => {
+    if (file === source) {
+      if (partial) await remove(join(source, "one.txt"));
+      throw Object.assign(new Error("permission denied removing source"), { code: "EACCES" });
+    }
+    return remove(file, options);
+  };
+  try {
+    const result = await operations.run({ kind: "transfer", sources: [loc("src")], destination: loc("", other), move: true, collision: "error" });
+    assert.equal(result.errors.length, 1);
+    assert.equal(await readFile(join(target, "one.txt"), "utf8"), "first\n");
+    assert.equal(await readFile(join(target, "two.txt"), "utf8"), "second payload\n");
+    assert.equal(await readFile(join(source, "two.txt"), "utf8"), "second payload\n");
+    if (partial) await assert.rejects(lstat(join(source, "one.txt")));
+    else assert.equal(await readFile(join(source, "one.txt"), "utf8"), "first\n");
+    assert.match(result.errors[0], /copy remains/);
+    assert.equal(result.undo, undefined, "an incomplete move must not enter successful move history");
+    assert.equal(result.effects.length, 0, "open editors must not be retargeted after an incomplete move");
+  } finally { fs.rename = rename; fs.rm = remove; await operations.dispose(); }
+});

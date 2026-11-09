@@ -90,12 +90,16 @@ export class FileOperations {
       await this.copy(source, target, hash);
       try {
         await this.check(source, hash); await this.check(target, hash);
-        await fs.rm(source, { recursive: true });
       } catch (error) {
-        // A failed cross-device move leaves the source intact. Remove only our unchanged copy.
+        // Validation failed before source deletion began. Remove only our unchanged copy.
         try { await this.check(target, hash); await fs.rm(target, { recursive: true }); }
         catch { throw new Error(`Move could not finish; a changed copy remains at ${target}. ${String(error)}`); }
         throw error;
+      }
+      try { await fs.rm(source, { recursive: true }); }
+      catch (error) {
+        // Recursive removal can fail after deleting children. The destination may now be their only copy.
+        throw new Error(`Source removal could not finish; the source may be incomplete. The destination copy remains at ${target}. ${String(error)}`);
       }
     }
   }

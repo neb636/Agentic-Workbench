@@ -144,6 +144,38 @@ try {
   assert.equal(await action("Paste").getAttribute("aria-disabled"), "true");
   assert.equal(await action("Save").getAttribute("aria-disabled"), "true");
   await page.keyboard.press("Escape");
+  // Saved text must survive retargeting the same view ID, including later saves and folder moves.
+  await row("beta.txt").click();
+  const savedBeforeRename = "saved before rename\n";
+  await page.locator(".cm-content").click(); await page.keyboard.press("Meta+a"); await page.keyboard.type(savedBeforeRename);
+  await page.keyboard.press("Meta+s");
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Saved"));
+  assert.equal(await readFile(join(other, "beta.txt"), "utf8"), savedBeforeRename);
+  await row("beta.txt").click({ button: "right" }); await action("Rename…").click();
+  await page.getByRole("textbox", { name: "Rename beta.txt", exact: true }).fill("reviewed.txt");
+  await page.getByRole("textbox", { name: "Rename beta.txt", exact: true }).press("Enter");
+  await page.getByRole("tab", { name: "reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((size) => document.querySelector(".code-footer")?.textContent.includes(`${size} B`), savedBeforeRename.length);
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedBeforeRename.trim());
+  assert.equal(await page.locator(".view-tab.is-dirty, .view-tab .dirty-dot").count(), 0);
+  await page.locator(".cm-content").click(); await page.keyboard.press("Meta+End"); await page.keyboard.type("after rename");
+  await page.keyboard.press("Meta+s");
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Saved"));
+  const savedAfterRename = savedBeforeRename + "after rename";
+  assert.equal(await readFile(join(other, "reviewed.txt"), "utf8"), savedAfterRename);
+  await mkdir(join(other, "moved"));
+  await row("reviewed.txt").click({ button: "right" }); await action("Cut").click();
+  await row("moved").click({ button: "right" }); await action("Paste").click();
+  await page.getByRole("region", { name: "File moved/reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((text) => document.querySelector(".cm-content")?.textContent.includes(text), "after rename");
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedAfterRename.trim());
+  await row("moved").click({ button: "right" }); await action("Rename…").click();
+  await page.getByRole("textbox", { name: "Rename moved", exact: true }).fill("relocated");
+  await page.getByRole("textbox", { name: "Rename moved", exact: true }).press("Enter");
+  await page.getByRole("region", { name: "File relocated/reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((text) => document.querySelector(".cm-content")?.textContent.includes(text), "after rename");
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedAfterRename.trim());
+  assert.equal(await readFile(join(other, "relocated/reviewed.txt"), "utf8"), savedAfterRename);
   assert.deepEqual(errors, []);
   console.log(`Context menu QA passed. Artifacts: ${directory}`);
 } catch (error) {
