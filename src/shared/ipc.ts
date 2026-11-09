@@ -53,4 +53,5 @@ export const IPC = {
   sourceControlCheckout: "source-control:checkout",
   sourceControlFileAt: "source-control:file-at",
   sourceControlIgnored: "source-control:ignored",
+  sourceControlGenerateCommitMessage: "source-control:generate-commit-message",
 } as const;

@@ -33,6 +33,11 @@ export class CodexAgentProvider implements AgentProviderAdapter {
     if (!settings.effort) return ["--model", settings.model];
     return ["--model", settings.model, "-c", `model_reasoning_effort="${settings.effort}"`, "-c", `plan_mode_reasoning_effort="${settings.effort}"`];
   }
+  // No shell, and none of the user's hooks or MCP servers. Codex has no "latest" alias, so the newest Luna is named here.
+  readonly oneShot = {
+    args: () => ["exec", "--ephemeral", "--sandbox", "read-only", "--skip-git-repo-check", "--ignore-user-config", "--ignore-rules", "--disable", "shell_tool", "--disable", "unified_exec"],
+    quickTaskModel: { model: "gpt-6-luna", effort: "medium" },
+  };
   detect = detectCliScreen("codex");
   // Codex draws its composer before trust and startup checks, which may then replace it.
   readonly startupSettleMs = 1000;

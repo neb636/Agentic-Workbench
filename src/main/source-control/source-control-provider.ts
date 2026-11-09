@@ -4,6 +4,14 @@ import { worktreeContainer } from "../workspace-files";
 
 export type ProviderStatus = Omit<SourceControlStatus, "providerId" | "providerLabel" | "root">;
 
+/** What the next commit would contain, sized to describe to a model. */
+export interface PendingChanges {
+  /** Which files changed and by how much; empty when nothing did. */
+  summary: string;
+  diff: string;
+  truncated: boolean;
+}
+
 /** A version-control system behind a narrow, fixed set of operations. */
 export interface SourceControlProvider {
   id: string;
@@ -21,6 +29,8 @@ export interface SourceControlProvider {
   checkout: (root: string, branch: string) => Promise<void>;
   /** A file's text at the last commit or where this branch left the default branch; null when it didn't exist there. */
   fileAt?: (root: string, path: string, base: DiffBase) => Promise<string | null>;
+  /** Describes everything `commit` would record, without changing the repository. */
+  pendingChanges?: (root: string) => Promise<PendingChanges>;
   /** Paths the system ignores (folded to their top folder), to dim in the file tree. */
   ignored?: (root: string) => Promise<string[]>;
   /** Text search inside the files the system knows about (tracked and untracked, not ignored). */
@@ -61,6 +71,12 @@ export class SourceControlService {
     const provider = await this.require(root);
     if (!provider.fileAt) throw new Error(`${provider.label} can't show older versions.`);
     return provider.fileAt(root, file, base);
+  }
+
+  async pendingChanges(root: string): Promise<PendingChanges> {
+    const provider = await this.require(root);
+    if (!provider.pendingChanges) throw new Error(`${provider.label} can't describe pending changes.`);
+    return provider.pendingChanges(root);
   }
 
   /** Cached for a few seconds: the file tree asks again on every file change. */

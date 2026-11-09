@@ -1,6 +1,8 @@
 import { useContextMenu } from "../../ui/ContextMenu";
 import { locationActions } from "../files/file-actions";
-import { useEffect, useState } from "react";
+import { useChoiceDialog } from "../../ui/ChoiceDialog";
+import { useDefaultCli } from "../settings/default-cli";
+import { useEffect, useRef, useState } from "react";
 import {
   Button as AriaButton,
   Dialog,
@@ -28,7 +30,7 @@ import { services } from "../../core/services";
 import type { WidgetProps } from "../../core/widget-registry";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button, IconButton } from "../../ui/controls";
-import { BranchIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, FileIcon, RefreshIcon } from "../../ui/icons";
+import { BranchIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, FileIcon, RefreshIcon, SparkIcon } from "../../ui/icons";
 import { activeRoot, CHANGE_LETTERS, refreshSourceControl, useSourceControlStatus } from "./source-control-store";
 
 function folderName(path: string): string {
@@ -83,14 +85,64 @@ function BranchSwitcher({ root, current, changes }: { root: string; current?: st
   </Disclosure>;
 }
 
+/** Keyed by folder: a draft, an error or a generation in progress belongs to the folder it started in. */
+function CommitArea({ root, branch, count }: { root: string; branch?: string; count: number }) {
+  const { current: cli } = useDefaultCli();
+  const chosenCli = useWorkbenchStore((state) => state.defaultAgentProviderId);
+  const { choose, dialog } = useChoiceDialog();
+  const [message, setMessage] = useState("");
+  const [committing, setCommitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+  const lastGenerated = useRef("");
+  const commit = async (close: () => void) => {
+    setCommitting(true); setError("");
+    try { await window.workbench.sourceControl.commit(root, message.trim()); setMessage(""); }
+    catch (e) { setError(errorMessage(e)); }
+    finally { setCommitting(false); close(); void refreshSourceControl(root); }
+  };
+  const generate = async () => {
+    const typedByHand = message.trim() && message !== lastGenerated.current;
+    if (typedByHand && await choose("Replace your commit message?", "The generated message will replace what you've typed.", ["Cancel", "Replace"]) !== "Replace") return;
+    setGenerating(true); setError("");
+    try {
+      const generated = await window.workbench.sourceControl.generateCommitMessage(root, chosenCli);
+      lastGenerated.current = generated;
+      setMessage(generated);
+    } catch (e) { setError(errorMessage(e)); }
+    finally { setGenerating(false); }
+  };
+  return <div className="commit-area">
+    {dialog}
+    <div className="commit-input">
+      <TextField aria-label="Commit message" value={message} onChange={setMessage} isReadOnly={generating}>
+        <TextArea placeholder={generating ? "Generating commit message…" : "Commit message"} rows={3} />
+      </TextField>
+      <IconButton className={`commit-generate ${generating ? "is-generating" : ""}`} label={cli ? `Generate commit message with ${cli.label}` : "Generate commit message"} isDisabled={!count || generating || committing} onPress={() => void generate()}><SparkIcon size={14} /></IconButton>
+    </div>
+    <DialogTrigger>
+      <Button className="commit-button" isDisabled={!count || !message.trim() || committing || generating}><CheckIcon size={13} />Commit {count} {count === 1 ? "change" : "changes"}</Button>
+      <ModalOverlay className="wb-modal-overlay" isDismissable>
+        <Modal className="wb-modal wb-alert">
+          <Dialog role="alertdialog" className="wb-dialog">
+            {({ close }) => <>
+              <Heading slot="title">Commit {count} {count === 1 ? "change" : "changes"}?</Heading>
+              <p>Every change in <code>{folderName(root)}</code>, including untracked files, will be committed to <strong>{branch ?? "the current HEAD"}</strong>.</p>
+              <div className="dialog-actions"><Button onPress={close}>Cancel</Button><Button className="primary-button" isDisabled={committing} onPress={() => void commit(close)}>Commit</Button></div>
+            </>}
+          </Dialog>
+        </Modal>
+      </ModalOverlay>
+    </DialogTrigger>
+    {error && <p role="alert" className="agent-error">{error}</p>}
+  </div>;
+}
+
 export function SourceControlPanel({ workspace }: PanelProps) {
   const menu = useContextMenu("Changed file actions");
   const root = activeRoot(workspace);
   const entry = useSourceControlStatus(root, true);
   const status = entry?.status;
-  const [message, setMessage] = useState("");
-  const [committing, setCommitting] = useState(false);
-  const [error, setError] = useState("");
   const count = status?.changes.length ?? 0;
   const changeActions = (path: string) => {
     const change = status?.changes.find((c) => c.path === path);
@@ -98,12 +150,6 @@ export function SourceControlPanel({ workspace }: PanelProps) {
       { id: "changes", label: "Open Changes", disabled: change.kind === "deleted", run: () => services.commands.execute("file.open", { workspaceId: workspace.id, root, path, diff: true, preview: false }) },
       ...locationActions(workspace, { root, path }, false, change.kind !== "deleted"),
     ] : [];
-  };
-  const commit = async (close: () => void) => {
-    setCommitting(true); setError("");
-    try { await window.workbench.sourceControl.commit(root, message.trim()); setMessage(""); }
-    catch (e) { setError(errorMessage(e)); }
-    finally { setCommitting(false); close(); void refreshSourceControl(root); }
   };
 
   return <div className="side-panel source-control-panel" onKeyDown={menu.bind((target) => changeActions(target.closest("[role=row]")?.getAttribute("data-key") ?? "")).onKeyDown}>
@@ -119,26 +165,7 @@ export function SourceControlPanel({ workspace }: PanelProps) {
         <small className="branch-provider">{status.providerLabel}</small>
       </div>
       <BranchSwitcher root={root} current={status.branch} changes={count} />
-      <div className="commit-area">
-        <TextField aria-label="Commit message" value={message} onChange={setMessage}>
-          <TextArea placeholder="Commit message" rows={3} />
-        </TextField>
-        <DialogTrigger>
-          <Button className="commit-button" isDisabled={!count || !message.trim() || committing}><CheckIcon size={13} />Commit {count} {count === 1 ? "change" : "changes"}</Button>
-          <ModalOverlay className="wb-modal-overlay" isDismissable>
-            <Modal className="wb-modal wb-alert">
-              <Dialog role="alertdialog" className="wb-dialog">
-                {({ close }) => <>
-                  <Heading slot="title">Commit {count} {count === 1 ? "change" : "changes"}?</Heading>
-                  <p>Every change in <code>{folderName(root)}</code>, including untracked files, will be committed to <strong>{status.branch ?? "the current HEAD"}</strong>.</p>
-                  <div className="dialog-actions"><Button onPress={close}>Cancel</Button><Button className="primary-button" isDisabled={committing} onPress={() => void commit(close)}>Commit</Button></div>
-                </>}
-              </Dialog>
-            </Modal>
-          </ModalOverlay>
-        </DialogTrigger>
-        {error && <p role="alert" className="agent-error">{error}</p>}
-      </div>
+      <CommitArea key={root} root={root} branch={status.branch} count={count} />
       <div className="panel-section-header"><Label>Changes</Label><span className="count-badge">{count}{status.truncated ? "+" : ""}</span></div>
       <GridList aria-label="Changes" className="panel-list change-list" items={status.changes.map((change) => ({ ...change, id: change.path }))}
         onAction={(key) => { if (status.changes.find((c) => c.path === key)?.kind === "deleted") return; void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key), diff: true, preview: true }); }}

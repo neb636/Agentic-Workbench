@@ -2,6 +2,8 @@ import { app, BrowserWindow, Menu, MenuItem, nativeImage, shell } from "electron
 import path from "node:path";
 import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { AgentSessionManager } from "./agent-session-manager";
+import { CommitMessages } from "./internal-ai/commit-message";
+import { InternalAiService } from "./internal-ai/internal-ai-service";
 import { registerIpc } from "./ipc";
 import { ClaudeAgentProvider } from "./providers/claude-agent-provider";
 import { CodexAgentProvider } from "./providers/codex-agent-provider";
@@ -31,11 +33,14 @@ const attachments = new PromptAttachments(() => path.join(app.getPath("userData"
 const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
 const agentModels = new AgentModelCatalogue(agentProviders);
 const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels);
+const internalAi = new InternalAiService(agentProviders, () => path.join(app.getPath("userData"), "internal-ai"));
 const roots = new WorkspaceRoots();
+const sourceControl = new SourceControlService([new GitSourceControlProvider()]);
 const workspaceServices = {
   roots,
   files: new WorkspaceFiles(roots, (target) => shell.trashItem(target)),
-  sourceControl: new SourceControlService([new GitSourceControlProvider()]),
+  sourceControl,
+  commitMessages: new CommitMessages(sourceControl, internalAi),
 };
 
 /**
@@ -120,6 +125,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   agentModels.stop();
+  internalAi.terminateAll();
   agentSessionManager.terminateAll();
   ptyManager.terminateAll();
 });

@@ -112,6 +112,11 @@ test("legacy appended instructions migrate to workspace toggles", () => {
   assert.deepEqual(state.layout, { leftCollapsed: false, rightCollapsed: false });
 });
 
+test("the Default CLI choice survives the persisted state schema", () => {
+  assert.equal(persistedStateSchema.parse({ defaultAgentProviderId: "some.cli" }).defaultAgentProviderId, "some.cli");
+  assert.equal(persistedStateSchema.parse({}).defaultAgentProviderId, undefined);
+});
+
 test("a workspace keeps a valid icon and loses only a bad one", () => {
   const workspace = (icon) => ({ workspaces: [{ id: "w", name: "W", path: "/w", icon, views: [] }] });
   const icon = "data:image/png;base64,iVBORw0KGgo=";

@@ -49,6 +49,8 @@ export interface AgentProviderAdapter {
   listModels?: AgentModelListing;
   /** Model and effort as launch arguments; only called with a model the catalogue offers. */
   modelArgs?: (settings: AgentModelSettings) => string[];
+  /** Run once without a terminal: prompt on stdin, answer as plain text on stdout. Used only by InternalAiService. */
+  oneShot?: { args: () => string[]; quickTaskModel: AgentModelSettings };
   detect: (screen: ScreenObservation) => AgentDetection;
   capabilities?: { planning: boolean };
   /** Quiet time a first input prompt must hold before it accepts a submission; some CLIs draw it before startup dialogs. */

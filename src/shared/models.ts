@@ -61,6 +61,8 @@ export interface PersistedState {
   personas: Persona[];
   instructionOptions: StoredPromptOption[];
   layout: LayoutState;
+  /** The CLI that runs built-in AI actions. Unset: the first one installed. */
+  defaultAgentProviderId?: string;
 }
 
 export interface PtyCreateOptions {
@@ -371,6 +373,8 @@ export interface WorkbenchApi {
     fileAt: (root: string, path: string, base: DiffBase) => Promise<string | null>;
     /** Ignored paths, folded to their top folder, to dim in the file tree. */
     ignored: (root: string) => Promise<string[]>;
+    /** Describes the pending changes with a CLI (`providerId`, else the first one installed). Spends the user's tokens. */
+    generateCommitMessage: (root: string, providerId?: string) => Promise<string>;
   };
   pty: {
     create: (options: PtyCreateOptions) => Promise<string>;

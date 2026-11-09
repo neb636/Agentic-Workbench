@@ -16,6 +16,7 @@
     "start": "electron .",
     "qa:context-menus": "npm run build && node scripts/qa-context-menus.mjs",
     "qa:composer": "node scripts/qa-composer.mjs",
+    "qa:commit-message": "npm run build && node scripts/qa-commit-message.mjs",
     "postinstall": "electron-rebuild -f -w node-pty",
     "dist": "npm run build && electron-builder --mac && npm run open:app",
     "dist:dir": "npm run build && electron-builder --mac --dir && npm run open:app",

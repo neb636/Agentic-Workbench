@@ -1,13 +1,14 @@
+/* global setTimeout */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import gitModule from "../dist-electron/main/providers/git-source-control-provider.js";
 import serviceModule from "../dist-electron/main/source-control/source-control-provider.js";
 
-const { GitSourceControlProvider, isValidBranchName, parseBaseBranches, parseGrep, parsePorcelainV2 } = gitModule;
+const { capDiff, GitSourceControlProvider, isValidBranchName, parseBaseBranches, parseGrep, parsePorcelainV2 } = gitModule;
 const { SourceControlService } = serviceModule;
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -227,4 +228,98 @@ test("searches inside tracked and untracked files, skipping ignored ones", async
   assert.deepEqual((await service.search(root, "-e", {})).matches, []);
   assert.deepEqual((await service.search(root, "nothing-matches-this", {})).matches, []);
   assert.equal(parseGrep("a.ts\u00001\u0000x\nb.ts\u00002\u0000y\n", 1).length, 1);
+});
+
+const objectCount = (root) => git(root, "count-objects", "-v");
+const pending = (root) => new GitSourceControlProvider().pendingChanges(root);
+
+test("pendingChanges describes everything a commit would include and leaves the repository alone", async () => {
+  const { root } = await repository();
+  await writeFile(join(root, "gone.txt"), "bye\n");
+  await writeFile(join(root, "moved.txt"), "line\n".repeat(30));
+  git(root, "add", ".");
+  git(root, "commit", "--quiet", "-m", "more");
+  await writeFile(join(root, "tracked.txt"), "two\n");
+  await writeFile(join(root, "new file.txt"), "brand new\n");
+  await rm(join(root, "gone.txt"));
+  await rename(join(root, "moved.txt"), join(root, "renamed.txt"));
+  await symlink("/etc/hosts", join(root, "link"));
+  const statusBefore = git(root, "status", "--porcelain=v2");
+  const objectsBefore = objectCount(root);
+  const { summary, diff, truncated } = await pending(root);
+  assert.equal(truncated, false);
+  assert.match(summary, /tracked\.txt/);
+  assert.match(summary, /new file\.txt/);
+  assert.match(summary, /gone\.txt/);
+  assert.match(summary, /moved\.txt => renamed\.txt|\{moved => renamed\}\.txt/);
+  assert.match(diff, /^\+two$/m);
+  assert.match(diff, /^\+brand new$/m);
+  assert.match(diff, /^-bye$/m);
+  assert.match(diff, /^rename from moved\.txt$/m);
+  assert.match(diff, /^\+\/etc\/hosts$/m, "a symlink is its target's path, not the file it points to");
+  assert.doesNotMatch(diff, /localhost/);
+  assert.equal(git(root, "status", "--porcelain=v2"), statusBefore);
+  assert.equal(objectCount(root), objectsBefore);
+});
+
+test("pendingChanges works before the first commit and with nothing to describe", async () => {
+  const parent = await realpath(await mkdtemp(join(tmpdir(), "workbench-git-")));
+  execFileSync("git", ["init", "--quiet", "-b", "main", parent]);
+  await writeFile(join(parent, "first.txt"), "hello\n");
+  const unborn = await pending(parent);
+  assert.match(unborn.summary, /first\.txt/);
+  assert.match(unborn.diff, /^\+hello$/m);
+  const { root } = await repository();
+  assert.deepEqual(await pending(root), { summary: "", diff: "", truncated: false });
+});
+
+test("pendingChanges covers the whole repository from a subfolder", async () => {
+  const { root } = await repository();
+  await mkdir(join(root, "sub"));
+  await writeFile(join(root, "sub/inner.txt"), "inner\n");
+  await writeFile(join(root, "tracked.txt"), "outer change\n");
+  const { diff } = await pending(join(root, "sub"));
+  assert.match(diff, /^\+inner$/m);
+  assert.match(diff, /^\+outer change$/m);
+});
+
+test("pendingChanges names secret files without sending their contents", async () => {
+  const { root } = await repository();
+  await mkdir(join(root, "config"));
+  await writeFile(join(root, ".env"), "API_KEY=hunter2\n");
+  await writeFile(join(root, "config/.env.local"), "OTHER=hunter3\n");
+  await writeFile(join(root, "config/server.pem"), "PRIVATE hunter4\n");
+  await writeFile(join(root, "id.key"), "PRIVATE hunter5\n");
+  await writeFile(join(root, "tracked.txt"), "visible\n");
+  const { summary, diff } = await pending(root);
+  for (const name of [".env", ".env.local", "server.pem", "id.key"]) assert.ok(summary.includes(name), name);
+  assert.doesNotMatch(diff, /hunter/);
+  assert.match(diff, /^\+visible$/m);
+});
+
+test("pendingChanges caps a large change so the other files still fit", async () => {
+  const { root } = await repository();
+  await writeFile(join(root, "a-huge.txt"), "padding line of text\n".repeat(50_000));
+  await writeFile(join(root, "tracked.txt"), "small change\n");
+  const { diff, truncated } = await pending(root);
+  assert.equal(truncated, true);
+  assert.ok(diff.length < 50_000);
+  assert.match(diff, /^\+small change$/m);
+  assert.match(diff, /rest of this file's changes omitted/);
+});
+
+test("capDiff limits each file and the total", () => {
+  const section = (name, size) => `diff --git a/${name} b/${name}\n${"+".repeat(size)}\n`;
+  assert.deepEqual(capDiff(section("a", 5), 100, 1000), { diff: section("a", 5), truncated: false });
+  const stopped = capDiff(section("a", 80) + section("b", 80) + section("c", 80), 200, 200);
+  assert.equal(stopped.truncated, true);
+  assert.ok(stopped.diff.includes("b/a") && stopped.diff.includes("b/b") && !stopped.diff.includes("b/c"));
+});
+
+test("pendingChanges sees a same-size edit made right after the last commit", async () => {
+  const { root } = await repository();
+  await writeFile(join(root, "tracked.txt"), "two\n");
+  // Git only re-reads a file whose time isn't older than the index's, so the scratch copy must keep the index's time.
+  await new Promise((done) => setTimeout(done, 1500));
+  assert.match((await pending(root)).diff, /^\+two$/m);
 });

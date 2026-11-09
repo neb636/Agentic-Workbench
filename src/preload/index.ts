@@ -76,6 +76,7 @@ const api: WorkbenchApi = {
     checkout: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCheckout, { root, branch }),
     fileAt: (root, path, base) => ipcRenderer.invoke(IPC.sourceControlFileAt, { root, path, base }),
     ignored: (root) => ipcRenderer.invoke(IPC.sourceControlIgnored, { root }),
+    generateCommitMessage: (root, providerId) => ipcRenderer.invoke(IPC.sourceControlGenerateCommitMessage, { root, providerId }),
   },
   pty: {
     create: (options: PtyCreateOptions) => ipcRenderer.invoke(IPC.ptyCreate, options) as Promise<string>,

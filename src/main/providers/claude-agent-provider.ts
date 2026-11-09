@@ -37,6 +37,11 @@ export class ClaudeAgentProvider implements AgentProviderAdapter {
   conversationArgs(id: string) { return ["--session-id", id]; }
   readFolderArgs(folder: string) { return ["--add-dir", folder]; }
   modelArgs(settings: AgentModelSettings) { return ["--model", settings.model, ...(settings.effort ? ["--effort", settings.effort] : [])]; }
+  // --safe-mode leaves the user's hooks, MCP servers and instructions out. Not --bare: it skips the keychain login.
+  readonly oneShot = {
+    args: () => ["-p", "--safe-mode", "--tools", "", "--no-session-persistence"],
+    quickTaskModel: { model: "haiku", effort: "medium" },
+  };
   detect = detectCliScreen("claude");
   readonly capabilities = { planning: true };
   // Shift+Tab cycles the modes (default → accept edits → plan → ...). `/plan` plus a paste can lose what follows.

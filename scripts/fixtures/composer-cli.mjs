@@ -2,6 +2,18 @@
 import { appendFileSync, existsSync } from "node:fs";
 import { setTimeout } from "node:timers";
 
+// One-shot mode as the internal AI service runs it: prompt on stdin, answer on stdout, no terminal.
+// The model list is read with -p too, over stream-json; this fixture doesn't offer one for that protocol.
+if (process.argv.includes("--input-format")) process.exit(1);
+if (process.argv[2] === "exec" || process.argv[2] === "-p") {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) input += chunk;
+  appendFileSync(process.env.COMPOSER_QA_ONE_SHOTS, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), prompt: input }) + "\n");
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  process.stdout.write("```\nAdd QA notes\n```\n");
+  process.exit(0);
+}
 // The model list the app reads at startup, the shape of `codex debug models`.
 if (process.argv[2] === "debug" && process.argv[3] === "models") {
   const levels = (efforts) => efforts.map((effort) => ({ effort }));
@@ -11,6 +23,7 @@ if (process.argv[2] === "debug" && process.argv[3] === "models") {
   ] }));
   process.exit(0);
 }
+
 process.stdin.setRawMode(true);
 process.stdin.setEncoding("utf8");
 const screen = (text) => process.stdout.write(`\x1b[2J\x1b[H\x1b[?2004h${text}`);
