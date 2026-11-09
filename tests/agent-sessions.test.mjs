@@ -455,6 +455,12 @@ test("model and effort are launch arguments of a new conversation, never of a re
   assert.throws(() => manager.create({ providerId: claude.id, workspacePath: root, viewId: "bad", cols: 80, rows: 24, settings: { model: "opus\r", effort: "medium" } }, {}), /Unsupported model/);
   assert.throws(() => manager.create({ providerId: claude.id, workspacePath: root, viewId: "bad2", cols: 80, rows: 24, settings: { model: "opus", effort: "ultra" } }, {}), /Unsupported model/);
   assert.equal(spawned.length, 1);
+  // A CLI that asks before reading outside its folder is granted the view's attachments at launch.
+  const granted = [];
+  const folders = new AgentSessionManager([claude], (_c, args) => { granted.push(args); return { onData: () => {}, onExit: () => {}, write: () => {}, resize: () => {}, kill: () => {} }; }, (viewId) => `/attachments/${viewId}`);
+  folders.create({ providerId: claude.id, workspacePath: root, viewId: "c2", cols: 80, rows: 24 }, {});
+  assert.deepEqual(granted[0], ["--add-dir", "/attachments/c2"]);
+  folders.terminateAll();
   // The catalogue reaches the renderer through discovery.
   assert.deepEqual(manager.discover()[0].models.map((model) => model.id), ["opus", "sonnet", "haiku"]);
   manager.terminateAll();

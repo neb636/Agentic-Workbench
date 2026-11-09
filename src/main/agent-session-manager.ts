@@ -60,7 +60,12 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class AgentSessionManager {
   private readonly sessions = new Map<string, Session>();
-  constructor(private readonly providers: AgentProviderAdapter[], private readonly spawn = spawnTerminal) {}
+  constructor(
+    private readonly providers: AgentProviderAdapter[],
+    private readonly spawn = spawnTerminal,
+    /** The folder holding a view's prompt attachments; it exists once this returns. */
+    private readonly attachmentFolder?: (viewId: string) => string,
+  ) {}
 
   discover(): AgentProviderInfo[] {
     return this.providers.map((provider) => ({ id: provider.id, label: provider.label, capabilities: provider.capabilities, available: Boolean(executablePath(provider.executable)), resume: true, models: provider.modelArgs ? provider.models : undefined,
@@ -75,6 +80,7 @@ export class AgentSessionManager {
     const executable = executablePath(provider.executable);
     if (!executable) throw new Error(`${provider.label} executable was not found. Install it or configure its executable path.`);
     const args = provider.args(Boolean(options.resume));
+    if (provider.readFolderArgs && this.attachmentFolder) args.push(...provider.readFolderArgs(this.attachmentFolder(options.viewId)));
     // Model and effort are launch arguments of a new conversation; a resumed one keeps what it was saved with.
     if (options.settings && !options.resume) {
       const { model, effort } = options.settings;

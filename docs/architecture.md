@@ -58,6 +58,8 @@ The agent composer registers quote, preview, recall, and send commands through C
 
 The main process serializes composer delivery against direct terminal input, verifies an empty native input editor, sends bracketed paste in pieces of at most 2 KiB, waits up to two seconds for a recognized native draft and a further quiet moment, then sends Enter. Existing native drafts, approval dialogs, unavailable paste mode, unknown UI, and exited processes reject automated submission. Typed delivery outcomes distinguish submitted (handed to the CLI, not proof of processing), not sent, and uncertain, with the last attempted stage. The composer retains its draft/context on failure or uncertain delivery and never retries automatically. Focus terminal and Copy composed prompt provide explicit handoff.
 
+Attachments stay within the CLI-driven model: a CLI takes a prompt as terminal text, so a file goes as a path. The composer's `+` button, file drops, and pasted screenshots all hand bytes to a single preload call; main writes them to `<userData>/attachments/<view id>/<attachment id>/<sanitized name>` and returns the path, so the renderer never names a location on disk. The view persists the attachment list like quotations, and an `attachment` prompt contribution lists the paths before the prompt. Files stay after sending because the agent reads them while it works; each view's folder is removed on the next launch after the view is gone. Adapters whose CLI asks before reading outside its folder declare `readFolderArgs` (Claude Code: `--add-dir`), so the view's attachment folder is granted at launch. Limits: 25 MB per file, 10 per prompt.
+
 Submission requests contain text and a generic `default` or `plan` intent. Planning is an optional provider capability, unavailable by default. The composer's mode is authoritative: before pasting, main reads the CLI's current mode from its footer (`mode()` on the adapter) and switches when it differs, using the adapter's `enterPlan`/`leavePlan` (`ModeSwitch`):
 
 - `command`: type it, check it in the editor (`commandTyped`), press Enter, wait for the footer (Codex `/plan`, which takes no prompt).
@@ -125,6 +127,7 @@ After `npm run build`, `npm run qa:composer` runs deterministic Electron checks 
 - restarting with a different model after a prompt;
 - the title taken from the first prompt;
 - quote, preview, and recall;
+- attachments from the picker, a drop and a paste: their stored paths in the prompt, the limit, restart, and cleanup;
 - uncertain delivery handoff;
 - the Files tree, search, and editing and saving a file;
 - Source control: opening a change as a diff, and commit;

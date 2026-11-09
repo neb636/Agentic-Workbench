@@ -12,6 +12,7 @@ export class ClaudeAgentProvider implements AgentProviderAdapter {
   // Claude Code's model aliases follow its newest model of each family.
   readonly models: AgentModelChoice[] = ["opus", "sonnet", "haiku"].map((id) => ({ id, label: id[0].toUpperCase() + id.slice(1), efforts: EFFORTS }));
   args(resume: boolean) { return resume ? ["--resume"] : []; }
+  readFolderArgs(folder: string) { return ["--add-dir", folder]; }
   modelArgs(settings: AgentModelSettings) { return ["--model", settings.model, "--effort", settings.effort]; }
   detect = detectCliScreen("claude");
   readonly capabilities = { planning: true };

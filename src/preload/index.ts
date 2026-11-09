@@ -29,6 +29,10 @@ const api: WorkbenchApi = {
       return () => ipcRenderer.removeListener(IPC.menuCommand, wrapped);
     },
   },
+  attachments: {
+    save: (viewId, name, bytes) => ipcRenderer.invoke(IPC.attachmentsSave, { viewId, name, bytes }),
+    thumbnail: (viewId, id) => ipcRenderer.invoke(IPC.attachmentsThumbnail, { viewId, id }),
+  },
   files: {
     list: (root, path) => ipcRenderer.invoke(IPC.filesList, { root, path }),
     read: (root, path) => ipcRenderer.invoke(IPC.filesRead, { root, path }),

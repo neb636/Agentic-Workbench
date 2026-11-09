@@ -1,10 +1,11 @@
-import { app, BrowserWindow, Menu, MenuItem, shell } from "electron";
+import { app, BrowserWindow, Menu, MenuItem, nativeImage, shell } from "electron";
 import path from "node:path";
 import { AgentSessionManager } from "./agent-session-manager";
 import { registerIpc } from "./ipc";
 import { ClaudeAgentProvider } from "./providers/claude-agent-provider";
 import { CodexAgentProvider } from "./providers/codex-agent-provider";
 import { GitSourceControlProvider } from "./providers/git-source-control-provider";
+import { PromptAttachments, THUMBNAIL_SIDE } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
 import { adoptLoginShellPath } from "./shell-environment";
 import { IPC } from "../shared/ipc";
@@ -15,11 +16,21 @@ import { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
 if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
 if (app.isPackaged) adoptLoginShellPath();
 
+/** Scales a PNG or JPEG so its shorter side fills a thumbnail; null for what nativeImage can't decode. */
+function shrinkPicture(bytes: Buffer): string | null {
+  const image = nativeImage.createFromBuffer(bytes);
+  if (image.isEmpty()) return null;
+  const { width, height } = image.getSize();
+  if (Math.min(width, height) <= THUMBNAIL_SIDE) return image.toDataURL();
+  return image.resize(width < height ? { width: THUMBNAIL_SIDE, quality: "good" } : { height: THUMBNAIL_SIDE, quality: "good" }).toDataURL();
+}
+
 const ptyManager = new PtyManager();
+const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), shrinkPicture);
 const agentSessionManager = new AgentSessionManager([
   new CodexAgentProvider(),
   new ClaudeAgentProvider(),
-]);
+], undefined, (viewId) => attachments.folderFor(viewId));
 const roots = new WorkspaceRoots();
 const workspaceServices = {
   roots,
@@ -87,7 +98,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  registerIpc(ptyManager, agentSessionManager, workspaceServices);
+  registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments);
   addMenuItems();
   createWindow();
   app.on("activate", () => {

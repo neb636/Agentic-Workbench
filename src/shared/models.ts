@@ -130,11 +130,21 @@ export interface PromptQuotation {
   content: string;
 }
 
+/** A file added to a prompt: stored by the app, and read by the CLI from `path`. */
+export interface PromptAttachment {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  image: boolean;
+}
+
 export interface AgentViewState {
   providerId?: string;
   draft?: string;
   split?: number;
   quotations?: PromptQuotation[];
+  attachments?: PromptAttachment[];
   intent?: AgentPromptRequest["intent"];
   composerRevision?: number;
   promptSelections?: PromptSelections;
@@ -296,6 +306,12 @@ export interface WorkbenchApi {
     metrics: () => Promise<AppMetrics>;
     /** Returns unsubscribe. */
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
+  };
+  attachments: {
+    /** Stores a file for this view's prompts in a folder the app owns. */
+    save: (viewId: string, name: string, bytes: Uint8Array) => Promise<PromptAttachment>;
+    /** A small picture of a stored image as a data URL; null when there is nothing to show. */
+    thumbnail: (viewId: string, id: string) => Promise<string | null>;
   };
   files: {
     list: (root: string, path: string) => Promise<FileEntry[]>;

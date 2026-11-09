@@ -28,15 +28,16 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   const layoutRef = useRef<HTMLElement>(null);
   const [composerMinimum, setComposerMinimum] = useState(40);
   const hasQuotations = Boolean(state.quotations?.length);
+  const hasAttachments = Boolean(state.attachments?.length);
   const live = Boolean(runtime);
   useEffect(() => {
     const element = layoutRef.current;
     if (!element) return;
-    const measure = () => setComposerMinimum(Math.min(75, Math.max(20, ((live ? 210 : 176) + (hasQuotations ? 48 : 0)) / element.clientHeight * 100)));
+    const measure = () => setComposerMinimum(Math.min(75, Math.max(20, ((live ? 210 : 176) + (hasQuotations ? 48 : 0) + (hasAttachments ? 92 : 0)) / element.clientHeight * 100)));
     const observer = new ResizeObserver(measure);
     observer.observe(element); measure();
     return () => observer.disconnect();
-  }, [live, hasQuotations, state.composerCollapsed]);
+  }, [live, hasQuotations, hasAttachments, state.composerCollapsed]);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {

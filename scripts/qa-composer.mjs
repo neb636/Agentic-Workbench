@@ -1,6 +1,7 @@
+/* global ClipboardEvent, DataTransfer, DragEvent, File */
 import { _electron as electron } from "playwright";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
@@ -8,7 +9,8 @@ import { Buffer } from "node:buffer";
 
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), composed
-// prompt order, title from the first prompt, quote/preview/recall, uncertain delivery handoff,
+// prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
+// limit, restart, cleanup), uncertain delivery handoff,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
 // layout persistence across restart. Runs against a deterministic fake CLI; no model calls.
 const directory = await realpath(await mkdtemp(join(tmpdir(), "workbench-composer-qa-")));
@@ -181,6 +183,73 @@ try {
   assert.equal(restarted.model, "gpt-6-luna");
   assert.equal(restarted.effort, "high");
 
+  // Attachments: the picker, a drop and a pasted screenshot all become tiles; the prompt carries their stored paths.
+  const picture = async (name, from, to) => {
+    const data = await page.evaluate(([start, end]) => {
+      const canvas = Object.assign(document.createElement("canvas"), { width: 480, height: 320 });
+      const context = canvas.getContext("2d");
+      const fill = context.createLinearGradient(0, 0, 480, 320);
+      fill.addColorStop(0, start); fill.addColorStop(1, end);
+      context.fillStyle = fill; context.fillRect(0, 0, 480, 320);
+      return canvas.toDataURL("image/png").split(",")[1];
+    }, [from, to]);
+    const file = join(directory, name);
+    await writeFile(file, Buffer.from(data, "base64"));
+    return file;
+  };
+  const tiles = page.locator(".attachment-tile");
+  const firstPicture = await picture("reference one.png", "#f472d0", "#38e1dc");
+  const notes = join(directory, "requirements.md");
+  await writeFile(notes, "# Requirements\n");
+  await page.locator(".composer-box input[type=file]").setInputFiles([firstPicture, notes]);
+  await tiles.nth(1).waitFor();
+  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
+  assert.equal(await tiles.nth(1).locator("img").count(), 0);
+  assert.match(await tiles.nth(1).innerText(), /requirements\s+MD/);
+  const synthesized = (type) => page.evaluate((eventType) => {
+    const box = document.querySelector(".composer-box");
+    const data = new DataTransfer();
+    data.items.add(new File([new Uint8Array([137, 80, 78, 71])], eventType === "drop" ? "dropped.txt" : "image.png", { type: eventType === "drop" ? "text/plain" : "image/png" }));
+    if (eventType === "paste") box.querySelector("textarea").dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+    else box.dispatchEvent(new DragEvent(eventType, { dataTransfer: data, bubbles: true, cancelable: true }));
+  }, type);
+  await synthesized("dragover");
+  await page.getByText("Drop to attach").waitFor();
+  await page.waitForTimeout(500);
+  await shot("attachments-drop");
+  await synthesized("drop");
+  await page.getByText("Drop to attach").waitFor({ state: "detached" });
+  await tiles.nth(2).waitFor();
+  await synthesized("paste");
+  await tiles.nth(3).waitFor();
+  await page.getByRole("button", { name: "Remove dropped.txt" }).click();
+  await page.getByRole("button", { name: "Remove image.png" }).click();
+  assert.equal(await tiles.count(), 2);
+  await prompt().fill("Build this from the references");
+  await page.getByRole("button", { name: "Preview" }).click();
+  const attachedPreview = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
+  assert.match(attachedPreview, /^Attached files \(read them from these paths\):\n- .*\/attachments\/.*\/reference one\.png\n- .*\/requirements\.md\n\nBuild this/);
+  await page.keyboard.press("Escape");
+  await shot("attachments");
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector(".attachment-tile"));
+  const attachedPrompt = (await prompts()).at(-1).prompt;
+  const storedPicture = attachedPrompt.match(/^- (.*reference one\.png)$/m)[1];
+  assert.deepEqual(await readFile(storedPicture), await readFile(firstPicture));
+  assert(storedPicture.startsWith(join(directory, "attachments")));
+
+  // A prompt holds ten attachments; the tiles scroll instead of growing the composer. One stays for the restart below.
+  const manyFiles = [firstPicture];
+  for (let index = 1; index <= 11; index += 1) { manyFiles.push(join(directory, `file-${index}.csv`)); await writeFile(manyFiles[index], "a,b\n"); }
+  await page.locator(".composer-box input[type=file]").setInputFiles(manyFiles);
+  await waitFeedback("A prompt can hold 10 attachments.");
+  assert.equal(await tiles.count(), 10);
+  assert.equal(await page.getByRole("button", { name: "Attach files" }).isDisabled(), true);
+  await page.waitForTimeout(400);
+  await shot("attachments-full");
+  for (let index = 0; index < 9; index += 1) await page.locator(".attachment-remove").last().click();
+  assert.equal(await tiles.count(), 1);
+
   // Files: lazy tree, a preview tab you can edit and save (⌘S), search by name.
   await page.getByRole("radio", { name: "Files" }).click();
   const tree = page.getByRole("treegrid", { name: "Files in Composer QA" });
@@ -247,8 +316,14 @@ try {
   await page.waitForTimeout(400);
   assert.deepEqual(errors, []);
   await app.close();
+  await mkdir(join(directory, "attachments", "closed-view"), { recursive: true });
   page = await launch();
   await page.getByRole("button", { name: "Show sidebar" }).click();
   await page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ }).waitFor();
+  // A draft's attachment survives the restart; the folder of a view that no longer exists does not.
+  await page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ }).click();
+  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
+  await page.waitForFunction(() => document.querySelector(".attachment-tile img")?.naturalWidth > 0);
+  assert.equal(await stat(join(directory, "attachments", "closed-view")).then(() => true, () => false), false);
   console.log("Composer QA passed. Artifacts:", directory);
 } finally { if (app) await app.close(); console.log("QA artifacts:", directory); }

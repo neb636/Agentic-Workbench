@@ -5,6 +5,8 @@ import {
   agentPromptSchema,
   agentSessionActionSchema,
   agentSessionCreateOptionsSchema,
+  attachmentLocationSchema,
+  attachmentSaveSchema,
   checkoutSchema,
   commitSchema,
   baseBranchesSchema,
@@ -27,6 +29,7 @@ import {
 import type { FilesChangedEvent } from "../shared/models";
 import { AgentSessionManager } from "./agent-session-manager";
 import { loadState, saveState } from "./persistence";
+import type { PromptAttachments } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
 import type { SourceControlService } from "./source-control/source-control-provider";
 import type { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
@@ -87,12 +90,17 @@ function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, 
   });
 }
 
-export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices): void {
+export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices, attachments: PromptAttachments): void {
   const watches = new FileWatchOwners(workspace.files);
   const allowedRoot = async (root: string) => { await workspace.roots.resolve(root); return root; };
   handle(IPC.persistenceLoad, async () => {
     const state = await loadState();
     workspace.roots.replace(state.workspaces.map((item) => item.path));
+    // Nothing listed can also mean the state file couldn't be read: only tidy up against a real list of views.
+    if (state.workspaces.length) {
+      void attachments.retain(state.workspaces.flatMap((item) => item.views.map((view) => view.id)))
+        .catch((error: unknown) => console.warn("Could not tidy attachments", String(error)));
+    }
     return state;
   });
   handle(IPC.persistenceSave, async (_event, input: unknown) => {
@@ -112,6 +120,14 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   handle(IPC.appMetrics, () => ({
     memoryBytes: app.getAppMetrics().reduce((total, metric) => total + metric.memory.workingSetSize * 1024, 0),
   }));
+  handle(IPC.attachmentsSave, (_event, input: unknown) => {
+    const { viewId, name, bytes } = attachmentSaveSchema.parse(input);
+    return attachments.save(viewId, name, bytes);
+  });
+  handle(IPC.attachmentsThumbnail, (_event, input: unknown) => {
+    const { viewId, id } = attachmentLocationSchema.parse(input);
+    return attachments.thumbnail(viewId, id);
+  });
   handle(IPC.filesList, (_event, input: unknown) => {
     const { root, path } = fileLocationSchema.parse(input);
     return workspace.files.list(root, path);
