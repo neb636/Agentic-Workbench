@@ -82,15 +82,23 @@ function resetMenusAfterSend(target: ComposerTarget): void {
   setPromptSelections(target, selections);
 }
 
-/** The folder the CLI runs in, creating the session's worktree the first time it is needed. */
-export async function prepareSessionFolder(target: ComposerTarget): Promise<string> {
+/**
+ * The folder the CLI runs in, creating the session's worktree the first time it is needed.
+ * Resuming never creates one: a CLI finds earlier conversations by folder, and a new worktree has none.
+ */
+export async function prepareSessionFolder(target: ComposerTarget, resume = false): Promise<string> {
   const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === target.workspaceId);
   const state = stateFor(target);
   if (!workspace) throw new Error("The workspace was removed.");
   if (state?.cwd) return state.cwd;
-  const cwd = state?.runIn?.kind === "worktree"
-    ? (await window.workbench.sourceControl.createWorktree(workspace.path, state.runIn.branch)).path
-    : workspace.path;
+  const worktree = !resume && state?.runIn?.kind === "worktree" ? state.runIn : undefined;
+  if (!worktree) {
+    patchView(target, { cwd: workspace.path, runIn: { kind: "checkout" } });
+    return workspace.path;
+  }
+  const { sourceControl } = window.workbench;
+  const base = worktree.base?.ref ?? (await sourceControl.baseBranches(workspace.path)).defaultRef;
+  const { path: cwd } = await sourceControl.createWorktree(workspace.path, worktree.branch, base);
   patchView(target, { cwd });
   return cwd;
 }
