@@ -11,7 +11,7 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), composed
 // prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
-// limit, restart, cleanup), uncertain delivery handoff,
+// limit, restart, cleanup), uncertain delivery handoff, Plan chosen before the CLI starts,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
 // layout persistence across restart. Runs against a deterministic fake CLI; no model calls.
 const directory = await realpath(await mkdtemp(join(tmpdir(), "workbench-composer-qa-")));
@@ -43,6 +43,8 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   workspaces: [{ id: "qa", name: "Composer QA", path: repo, activeViewId: "agent", views: [
     { id: "agent", workspaceId: "qa", type: "agent", title: "Untitled", state: { autoTitle: true } },
     { id: "other", workspaceId: "qa", type: "agent", title: "Other", state: { providerId: "codex.cli" } },
+    { id: "plan-first", workspaceId: "qa", type: "agent", title: "Plan first", state: { providerId: "codex.cli", runIn: { kind: "checkout" } } },
+    { id: "plan-held", workspaceId: "qa", type: "agent", title: "Plan held", state: { providerId: "codex.cli", runIn: { kind: "checkout" } } },
   ] }], activeWorkspaceId: "qa",
   personas: [{ id: "p", name: "Concise", instructions: "Be concise.", description: "Brief answers", scope: "global" }],
   selectedPersonaByWorkspace: { qa: "p" },
@@ -251,6 +253,44 @@ try {
   await shot("attachments-full");
   for (let index = 0; index < 9; index += 1) await page.locator(".attachment-remove").last().click();
   assert.equal(await tiles.count(), 1);
+
+  // Plan before the CLI exists: Send starts it, waits for startup, enters Plan mode (the fixture shows it late), then delivers.
+  const choosePlan = async () => {
+    await page.locator(".mode-select button").click();
+    await page.getByRole("option", { name: /^Plan/ }).click();
+  };
+  await page.getByRole("tab", { name: "Plan first" }).click();
+  await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  await choosePlan();
+  await prompt().fill("Plan the first step");
+  await shot("plan-before-start");
+  await page.getByRole("button", { name: "Send for planning", exact: true }).click();
+  await waitFeedback("Planning request handed");
+  const planned = (await prompts()).at(-1);
+  assert.match(planned.prompt, /Plan the first step/);
+  assert.equal(planned.plan, true);
+  await page.locator(".xterm-rows").getByText("Plan mode").waitFor();
+  await shot("plan-after-start");
+  // The composer returns to Code after a send, and sending with Code leaves Plan mode.
+  await prompt().fill("Now build it");
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".composer-feedback")?.textContent.includes("Prompt handed"));
+  assert.equal((await prompts()).at(-1).plan, false);
+
+  // A first Plan prompt waits out startup work instead of being refused.
+  await page.getByRole("tab", { name: "Plan held" }).click();
+  await page.getByRole("button", { name: "Start session", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
+  await choosePlan();
+  await prompt().fill("Plan after startup work");
+  await page.locator(".xterm-helper-textarea").focus();
+  await page.keyboard.press("Control+b");
+  await page.waitForFunction(() => /working/i.test(document.querySelector(".session-pill")?.textContent ?? ""));
+  await page.getByRole("button", { name: "Send for planning", exact: true }).click();
+  await waitFeedback("Waiting for the CLI to be ready");
+  await waitFeedback("Planning request handed");
+  assert.equal((await prompts()).at(-1).plan, true);
+  await page.getByRole("tab", { name: "Explain this failure." }).click();
 
   // Files: lazy tree, a preview tab you can edit and save (⌘S), search by name.
   await page.getByRole("radio", { name: "Files" }).click();
