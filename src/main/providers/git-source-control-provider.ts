@@ -1,7 +1,7 @@
 import { execFile, type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { DiffBase, SearchMatch, SearchOptions, SearchResult, SourceControlChange } from "../../shared/models";
+import type { BaseBranch, BaseBranches, DiffBase, SearchMatch, SearchOptions, SearchResult, SourceControlChange } from "../../shared/models";
 import { executablePath } from "../executables";
 import type { ProviderStatus, SourceControlProvider } from "../source-control/source-control-provider";
 
@@ -9,6 +9,8 @@ const OUTPUT_LIMIT = 8 * 1024 * 1024;
 const CHANGE_LIMIT = 5_000;
 const SEARCH_MATCHES = 500;
 const SEARCH_MS = 2_000;
+// A slow or unreachable remote must not hold up starting a session.
+const FETCH_MS = 10_000;
 const GIT_ENV = { GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
 // Mirrors git-check-ref-format rules closely enough to reject anything git would; git re-checks below.
 const BRANCH_PATTERN = /^(?!-)(?!.*(?:\.\.|\/\/|@\{|\\|\.lock(?:\/|$)|\/\.|\/$|\.$))[A-Za-z0-9._\-/]+$/;
@@ -70,6 +72,19 @@ export function parseGrep(output: string, limit = SEARCH_MATCHES): SearchMatch[]
   return matches;
 }
 
+/** Parses `git for-each-ref` output with the format `%(refname)%00%(committerdate:unix)%00%(HEAD)`. */
+export function parseBaseBranches(output: string): BaseBranch[] {
+  const branches: BaseBranch[] = [];
+  for (const line of output.split("\n")) {
+    const [ref, updatedAt, head] = line.split("\0");
+    if (!ref || /^refs\/remotes\/[^/]+\/HEAD$/.test(ref)) continue;
+    const local = ref.startsWith("refs/heads/");
+    if (!local && !ref.startsWith("refs/remotes/")) continue;
+    branches.push({ ref, name: ref.slice(local ? 11 : 13), kind: local ? "local" : "remote", updatedAt: Number(updatedAt) || 0, current: head === "*" });
+  }
+  return branches;
+}
+
 export function isValidBranchName(branch: string): boolean {
   return BRANCH_PATTERN.test(branch) && branch !== "@" && branch !== "HEAD";
 }
@@ -97,12 +112,31 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return { commitId: (await this.git(root, ["rev-parse", "HEAD"])).trim() };
   }
 
-  async createWorktree(root: string, branch: string, target: string): Promise<{ path: string; branch: string }> {
+  async createWorktree(root: string, branch: string, target: string, base?: string): Promise<{ path: string; branch: string }> {
     if (!isValidBranchName(branch)) throw new Error(`"${branch}" is not a valid branch name.`);
     await this.git(root, ["check-ref-format", "--branch", branch]);
+    if (base) await this.prepareBase(root, base);
     await mkdir(path.dirname(target), { recursive: true });
-    await this.git(root, ["worktree", "add", "-b", branch, "--", target]);
+    // --no-track: the session's branch is its own work, not a local copy of the branch it started from.
+    await this.git(root, ["worktree", "add", "--no-track", "-b", branch, "--", target, ...(base ? [base] : [])]);
     return { path: target, branch };
+  }
+
+  /** The ref comes from the renderer, so it must name an existing branch; one on origin is first brought up to date. */
+  private async prepareBase(root: string, base: string): Promise<void> {
+    if (!/^refs\/(heads|remotes)\/./.test(base)) throw new Error("Choose a branch to create the worktree from.");
+    const originBranch = /^refs\/remotes\/origin\/(.+)$/.exec(base)?.[1];
+    if (originBranch) await this.git(root, ["fetch", "--quiet", "origin", `+refs/heads/${originBranch}:${base}`], FETCH_MS).catch(() => undefined);
+    const exists = await this.git(root, ["show-ref", "--verify", "--quiet", base]).then(() => true, () => false);
+    if (!exists) throw new Error(`"${base.replace(/^refs\/(heads|remotes)\//, "")}" no longer exists. Choose another branch to create from.`);
+  }
+
+  async baseBranches(root: string, refresh = false): Promise<BaseBranches> {
+    if (refresh) await this.git(root, ["fetch", "--quiet", "origin"], FETCH_MS).catch(() => undefined);
+    const branches = parseBaseBranches(await this.git(root, ["for-each-ref", "--sort=-committerdate", "--format=%(refname)%00%(committerdate:unix)%00%(HEAD)", "refs/heads", "refs/remotes"]));
+    const candidates = await this.defaultBranchCandidates(root);
+    const preferred = candidates.map((name) => branches.find((branch) => branch.name === name)).find(Boolean);
+    return { branches, defaultRef: (preferred ?? branches.find((branch) => branch.current))?.ref };
   }
 
   async branches(root: string): Promise<string[]> {
@@ -180,11 +214,11 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return [...new Set([remoteHead, "origin/main", "main", "origin/master", "master"].filter(Boolean))];
   }
 
-  private git(cwd: string, args: string[]): Promise<string> {
+  private git(cwd: string, args: string[], timeout = 0): Promise<string> {
     const executable = this.executable();
     if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
     return new Promise((resolve, reject) => {
-      execFile(executable, args, { cwd, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV } }, (error, stdout, stderr) => {
+      execFile(executable, args, { cwd, timeout, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV } }, (error, stdout, stderr) => {
         if (error) reject(new Error(String(stderr || error.message).trim()));
         else resolve(stdout);
       });

@@ -9,6 +9,7 @@ import {
   attachmentSaveSchema,
   checkoutSchema,
   commitSchema,
+  baseBranchesSchema,
   createWorktreeSchema,
   fileAtSchema,
   fileCreateSchema,
@@ -185,11 +186,15 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     return workspace.sourceControl.commit(await allowedRoot(root), message);
   });
   handle(IPC.sourceControlCreateWorktree, async (_event, input: unknown) => {
-    const { root, branch } = createWorktreeSchema.parse(input);
-    return workspace.sourceControl.createWorktree(await allowedRoot(root), branch);
+    const { root, branch, base } = createWorktreeSchema.parse(input);
+    return workspace.sourceControl.createWorktree(await allowedRoot(root), branch, base);
   });
   handle(IPC.sourceControlBranches, async (_event, input: unknown) =>
     workspace.sourceControl.branches(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.sourceControlBaseBranches, async (_event, input: unknown) => {
+    const { root, refresh } = baseBranchesSchema.parse(input);
+    return workspace.sourceControl.baseBranches(await allowedRoot(root), refresh);
+  });
   handle(IPC.sourceControlCheckout, async (_event, input: unknown) => {
     const { root, branch } = checkoutSchema.parse(input);
     return workspace.sourceControl.checkout(await allowedRoot(root), branch);

@@ -27,6 +27,13 @@ await writeFile(join(repo, "tracked.txt"), "one\n");
 await writeFile(join(repo, "src", "app.ts"), "export const answer: number = 42;\n// The workbench renders this file read-only.\n");
 git("add", ".");
 git("commit", "--quiet", "-m", "initial");
+// Remote-tracking refs without a reachable remote: the picker lists them and the fetch before creating fails quietly.
+const originBranch = (name) => git("update-ref", `refs/remotes/origin/${name}`, "HEAD");
+originBranch("main");
+originBranch("feature/qa-base");
+originBranch("feature/other");
+git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+git("branch", "local/qa-branch");
 await writeFile(join(repo, "tracked.txt"), "two\n");
 await writeFile(join(repo, "notes.md"), "# Notes\n");
 await writeFile(executable, `#!/bin/sh\nexec ${shellQuote(process.execPath)} ${shellQuote(resolve("scripts/fixtures/composer-cli.mjs"))} "$@"\n`, { mode: 0o755 });
@@ -76,7 +83,20 @@ try {
   await page.getByRole("heading", { name: "Start a new session" }).waitFor();
   assert.match(await page.locator(".harness-option").filter({ hasText: "Claude Code" }).innerText(), /Not installed/);
   await page.getByRole("radio", { name: /Codex/ }).waitFor();
-  await page.getByRole("radio", { name: "New worktree" }).click();
+  // A new worktree is the default, created from origin's default branch; the picker searches the other branches.
+  await page.waitForFunction(() => document.querySelector('[role="radio"][aria-checked="true"]')?.textContent.includes("New worktree"));
+  await page.getByRole("button", { name: "Create from: origin/main" }).click();
+  for (const group of ["Remote", "Local"]) await page.getByRole("group", { name: group }).waitFor();
+  await page.getByRole("option", { name: "local/qa-branch" }).waitFor();
+  await shot("create-from-open");
+  await page.getByRole("searchbox", { name: "Search branches" }).fill("qa-b");
+  await page.getByRole("option", { name: "origin/feature/qa-base" }).waitFor();
+  assert.equal(await page.getByRole("option", { name: "origin/feature/other" }).count(), 0);
+  await shot("create-from-search");
+  await page.keyboard.press("Enter"); // The first match is already active.
+  await page.getByRole("button", { name: "Create from: origin/feature/qa-base" }).waitFor();
+  await page.getByRole("textbox", { name: "Branch" }).fill("local/qa-branch");
+  await page.getByText("A branch with this name already exists.").waitFor();
   await page.getByRole("textbox", { name: "Branch" }).fill("wb/qa-task");
   assert.match(await page.locator(".launcher-location").innerText(), /repo-worktrees\/wb-qa-task$/);
   await shot("launcher");
@@ -115,6 +135,7 @@ try {
   assert.equal(first.model, "gpt-6-astra");
   assert.equal(first.effort, "high");
   assert.equal(git("worktree", "list").includes("wb-qa-task"), true);
+  assert.equal(execFileSync("git", ["rev-parse", "HEAD"], { cwd: first.cwd, encoding: "utf8" }), git("rev-parse", "origin/feature/qa-base"));
   assert.equal(await prompt().inputValue(), "");
   await page.getByRole("button", { name: "Persona", exact: true }).waitFor();
   await page.getByRole("button", { name: "Instructions: 4" }).waitFor();
@@ -270,6 +291,14 @@ try {
   await page.getByRole("grid", { name: "Agent session" }).getByRole("row").first().waitFor();
   // The edited app.ts stays open; the tracked.txt diff is a preview tab.
   assert.equal(await page.getByRole("grid", { name: "File" }).getByRole("row").count(), 2);
+  // Resuming stays in the checkout, where the CLI's earlier conversations are, even with a worktree as the default.
+  await page.getByRole("tab", { name: "Other" }).click();
+  await page.waitForFunction(() => document.querySelector('[role="radio"][aria-checked="true"]')?.textContent.includes("New worktree"));
+  const worktrees = git("worktree", "list");
+  await page.getByRole("button", { name: "Resume previous…" }).click();
+  await page.locator(".terminal-card").waitFor();
+  assert.equal(git("worktree", "list"), worktrees);
+
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 760));
   for (let index = 0; index < 5; index += 1) {
     await page.getByRole("button", { name: "Create view" }).click();

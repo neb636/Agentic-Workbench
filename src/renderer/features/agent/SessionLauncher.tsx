@@ -4,10 +4,13 @@ import type { AgentProviderInfo, AgentViewState, Workspace } from "../../../shar
 import { services } from "../../core/services";
 import { AgentIcon, BranchIcon, CheckIcon, FolderIcon } from "../../ui/icons";
 import { Button } from "../../ui/controls";
+import { CreateFromPicker } from "./CreateFromPicker";
+import { useBaseBranches } from "./use-base-branches";
 
 function suggestedBranch(): string {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-  return `wb/session-${stamp}`;
+  // Every new session gets a worktree by default, so two started in the same minute must not collide.
+  return `wb/session-${stamp}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
 export function SessionLauncher({ workspace, state, providers, selected, busy, error, onChange, onStart }: {
@@ -26,7 +29,14 @@ export function SessionLauncher({ workspace, state, providers, selected, busy, e
     void window.workbench.sourceControl.detect(workspace.path).then((value) => { if (active) setCanWorktree(value); }).catch(() => undefined);
     return () => { active = false; };
   }, [workspace.path]);
+  // A worktree is the default wherever one is possible; an explicit choice is kept.
+  const needsDefault = canWorktree && !state.runIn && !state.cwd;
+  useEffect(() => {
+    if (needsDefault) onChange({ runIn: { kind: "worktree", branch: suggestedBranch() } });
+  }, [needsDefault, onChange]);
   const runIn = state.runIn ?? { kind: "checkout" };
+  const bases = useBaseBranches(workspace.path, canWorktree && !state.cwd);
+  const branchTaken = runIn.kind === "worktree" && Boolean(bases.data?.branches.some((b) => b.kind === "local" && b.name === runIn.branch));
   const available = Boolean(providers.find((p) => p.id === selected)?.available);
   const agents = providers.filter((p) => services.sessions.get(p.id)?.kind === "agent");
   const location = state.cwd ?? (runIn.kind === "worktree" ? `${workspace.path}-worktrees/${runIn.branch.replace(/[^A-Za-z0-9._-]+/g, "-")}` : workspace.path);
@@ -66,10 +76,15 @@ export function SessionLauncher({ workspace, state, providers, selected, busy, e
         </ToggleButtonGroup>
       </dd>
       {runIn.kind === "worktree" && !state.cwd && <>
+        <dt>Create from</dt>
+        <dd><CreateFromPicker {...bases} onOpen={bases.refresh} value={runIn.base} isDisabled={busy} onChange={(base) => onChange({ runIn: { ...runIn, base } })} /></dd>
         <dt>Branch</dt>
-        <dd><TextField aria-label="Branch" className="launcher-text" value={runIn.branch} onChange={(branch) => onChange({ runIn: { kind: "worktree", branch } })}>
-          <Label className="visually-hidden">Branch</Label><Input />
-        </TextField></dd>
+        <dd>
+          <TextField aria-label="Branch" className="launcher-text" isInvalid={branchTaken} value={runIn.branch} onChange={(branch) => onChange({ runIn: { ...runIn, branch } })}>
+            <Label className="visually-hidden">Branch</Label><Input />
+          </TextField>
+          {branchTaken && <p role="alert" className="launcher-field-error">A branch with this name already exists.</p>}
+        </dd>
       </>}
       <dt>Location</dt>
       <dd><code className="launcher-location">{location}</code></dd>
