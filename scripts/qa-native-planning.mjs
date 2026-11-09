@@ -3,6 +3,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import assert from "node:assert/strict";
+import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 
 // Live smoke: uses existing CLI authentication, no tools/files requested.
 // Billing, login, trust, and permission decisions are never automatically accepted.
@@ -14,9 +15,10 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   ] }], activeWorkspaceId: "qa", personas: [{ id: "p", name: "Test persona", instructions: "Do not use tools or change any files.", description: "Read-only integration check", scope: "global" }],
   selectedPersonaByWorkspace: { qa: "p" }, appendedInstructions: [{ id: "i", workspaceId: "qa", content: "Keep the response brief.", enabled: true }],
 }));
-const app = await electron.launch({ args: ["."], env: { ...process.env, WORKBENCH_USER_DATA_DIR: directory } });
+const app = await electron.launch({ args: ["."], env: qaEnvironment({ WORKBENCH_USER_DATA_DIR: directory }) });
 try {
   const page = await app.firstWindow();
+  await assertQaWindowVisibility(app);
   page.setDefaultTimeout(10_000);
   await page.evaluate(() => { globalThis.planningQAEvents = []; globalThis.workbench.agent.onEvent((event) => globalThis.planningQAEvents.push(event)); });
   for (const provider of process.argv.includes("--claude-only") ? ["Claude"] : ["Codex", "Claude"]) {

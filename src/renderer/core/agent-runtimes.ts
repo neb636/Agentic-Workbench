@@ -51,8 +51,11 @@ export function isUnusedConversation(runtime: AgentRuntime): boolean {
   return !runtime.prompted && Boolean(status) && status!.started === 0 && status!.activity !== "working" && status!.inputState !== "draft";
 }
 
-/** Waits until the CLI shows an input it can accept a prompt in; trust and sign-in prompts are answered in the terminal. */
-export function untilSubmittable(controller: AgentSessionController): Promise<void> {
+/**
+ * Waits until the CLI shows an input it can accept a prompt in; trust and sign-in prompts are answered in the terminal.
+ * With `idle`, also until it has stopped working: an input can be open during startup work, but a mode switch can't happen then.
+ */
+export function untilSubmittable(controller: AgentSessionController, idle = false): Promise<void> {
   return new Promise((resolve, reject) => {
     let off = () => {};
     let waitingOnPerson = false;
@@ -61,7 +64,7 @@ export function untilSubmittable(controller: AgentSessionController): Promise<vo
     const settle = (status: AgentSessionStatus) => {
       const person = status.activity === "waiting-for-input" || status.inputState === "draft";
       if (person !== waitingOnPerson) { waitingOnPerson = person; clearTimeout(timer); timer = setTimeout(expire, person ? PERSON_TIMEOUT : READY_TIMEOUT); }
-      if (status.canSubmit) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); }
+      if (status.canSubmit && (!idle || status.activity === "ready")) { clearTimeout(timer); queueMicrotask(() => off()); resolve(); }
       else if (status.lifecycle === "exited" || status.lifecycle === "failed") { clearTimeout(timer); queueMicrotask(() => off()); reject(new Error(status.reason)); }
     };
     off = controller.onStatus(settle);

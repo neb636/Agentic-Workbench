@@ -63,7 +63,6 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   const session: ComposerSession | undefined = runtime && {
     status: runtime.status,
     display: agentRuntimeStatus(runtime),
-    planning: Boolean(providers.find((p) => p.id === runtime.providerId)?.capabilities?.planning),
     selection,
     interrupt: () => runtime.controller.interrupt(),
     focusTerminal: () => terminalRef.current?.focus(),
@@ -78,6 +77,7 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
         onChange={patch} onStart={(resume) => void start(resume)} />;
   const composer = <AgentComposer key={runtime?.controller.id ?? "setup"} workspaceId={workspace.id} viewId={view.id} agentLabel={services.sessions.get(runtime?.providerId ?? selected ?? "")?.label ?? "the agent"}
     state={{ ...state, providerId: selected }} session={session} canLaunch={Boolean(providers.find((p) => p.id === selected)?.available)}
+    planning={Boolean(providers.find((p) => p.id === (runtime?.providerId ?? selected))?.capabilities?.planning)}
     onCollapse={() => patch({ composerCollapsed: true })} />;
 
   if (state.composerCollapsed) return <section className="agent-view is-composer-collapsed" aria-label="Agent session">

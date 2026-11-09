@@ -31,13 +31,12 @@ import { PromptMenuBar } from "./prompt-menus/PromptMenuBar";
 export interface ComposerSession {
   status?: AgentSessionStatus;
   display: ViewStatus;
-  planning: boolean;
   selection: string;
   interrupt: () => void;
   focusTerminal: () => void;
 }
 
-export function AgentComposer({ workspaceId, viewId, agentLabel, state, session, canLaunch, onCollapse }: {
+export function AgentComposer({ workspaceId, viewId, agentLabel, state, session, canLaunch, planning, onCollapse }: {
   workspaceId: string;
   viewId: string;
   agentLabel: string;
@@ -45,6 +44,8 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   /** Present once the CLI is running; before that, sending launches it. */
   session?: ComposerSession;
   canLaunch: boolean;
+  /** The running or selected harness can enter Plan mode; known before its CLI starts. */
+  planning: boolean;
   onCollapse?: () => void;
 }) {
   const target = { workspaceId, viewId };
@@ -67,7 +68,6 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const [copiedRevision, setCopiedRevision] = useState<number>();
   const [dropping, setDropping] = useState(false);
   const status = session?.status;
-  const planning = session?.planning ?? false;
   const wantsPlan = state.intent === "plan";
   const busy = runtime.sending || runtime.launching;
   const hasDraft = Boolean(state.draft?.trim());
@@ -78,10 +78,8 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const unused = Boolean(agent && isUnusedConversation(agent));
   // A CLI that's still starting takes the prompt too: it's held until the CLI is ready.
   const starting = Boolean(session && !status?.canSubmit && status?.lifecycle !== "exited" && status?.lifecycle !== "failed");
-  const canSend = !runtime.attaching && (session
-    ? starting ? Boolean(hasDraft && !busy && (!wantsPlan || planning))
-      : Boolean(hasDraft && status?.canSubmit && !busy && (!wantsPlan || planning))
-    : Boolean(hasDraft && canLaunch && !busy && !wantsPlan));
+  const canSend = !runtime.attaching && hasDraft && !busy && (!wantsPlan || planning)
+    && (session ? starting || Boolean(status?.canSubmit) : canLaunch);
   const historyEntry = runtime.history.find((entry) => entry.id === historyId) ?? runtime.history[0];
   const assembly = () => services.commands.execute<PromptPreview>("agent.composer.preview", target);
   const send = () => {
@@ -243,7 +241,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
             <Popover className="wb-popover" placement="top end">
               <ListBox>
                 <ListBoxItem id="default" textValue="Code"><div><span>Code</span><small>Leaves the CLI’s Plan mode if it’s on</small></div></ListBoxItem>
-                <ListBoxItem id="plan" textValue="Plan"><div><span>Plan</span><small>{planning ? "Enters the CLI’s Plan mode" : "Start the session to plan"}</small></div></ListBoxItem>
+                <ListBoxItem id="plan" textValue="Plan"><div><span>Plan</span><small>{planning ? "Enters the CLI’s Plan mode" : "Not supported by this CLI"}</small></div></ListBoxItem>
               </ListBox>
             </Popover>
           </Select>
@@ -253,9 +251,10 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
         </div>
       </div>
     </div>
-    {wantsPlan && <p className="composer-plan-note" id={`plan-note-${viewId}`}>{planning
-      ? "Enters the CLI’s Plan mode. Sending with Code leaves it again."
-      : "This provider does not support planning submissions. Switch to Code to send normally."}</p>}
+    {wantsPlan && <p className="composer-plan-note" id={`plan-note-${viewId}`}>{!planning
+      ? "This provider does not support planning submissions. Switch to Code to send normally."
+      : session ? "Enters the CLI’s Plan mode. Sending with Code leaves it again."
+        : "Sending starts the CLI, enters its Plan mode, then delivers your prompt."}</p>}
     <ModalOverlay className="wb-modal-overlay" isDismissable isOpen={Boolean(preview)} onOpenChange={(open) => { if (!open) setPreview(undefined); }}>
       <Modal className="wb-modal composer-preview-modal"><Dialog aria-label="Prompt preview" className="wb-dialog">
         <div className="dialog-header"><div><h2>Prompt preview</h2><p>{preview?.intent === "plan" ? "Send for planning · enters the CLI’s Plan mode" : "Send · Code mode (leaves Plan mode if it’s on)"}</p></div><Button onPress={() => setPreview(undefined)}>Close</Button></div>

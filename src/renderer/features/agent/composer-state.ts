@@ -227,12 +227,15 @@ export function registerComposerContributions(): void {
       return;
     }
     // The CLI is still starting (or asking something in the terminal): hold the prompt until it can take one.
-    if (!runtime.status?.canSubmit) {
+    // A first prompt for Plan also waits out startup work, since the CLI can only change mode while idle. A follow-up
+    // to a working turn is not held: the send is refused and the person decides.
+    const planningFirst = stateFor(target)?.intent === "plan" && !runtime.prompted;
+    if (!runtime.status?.canSubmit || (planningFirst && runtime.status.activity !== "ready")) {
       const lifecycle = runtime.status?.lifecycle;
       if (lifecycle === "exited" || lifecycle === "failed") { notSent(target.viewId, runtime.status?.reason ?? "The CLI stopped."); return; }
       if (useComposerState.getState().views[target.viewId]?.launching) return;
       updateRuntime(target.viewId, { launching: true, result: undefined });
-      try { await untilSubmittable(runtime.controller); }
+      try { await untilSubmittable(runtime.controller, planningFirst); }
       catch (error) { updateRuntime(target.viewId, { launching: false }); notSent(target.viewId, errorMessage(error)); return; }
       updateRuntime(target.viewId, { launching: false });
       if (!exists(target)) return;
