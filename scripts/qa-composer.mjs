@@ -11,7 +11,7 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), composed
 // prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
-// limit, restart, cleanup), resuming after a restart (nothing launches until a click; draft and attachments stay),
+// limit, restart, cleanup), resuming after a restart (the tab the app opens on resumes, others wait for a click; draft and attachments stay),
 // uncertain delivery handoff, Plan chosen before the CLI starts,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
 // layout persistence across restart. Runs against a deterministic fake CLI; no model calls.
@@ -369,46 +369,70 @@ try {
   // Typed right before quitting: the save on close has to catch it.
   await prompt().fill("Keep this draft");
   await app.close();
-  const launchesBefore = (await launches()).length;
+  let launchesBefore = (await launches()).length;
+  // The CLI logs its launch a moment after the terminal appears; the pause also catches any launch that shouldn't happen.
+  const settledLaunches = async (expected) => {
+    for (let waited = 0; waited < 5000 && (await launches()).length < expected; waited += 100) await page.waitForTimeout(100);
+    await page.waitForTimeout(600);
+    assert.equal((await launches()).length, expected);
+    return (await launches()).at(-1);
+  };
+  const assertResumed = (launched) => {
+    assert.deepEqual(launched.argv.slice(0, 2), ["resume", "--last"]);
+    assert.equal(launched.cwd, first.cwd);
+    assert.equal(launched.argv.includes("--model"), false);
+  };
+  const restoredRow = () => page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ });
+  // Selected without a click (arrow keys), so the pane stays.
+  const arrowToSaved = async () => {
+    await page.getByRole("tab", { name: "Other" }).focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.getByRole("heading", { name: "Resume this session" }).waitFor();
+  };
   await mkdir(join(directory, "attachments", "closed-view"), { recursive: true });
   page = await launch();
   await page.getByRole("button", { name: "Show sidebar" }).click();
-  const restored = page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ });
-  await restored.waitFor();
-  assert.match(await restored.innerText(), /Resumable · Codex/);
-  // Reopening shows the session as resumable with its composer intact, and starts nothing by itself.
-  await page.getByRole("heading", { name: "Resume this session" }).waitFor();
-  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
-  assert.equal(await prompt().inputValue(), "Keep this draft");
-  await page.waitForTimeout(600);
-  assert.equal((await launches()).length, launchesBefore);
-  await shot("resume-pane");
-  // A click on the session's tab, already selected, reopens that conversation in its folder and keeps the draft.
-  await page.getByRole("tab", { name: "Explain this failure." }).locator(".view-tab-title").click();
+  // The tab the app opens on resumes by itself, in its folder, with its composer intact; nothing else starts.
   await page.locator(".terminal-card").waitFor();
-  // The CLI logs its launch a moment after the terminal appears.
-  for (let waited = 0; waited < 5000 && (await launches()).length === launchesBefore; waited += 100) await page.waitForTimeout(100);
-  await page.waitForTimeout(300);
-  const resumed = (await launches()).at(-1);
-  assert.equal((await launches()).length, launchesBefore + 1);
-  assert.deepEqual(resumed.argv.slice(0, 2), ["resume", "--last"]);
-  assert.equal(resumed.cwd, first.cwd);
-  assert.equal(resumed.argv.includes("--model"), false);
+  assertResumed(await settledLaunches(launchesBefore + 1));
   assert.equal(await prompt().inputValue(), "Keep this draft");
   // A draft's attachment survives the restart; the folder of a view that no longer exists does not.
   await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
   await page.waitForFunction(() => document.querySelector(".attachment-tile img")?.naturalWidth > 0);
   assert.equal(await stat(join(directory, "attachments", "closed-view")).then(() => true, () => false), false);
 
-  // Sending from the resume pane continues the conversation too, instead of starting a new one.
+  // A saved session that isn't the one the app opens on waits, with its composer intact, until it's clicked.
+  await page.getByRole("tab", { name: "Other" }).click();
   await page.waitForTimeout(400);
   await app.close();
+  launchesBefore = (await launches()).length;
   page = await launch();
-  await page.getByRole("heading", { name: "Resume this session" }).waitFor();
+  await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  await restoredRow().waitFor();
+  assert.match(await restoredRow().innerText(), /Resumable · Codex/);
+  await settledLaunches(launchesBefore);
+  await arrowToSaved();
+  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
+  assert.equal(await prompt().inputValue(), "Keep this draft");
+  await settledLaunches(launchesBefore);
+  await shot("resume-pane");
+  await page.getByRole("tab", { name: "Explain this failure." }).locator(".view-tab-title").click();
+  await page.locator(".terminal-card").waitFor();
+  assertResumed(await settledLaunches(launchesBefore + 1));
+  assert.equal(await prompt().inputValue(), "Keep this draft");
+
+  // Sending from the resume pane continues the conversation too, instead of starting a new one.
+  await page.getByRole("tab", { name: "Other" }).click();
+  await page.waitForTimeout(400);
+  await app.close();
+  launchesBefore = (await launches()).length;
+  page = await launch();
+  await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  await arrowToSaved();
   await prompt().fill("Sent while waiting to resume");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await waitFeedback("Prompt handed");
-  assert.deepEqual((await launches()).at(-1).argv.slice(0, 2), ["resume", "--last"]);
+  assertResumed(await settledLaunches(launchesBefore + 1));
   assert.match((await prompts()).at(-1).prompt, /Sent while waiting to resume/);
   assert.equal(await page.locator(".attachment-tile").count(), 0);
 
@@ -419,7 +443,6 @@ try {
   await app.close();
   await writeFile(`${log}.no-conversations`, "");
   page = await launch();
-  await page.getByRole("button", { name: "Resume session" }).click();
   await page.locator(".terminal-card").waitFor();
   await page.getByRole("button", { name: "Start new session" }).click();
   await page.getByRole("heading", { name: "Start a new session" }).waitFor();

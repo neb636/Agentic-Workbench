@@ -25,7 +25,7 @@ export interface ViewDefinition {
   isPreview?: (view: WorkbenchView) => boolean;
   /** Extra items for the tab's context menu, after Close and Close others. */
   tabMenu?: (view: WorkbenchView) => { id: string; label: string; run: () => void }[];
-  /** The person clicked this view's tab or list row; showing it some other way doesn't count. */
+  /** The person clicked this view's tab or list row, or the app reopened on it; showing it some other way doesn't count. */
   onActivate?: (view: WorkbenchView) => void;
   /** Status shown when no live status has been published for the view. */
   idleStatus?: (view: WorkbenchView) => ViewStatus | undefined;
