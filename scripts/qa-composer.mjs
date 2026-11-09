@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), composed
@@ -53,9 +54,10 @@ const WRITE_TESTS = "Add or update unit tests that cover this change, and run th
 let app;
 try {
   const launch = async () => {
-    app = await electron.launch({ args: ["."], env: { ...process.env, WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: executable,
-      WORKBENCH_CLAUDE_PATH: join(directory, "missing-claude"), COMPOSER_QA_LOG: log } });
+    app = await electron.launch({ args: ["."], env: qaEnvironment({ WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: executable,
+      WORKBENCH_CLAUDE_PATH: join(directory, "missing-claude"), COMPOSER_QA_LOG: log }) });
     const window = await app.firstWindow();
+    await assertQaWindowVisibility(app);
     window.setDefaultTimeout(10_000);
     return window;
   };
