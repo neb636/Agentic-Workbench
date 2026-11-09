@@ -195,6 +195,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
         onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); } }} />
       <div className="composer-feedback" aria-live="polite">{feedback}</div>
       {needsHandoff && <div className="composer-handoff">
+        {status?.lifecycle === "failed" && <Button onPress={() => void services.commands.execute("agent.session.forget", target)}>Start new session</Button>}
         <Button onPress={session.focusTerminal}>Focus terminal</Button>
         <Button onPress={() => { void assembly().then((value) => navigator.clipboard.writeText(value.content)).then(() => setCopiedRevision(state.composerRevision ?? 0)).catch(() => setError("Could not copy. Open Preview to select the prompt text.")); }}>{copiedRevision === (state.composerRevision ?? 0) ? "Copied prompt" : "Copy composed prompt"}</Button>
       </div>}

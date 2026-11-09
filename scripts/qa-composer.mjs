@@ -11,13 +11,15 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), composed
 // prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
-// limit, restart, cleanup), uncertain delivery handoff, Plan chosen before the CLI starts,
+// limit, restart, cleanup), resuming after a restart (nothing launches until a click; draft and attachments stay),
+// uncertain delivery handoff, Plan chosen before the CLI starts,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
 // layout persistence across restart. Runs against a deterministic fake CLI; no model calls.
 const directory = await realpath(await mkdtemp(join(tmpdir(), "workbench-composer-qa-")));
 const repo = join(directory, "repo");
 const executable = join(directory, "fixture-cli");
 const log = join(directory, "prompts.jsonl");
+const launchLog = join(directory, "launches.jsonl");
 const shellQuote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" });
 await mkdir(join(repo, "src"), { recursive: true });
@@ -57,7 +59,7 @@ let app;
 try {
   const launch = async () => {
     app = await electron.launch({ args: ["."], env: qaEnvironment({ WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: executable,
-      WORKBENCH_CLAUDE_PATH: join(directory, "missing-claude"), COMPOSER_QA_LOG: log }) });
+      WORKBENCH_CLAUDE_PATH: join(directory, "missing-claude"), COMPOSER_QA_LOG: log, COMPOSER_QA_LAUNCHES: launchLog }) });
     const window = await app.firstWindow();
     await assertQaWindowVisibility(app);
     window.setDefaultTimeout(10_000);
@@ -76,6 +78,7 @@ try {
     await writeFile(join(directory, `${name}.png`), Buffer.from(bytes));
   };
   const prompts = async () => (await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  const launches = async () => (await readFile(launchLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   const prompt = () => page.getByRole("textbox", { name: "Prompt", exact: true });
   const waitFeedback = (value) => page.waitForFunction((text) => document.querySelector(".composer-feedback")?.textContent.includes(text), value)
     .catch(async (error) => { throw new Error(`Waiting for "${value}", the composer says "${await page.locator(".composer-feedback").first().textContent().catch(() => "?")}": ${error.message}`); });
@@ -357,15 +360,69 @@ try {
   await page.getByRole("button", { name: "Show sidebar" }).waitFor();
   await page.waitForTimeout(400);
   assert.deepEqual(errors, []);
+  await page.getByRole("button", { name: "Show sidebar" }).click();
+  await page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ }).click();
+  await prompt().waitFor();
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
+  await page.getByRole("button", { name: "Show sidebar" }).waitFor();
+  await page.waitForTimeout(400);
+  // Typed right before quitting: the save on close has to catch it.
+  await prompt().fill("Keep this draft");
   await app.close();
+  const launchesBefore = (await launches()).length;
   await mkdir(join(directory, "attachments", "closed-view"), { recursive: true });
   page = await launch();
   await page.getByRole("button", { name: "Show sidebar" }).click();
-  await page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ }).waitFor();
+  const restored = page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ });
+  await restored.waitFor();
+  assert.match(await restored.innerText(), /Resumable · Codex/);
+  // Reopening shows the session as resumable with its composer intact, and starts nothing by itself.
+  await page.getByRole("heading", { name: "Resume this session" }).waitFor();
+  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
+  assert.equal(await prompt().inputValue(), "Keep this draft");
+  await page.waitForTimeout(600);
+  assert.equal((await launches()).length, launchesBefore);
+  await shot("resume-pane");
+  // A click on the session's tab, already selected, reopens that conversation in its folder and keeps the draft.
+  await page.getByRole("tab", { name: "Explain this failure." }).locator(".view-tab-title").click();
+  await page.locator(".terminal-card").waitFor();
+  // The CLI logs its launch a moment after the terminal appears.
+  for (let waited = 0; waited < 5000 && (await launches()).length === launchesBefore; waited += 100) await page.waitForTimeout(100);
+  await page.waitForTimeout(300);
+  const resumed = (await launches()).at(-1);
+  assert.equal((await launches()).length, launchesBefore + 1);
+  assert.deepEqual(resumed.argv.slice(0, 2), ["resume", "--last"]);
+  assert.equal(resumed.cwd, first.cwd);
+  assert.equal(resumed.argv.includes("--model"), false);
+  assert.equal(await prompt().inputValue(), "Keep this draft");
   // A draft's attachment survives the restart; the folder of a view that no longer exists does not.
-  await page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ }).click();
   await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
   await page.waitForFunction(() => document.querySelector(".attachment-tile img")?.naturalWidth > 0);
   assert.equal(await stat(join(directory, "attachments", "closed-view")).then(() => true, () => false), false);
+
+  // Sending from the resume pane continues the conversation too, instead of starting a new one.
+  await page.waitForTimeout(400);
+  await app.close();
+  page = await launch();
+  await page.getByRole("heading", { name: "Resume this session" }).waitFor();
+  await prompt().fill("Sent while waiting to resume");
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await waitFeedback("Prompt handed");
+  assert.deepEqual((await launches()).at(-1).argv.slice(0, 2), ["resume", "--last"]);
+  assert.match((await prompts()).at(-1).prompt, /Sent while waiting to resume/);
+  assert.equal(await page.locator(".attachment-tile").count(), 0);
+
+  // A conversation the CLI can't reopen fails in the terminal; starting over from there keeps what was typed.
+  await page.waitForTimeout(400);
+  await prompt().fill("A different idea");
+  await page.waitForTimeout(400);
+  await app.close();
+  await writeFile(`${log}.no-conversations`, "");
+  page = await launch();
+  await page.getByRole("button", { name: "Resume session" }).click();
+  await page.locator(".terminal-card").waitFor();
+  await page.getByRole("button", { name: "Start new session" }).click();
+  await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  assert.equal(await prompt().inputValue(), "A different idea");
   console.log("Composer QA passed. Artifacts:", directory);
 } finally { if (app) await app.close(); console.log("QA artifacts:", directory); }

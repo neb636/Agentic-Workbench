@@ -17,6 +17,7 @@ const api: WorkbenchApi = {
   persistence: {
     load: () => ipcRenderer.invoke(IPC.persistenceLoad) as Promise<PersistedState>,
     save: (state) => ipcRenderer.invoke(IPC.persistenceSave, state) as Promise<void>,
+    saveNow: (state) => { ipcRenderer.sendSync(IPC.persistenceSaveNow, state); },
   },
   workspace: {
     chooseDirectory: () => ipcRenderer.invoke(IPC.workspaceChooseDirectory) as Promise<string | null>,

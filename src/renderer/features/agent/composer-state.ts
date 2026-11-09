@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptAttachment, PromptQuotation } from "../../../shared/models";
+import { resumeRequest, savedConversation } from "../../../shared/agent-conversations";
 import { attachmentsPrompt, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
 import { resetSelections, resolveOptions, type PromptSelections } from "../../../shared/prompt-options";
 import type { AssembledPrompt } from "../../core/prompt-assembler";
@@ -29,6 +30,7 @@ interface ComposerRuntime {
   /** Files still being stored; the prompt can't go until they are. */
   attaching: number;
   result?: AgentDeliveryResult;
+  resumeError?: string;
 }
 const emptyRuntime: ComposerRuntime = { history: [], sending: false, launching: false, attaching: 0 };
 export const useComposerState = create<{ views: Record<string, ComposerRuntime> }>(() => ({ views: {} }));
@@ -140,12 +142,41 @@ function launchSettings(providerId: string, target: ComposerTarget): AgentModelS
   return modelSettings(providerId, stateFor(target)?.modelSettings?.[providerId]) ?? undefined;
 }
 
+/** The provider and launch request that reopen this view's saved conversation, if it has one. */
+function reopening(target: ComposerTarget) {
+  const state = stateFor(target);
+  const siblings = useWorkbenchStore.getState().workspaces.flatMap((w) => w.views.filter((v) => v.type === "agent").map((v) => (v.state ?? {}) as AgentViewState));
+  const provider = services.sessions.get(savedConversation(state)?.providerId ?? "");
+  const resume = resumeRequest(state, siblings);
+  return resume && provider?.kind === "agent" ? { provider, resume } : undefined;
+}
+
+/**
+ * Remembers a running conversation once something has happened in it, from the composer or typed in the terminal.
+ * Until then a CLI has saved nothing, so there would be nothing to resume.
+ */
+function rememberConversations(): void {
+  useAgentRuntimes.subscribe((state, previous) => {
+    if (state.sessions === previous.sessions) return;
+    for (const [viewId, runtime] of Object.entries(state.sessions)) {
+      if (!runtime.prompted && !runtime.status?.started) continue;
+      const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.views.some((v) => v.id === viewId));
+      if (!workspace) continue;
+      const target = { workspaceId: workspace.id, viewId };
+      const id = runtime.controller.conversationId;
+      const saved = stateFor(target)?.conversation;
+      if (saved?.providerId !== runtime.providerId || saved.id !== id) patchView(target, { conversation: { providerId: runtime.providerId, id } });
+    }
+  });
+}
+
 function titleFromPrompt(draft: string): string {
   const line = draft.trim().split("\n")[0].trim();
   return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line;
 }
 
 export function registerComposerContributions(): void {
+  rememberConversations();
   services.promptContributors.register({ id: "prompt-menus", contributions: (target) => {
     const selections = stateFor(target)?.promptSelections ?? {};
     const menus = services.promptMenus.resolve(target);
@@ -246,13 +277,15 @@ export function registerComposerContributions(): void {
     const state = stateFor(target);
     const composer = useComposerState.getState().views[target.viewId];
     if (!workspace || !state?.draft?.trim() || composer?.launching || composer?.sending) return;
-    const provider = services.sessions.get(providerId ?? state.providerId ?? "");
+    // Sending from a conversation that's waiting to be reopened continues it.
+    const reopen = reopening(target);
+    const provider = reopen?.provider ?? services.sessions.get(providerId ?? state.providerId ?? "");
     if (provider?.kind !== "agent") { notSent(target.viewId, "Choose an available harness first."); return; }
     if (state.providerId !== provider.id) patchView(target, { providerId: provider.id });
-    updateRuntime(target.viewId, { launching: true, result: undefined });
+    updateRuntime(target.viewId, { launching: true, result: undefined, resumeError: undefined });
     try {
-      const cwd = await prepareSessionFolder(target);
-      await untilSubmittable(await startAgentRuntime(target.viewId, provider, { workspacePath: cwd, settings: launchSettings(provider.id, target) }));
+      const cwd = await prepareSessionFolder(target, Boolean(reopen));
+      await untilSubmittable(await startAgentRuntime(target.viewId, provider, { workspacePath: cwd, resume: reopen?.resume, settings: reopen ? undefined : launchSettings(provider.id, target) }));
     } catch (error) {
       updateRuntime(target.viewId, { launching: false });
       notSent(target.viewId, errorMessage(error));
@@ -267,14 +300,31 @@ export function registerComposerContributions(): void {
     const provider = services.sessions.get(runtime?.providerId ?? "");
     if (!runtime || provider?.kind !== "agent" || useComposerState.getState().views[target.viewId]?.sending) return;
     closeAgentRuntime(target.viewId);
+    patchView(target, { conversation: null });
     updateRuntime(target.viewId, { result: undefined });
     try { await startAgentRuntime(target.viewId, provider, { workspacePath: await prepareSessionFolder(target), settings: launchSettings(provider.id, target) }); }
     catch (error) { notSent(target.viewId, errorMessage(error)); }
   });
+  // Reopens the saved conversation in its folder; only a click gets here, so the app never starts CLIs on its own.
+  services.commands.register<ComposerTarget>("agent.session.resume", async (target) => {
+    const composer = useComposerState.getState().views[target.viewId];
+    const reopen = reopening(target);
+    if (!reopen || useAgentRuntimes.getState().sessions[target.viewId] || composer?.launching || composer?.sending) return;
+    updateRuntime(target.viewId, { launching: true, result: undefined, resumeError: undefined });
+    try { await startAgentRuntime(target.viewId, reopen.provider, { workspacePath: await prepareSessionFolder(target, true), resume: reopen.resume }); }
+    catch (error) { updateRuntime(target.viewId, { resumeError: errorMessage(error) }); }
+    finally { updateRuntime(target.viewId, { launching: false }); }
+  });
+  // Leaves the saved conversation (or a CLI that failed to reopen it) behind for a new one; the draft stays.
+  services.commands.register<ComposerTarget>("agent.session.forget", (target) => {
+    closeAgentRuntime(target.viewId);
+    updateRuntime(target.viewId, { resumeError: undefined, result: undefined });
+    patchView(target, { conversation: null });
+  });
   services.commands.register<ComposerTarget>("agent.session.reset", (target) => {
     closeAgentRuntime(target.viewId);
     clearComposerRuntime(target.viewId);
-    patchView(target, { promptSelections: {} });
+    patchView(target, { promptSelections: {}, conversation: null });
     patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
   });
 }

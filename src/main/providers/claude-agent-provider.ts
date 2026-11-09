@@ -1,6 +1,6 @@
 import type { AgentProviderAdapter, AgentSubmission, ScreenObservation } from "../agent-provider";
 import { claudeMode, detectCliScreen, pasteChunks } from "./cli-screen";
-import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest } from "../../shared/models";
+import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest, AgentResume } from "../../shared/models";
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 
@@ -11,7 +11,12 @@ export class ClaudeAgentProvider implements AgentProviderAdapter {
   readonly interrupt = "\u001b";
   // Claude Code's model aliases follow its newest model of each family.
   readonly models: AgentModelChoice[] = ["opus", "sonnet", "haiku"].map((id) => ({ id, label: id[0].toUpperCase() + id.slice(1), efforts: EFFORTS }));
-  args(resume: boolean) { return resume ? ["--resume"] : []; }
+  args(resume?: AgentResume) {
+    if (resume?.kind === "id") return ["--resume", resume.id];
+    if (resume?.kind === "latest") return ["--continue"];
+    return resume ? ["--resume"] : [];
+  }
+  conversationArgs(id: string) { return ["--session-id", id]; }
   readFolderArgs(folder: string) { return ["--add-dir", folder]; }
   modelArgs(settings: AgentModelSettings) { return ["--model", settings.model, "--effort", settings.effort]; }
   detect = detectCliScreen("claude");

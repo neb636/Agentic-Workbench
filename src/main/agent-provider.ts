@@ -1,4 +1,4 @@
-import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest, AgentSessionStatus } from "../shared/models";
+import type { AgentModelChoice, AgentModelSettings, AgentPromptRequest, AgentResume, AgentSessionStatus } from "../shared/models";
 
 export interface ScreenObservation {
   lines: string[];
@@ -29,7 +29,9 @@ export interface AgentProviderAdapter {
   id: string;
   label: string;
   executable: string;
-  args: (resume: boolean) => string[];
+  args: (resume?: AgentResume) => string[];
+  /** Launch arguments naming a new conversation, for CLIs that accept an id: it can then be resumed exactly. */
+  conversationArgs?: (id: string) => string[];
   /** Launch arguments that let a CLI which asks before reading outside where it runs read this folder (prompt attachments). */
   readFolderArgs?: (folder: string) => string[];
   /** Models offered for new conversations. */

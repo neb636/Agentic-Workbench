@@ -124,7 +124,11 @@ export const agentSessionCreateOptionsSchema = z.object({
   viewId: z.string().min(1),
   cols: z.number().int().min(2).max(1000),
   rows: z.number().int().min(1).max(1000),
-  resume: z.boolean().optional(),
+  resume: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("id"), id: z.uuid() }),
+    z.object({ kind: z.literal("latest") }),
+    z.object({ kind: z.literal("pick") }),
+  ]).optional(),
   settings: z.object({ model: z.string().min(1).max(100), effort: z.string().min(1).max(20) }).optional(),
 });
 

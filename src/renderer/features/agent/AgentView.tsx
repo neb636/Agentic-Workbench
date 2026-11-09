@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { savedConversation } from "../../../shared/agent-conversations";
 import type { AgentProviderInfo, AgentViewState } from "../../../shared/models";
 import { services } from "../../core/services";
 import { acknowledgeAgentCompletion, startAgentRuntime, useAgentRuntimes } from "../../core/agent-runtimes";
@@ -12,6 +13,7 @@ import { AgentComposer, type ComposerSession } from "./AgentComposer";
 import { modelSettings, rememberAgentModels } from "./agent-models";
 import { prepareSessionFolder } from "./composer-state";
 import { SessionLauncher } from "./SessionLauncher";
+import { SessionResume } from "./SessionResume";
 import { agentRuntimeStatus } from "./session-status";
 import { TerminalSurface, type TerminalSurfaceHandle } from "../terminal/TerminalSurface";
 
@@ -54,7 +56,7 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     setBusy(true); setError(""); patch({ providerId: provider.id });
     // A new conversation launches with the composer's model and effort; a resumed one keeps its own.
     const settings = resume ? undefined : modelSettings(provider.id, state.modelSettings?.[provider.id]) ?? undefined;
-    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }, resume), resume, settings }); }
+    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }, resume), resume: resume ? { kind: "pick" } : undefined, settings }); }
     catch (e) { if (alive.current) setError(errorMessage(e)); }
     finally { if (alive.current) setBusy(false); }
   };
@@ -65,9 +67,12 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     interrupt: () => runtime.controller.interrupt(),
     focusTerminal: () => terminalRef.current?.focus(),
   };
+  const conversation = savedConversation(state);
   const top = runtime
     ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection}
       root={state.cwd ?? workspace.path} onOpenPath={(path, line) => void services.commands.execute("file.open", { workspaceId: workspace.id, root: state.cwd ?? workspace.path, path, line, preview: true })} /></div>
+    : conversation ? <SessionResume workspaceId={workspace.id} viewId={view.id} location={state.cwd ?? workspace.path}
+        provider={providers.find((p) => p.id === conversation.providerId)} />
     : <SessionLauncher workspace={workspace} state={state} providers={providers} selected={selected} busy={busy} error={error}
         onChange={patch} onStart={(resume) => void start(resume)} />;
   const composer = <AgentComposer key={runtime?.controller.id ?? "setup"} workspaceId={workspace.id} viewId={view.id} agentLabel={services.sessions.get(runtime?.providerId ?? selected ?? "")?.label ?? "the agent"}

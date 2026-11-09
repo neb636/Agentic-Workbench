@@ -5,6 +5,7 @@ import managerModule from "../dist-electron/main/agent-session-manager.js";
 import codexModule from "../dist-electron/main/providers/codex-agent-provider.js";
 import claudeModule from "../dist-electron/main/providers/claude-agent-provider.js";
 import screenModule from "../dist-electron/main/providers/cli-screen.js";
+import conversationsModule from "../dist-electron/shared/agent-conversations.js";
 import headless from "@xterm/headless";
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
@@ -16,6 +17,7 @@ const { AgentSessionManager } = managerModule;
 const { CodexAgentProvider } = codexModule;
 const { ClaudeAgentProvider } = claudeModule;
 const { pastePrompt, pasteChunks, isProtocolInput, PASTE_CHUNK_BYTES } = screenModule;
+const { savedConversation, resumeRequest } = conversationsModule;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** Writes as the CLI received them, with each paste's pieces joined back into one. */
 const joined = (writes) => {
@@ -31,9 +33,48 @@ const request = (prompt, intent = "default") => ({ prompt, intent });
 const screen = (cursorLine, other = [], cursorX = 2) => ({ lines: [...other, cursorLine], cursorLine, cursorX, cursorY: other.length, cursorCellDim: true, inputWasEdited: false, bracketedPaste: true });
 
 test("native launch and resume belong to each adapter", () => {
-  assert.deepEqual(new CodexAgentProvider().args(false), []);
-  assert.deepEqual(new CodexAgentProvider().args(true), ["resume"]);
-  assert.deepEqual(new ClaudeAgentProvider().args(true), ["--resume"]);
+  const codex = new CodexAgentProvider(), claude = new ClaudeAgentProvider();
+  const id = "2f1c7f54-8a51-4a5e-9d6c-3f1f0a7b1c11";
+  assert.deepEqual(codex.args(), []);
+  assert.deepEqual(codex.args({ kind: "pick" }), ["resume"]);
+  assert.deepEqual(codex.args({ kind: "latest" }), ["resume", "--last"]);
+  assert.deepEqual(codex.args({ kind: "id", id }), ["resume", id]);
+  assert.deepEqual(claude.args(), []);
+  assert.deepEqual(claude.args({ kind: "pick" }), ["--resume"]);
+  assert.deepEqual(claude.args({ kind: "latest" }), ["--continue"]);
+  assert.deepEqual(claude.args({ kind: "id", id }), ["--resume", id]);
+});
+test("a saved conversation is reopened by id, else the folder's newest, else the CLI's picker", () => {
+  const legacy = { autoTitle: false, cwd: "/w", providerId: "codex.cli" };
+  // Older state has no record, but a title taken from a prompt shows a conversation exists.
+  assert.deepEqual(savedConversation(legacy), { providerId: "codex.cli" });
+  assert.equal(savedConversation({ ...legacy, conversation: null }), undefined);
+  assert.equal(savedConversation({ autoTitle: true, cwd: "/w", providerId: "codex.cli" }), undefined);
+  assert.equal(savedConversation(undefined), undefined);
+  assert.deepEqual(resumeRequest({ cwd: "/w", conversation: { providerId: "claude.cli", id: "x" } }, []), { kind: "id", id: "x" });
+  assert.deepEqual(resumeRequest(legacy, [legacy]), { kind: "latest" });
+  assert.deepEqual(resumeRequest(legacy, [legacy, { ...legacy, cwd: "/other" }, { cwd: "/w", providerId: "claude.cli", conversation: { providerId: "claude.cli" } }]), { kind: "latest" });
+  // Another view's conversation in the same folder could be the newest one: let the person choose.
+  assert.deepEqual(resumeRequest(legacy, [legacy, { cwd: "/w", conversation: { providerId: "codex.cli" } }]), { kind: "pick" });
+  assert.equal(resumeRequest({ autoTitle: true }, []), undefined);
+});
+test("a CLI that accepts one gets a conversation id at launch, and resumes by it", async () => {
+  const provider = () => Object.assign(new ClaudeAgentProvider(), { startupSettleMs: 0 });
+  const fresh = setup(provider());
+  const { conversationId } = await fresh.manager.attach(fresh.id, fresh.owner);
+  assert.match(conversationId, /^[0-9a-f-]{36}$/);
+  assert.deepEqual(fresh.spawned[0].slice(0, 2), ["--session-id", conversationId]);
+  fresh.manager.terminateAll();
+  const resumed = setup(provider(), { resume: { kind: "id", id: conversationId }, viewId: "again" });
+  assert.equal((await resumed.manager.attach(resumed.id, resumed.owner)).conversationId, conversationId);
+  assert.deepEqual(resumed.spawned[0].slice(0, 2), ["--resume", conversationId]);
+  assert.equal(resumed.spawned[0].includes("--session-id"), false);
+  resumed.manager.terminateAll();
+  // Codex takes no id: nothing is invented for it.
+  const codex = setup();
+  assert.equal((await codex.manager.attach(codex.id, codex.owner)).conversationId, undefined);
+  assert.deepEqual(codex.spawned[0], []);
+  codex.manager.terminateAll();
 });
 test("screen rules distinguish ready, native drafts, working, decisions and unknown", () => {
   const codex = new CodexAgentProvider(); const claude = new ClaudeAgentProvider();
@@ -441,7 +482,7 @@ test("model and effort are launch arguments of a new conversation, never of a re
   const codex = setup(undefined, { settings });
   assert.deepEqual(codex.spawned[0], ["--model", "gpt-6-luna", "-c", 'model_reasoning_effort="high"', "-c", 'plan_mode_reasoning_effort="high"']);
   codex.manager.terminateAll();
-  const resumed = setup(undefined, { settings, resume: true, viewId: "resumed" });
+  const resumed = setup(undefined, { settings, resume: { kind: "pick" }, viewId: "resumed" });
   assert.deepEqual(resumed.spawned[0], ["resume"]);
   resumed.manager.terminateAll();
   const claude = new ClaudeAgentProvider();
@@ -450,7 +491,7 @@ test("model and effort are launch arguments of a new conversation, never of a re
   const spawned = [];
   const manager = new AgentSessionManager([claude], (_c, args) => { spawned.push(args); return { onData: () => {}, onExit: () => {}, write: () => {}, resize: () => {}, kill: () => {} }; });
   manager.create({ providerId: claude.id, workspacePath: root, viewId: "c", cols: 80, rows: 24, settings: { model: "opus", effort: "medium" } }, {});
-  assert.deepEqual(spawned[0], ["--model", "opus", "--effort", "medium"]);
+  assert.deepEqual(spawned[0].slice(2), ["--model", "opus", "--effort", "medium"]);
   // Only a model and effort the adapter offers become arguments.
   assert.throws(() => manager.create({ providerId: claude.id, workspacePath: root, viewId: "bad", cols: 80, rows: 24, settings: { model: "opus\r", effort: "medium" } }, {}), /Unsupported model/);
   assert.throws(() => manager.create({ providerId: claude.id, workspacePath: root, viewId: "bad2", cols: 80, rows: 24, settings: { model: "opus", effort: "ultra" } }, {}), /Unsupported model/);
@@ -459,7 +500,7 @@ test("model and effort are launch arguments of a new conversation, never of a re
   const granted = [];
   const folders = new AgentSessionManager([claude], (_c, args) => { granted.push(args); return { onData: () => {}, onExit: () => {}, write: () => {}, resize: () => {}, kill: () => {} }; }, (viewId) => `/attachments/${viewId}`);
   folders.create({ providerId: claude.id, workspacePath: root, viewId: "c2", cols: 80, rows: 24 }, {});
-  assert.deepEqual(granted[0], ["--add-dir", "/attachments/c2"]);
+  assert.deepEqual(granted[0].slice(2), ["--add-dir", "/attachments/c2"]);
   folders.terminateAll();
   // The catalogue reaches the renderer through discovery.
   assert.deepEqual(manager.discover()[0].models.map((model) => model.id), ["opus", "sonnet", "haiku"]);

@@ -36,6 +36,7 @@ export function registerFirstPartyContributions(): void {
     defaultTitle: "Untitled",
     listInSidebar: true,
     idleStatus: agentIdleStatus,
+    onActivate: (view) => void services.commands.execute("agent.session.resume", { workspaceId: view.workspaceId, viewId: view.id }),
     createState: () => ({ autoTitle: true }),
   });
   services.views.register({
@@ -107,8 +108,10 @@ export function registerFirstPartyContributions(): void {
     if (!definition) throw new Error(`Unknown view type: ${viewType}`);
     return useWorkbenchStore.getState().createView(workspaceId, definition.id, definition.defaultTitle ?? definition.label, definition.createState?.());
   });
-  services.commands.register<{ workspaceId: string; viewId: string }>("view.select", ({ workspaceId, viewId }) => {
+  services.commands.register<{ workspaceId: string; viewId: string }>("view.activate", ({ workspaceId, viewId }) => {
     useWorkbenchStore.getState().selectView(workspaceId, viewId);
+    const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);
+    if (view) services.views.get(view.type)?.onActivate?.(view);
   });
   services.commands.register<{ workspaceId: string; viewId: string }>("view.close", ({ workspaceId, viewId }) => {
     const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);

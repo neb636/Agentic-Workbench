@@ -175,6 +175,14 @@ useWorkbenchStore.subscribe((state) => {
   if (!state.isHydrated) return;
   clearTimeout(persistenceTimer);
   persistenceTimer = setTimeout(() => {
+    persistenceTimer = undefined;
     void window.workbench.persistence.save(persistedSnapshot(useWorkbenchStore.getState()));
   }, 180);
+});
+// The last few keystrokes before the app closes belong in the saved draft too.
+window.addEventListener("beforeunload", () => {
+  if (persistenceTimer === undefined) return;
+  clearTimeout(persistenceTimer);
+  persistenceTimer = undefined;
+  window.workbench.persistence.saveNow(persistedSnapshot(useWorkbenchStore.getState()));
 });

@@ -44,6 +44,8 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
   }, []);
   const views = workspace?.views ?? [];
   const { visible, hidden } = splitTabs(views, workspace?.activeViewId, capacity);
+  // A click, unlike arrowing through the tabs, also wakes the view; it counts on the tab that is already selected too.
+  const activate = (viewId: string) => { if (workspace) void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId }); };
   const close = (view: WorkbenchView) => void services.commands.execute("view.close", { workspaceId: view.workspaceId, viewId: view.id });
   const closeOthers = async (keep: WorkbenchView) => {
     for (const view of views) if (view.id !== keep.id) await services.commands.execute("view.close", { workspaceId: view.workspaceId, viewId: view.id });
@@ -79,6 +81,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
             return <Tab id={view.id} className={`view-tab ${preview ? "is-preview" : ""} ${dropBefore === view.id ? "is-drop-before" : ""}`} aria-label={view.title}>
               {/* Draggable inside the tab: react-aria leaves native drags alone on draggable elements. */}
               <span className="view-tab-grip" draggable title={view.title}
+                onClick={() => activate(view.id)}
                 onDragStart={(event) => { event.dataTransfer.setData(DRAG_TYPE, view.id); event.dataTransfer.effectAllowed = "move"; }}
                 onDragOver={(event) => {
                   if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
@@ -111,7 +114,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
     {workspace && hidden.length > 0 && <MenuTrigger>
       <AriaButton className="tab-overflow" aria-label={`${hidden.length} more views`}>+{hidden.length} more<ChevronDownIcon size={12} /></AriaButton>
       <Popover className="wb-popover" placement="bottom end">
-        <Menu aria-label="More views" items={hidden} onAction={(key) => selectView(workspace.id, String(key))}>
+        <Menu aria-label="More views" items={hidden} onAction={(key) => activate(String(key))}>
           {(view) => {
             const Icon = services.views.get(view.type)?.icon;
             return <MenuItem id={view.id} textValue={view.title}>{Icon && <Icon size={14} />}<span>{view.title}</span></MenuItem>;

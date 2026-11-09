@@ -1,12 +1,12 @@
 import { Registry } from "./registry";
-import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentResume, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
 
 export interface SessionCreateContext {
   workspacePath: string;
   cols?: number;
   rows?: number;
   viewId?: string;
-  resume?: boolean;
+  resume?: AgentResume;
   /** Model and effort for a new conversation (launch arguments; a resumed one keeps its own). */
   settings?: AgentModelSettings;
 }
@@ -24,6 +24,8 @@ export interface TerminalSessionController extends SessionController {
 }
 
 export interface AgentSessionController extends SessionController {
+  /** Set when the CLI runs a conversation with a known id. */
+  conversationId?: string;
   input: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   attach: (snapshot: (snapshot: AgentSessionSnapshot) => void, data: (data: string) => void, error: (message: string) => void) => () => void;

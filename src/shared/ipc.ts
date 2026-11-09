@@ -1,6 +1,7 @@
 export const IPC = {
   persistenceLoad: "persistence:load",
   persistenceSave: "persistence:save",
+  persistenceSaveNow: "persistence:save-now",
   workspaceChooseDirectory: "workspace:choose-directory",
   ptyCreate: "pty:create",
   ptyInput: "pty:input",

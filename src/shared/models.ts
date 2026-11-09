@@ -139,6 +139,9 @@ export interface PromptAttachment {
   image: boolean;
 }
 
+/** Which earlier conversation a CLI reopens: one by id, the newest in its folder, or whichever the person picks in the CLI. */
+export type AgentResume = { kind: "id"; id: string } | { kind: "latest" } | { kind: "pick" };
+
 export interface AgentViewState {
   providerId?: string;
   draft?: string;
@@ -155,6 +158,8 @@ export interface AgentViewState {
   /** The title is replaced by the first sent prompt. */
   autoTitle?: boolean;
   composerCollapsed?: boolean;
+  /** The conversation to reopen after the app restarts, once something has happened in it (`id` when the CLI lets us name it). Null: none, even if older state suggests one. */
+  conversation?: { providerId: string; id?: string } | null;
   /** The composer's model and effort per provider, for new conversations; absent means the CLI's defaults. */
   modelSettings?: Record<string, AgentModelSettings>;
 }
@@ -274,7 +279,7 @@ export interface AgentSessionCreateOptions {
   viewId: string;
   cols: number;
   rows: number;
-  resume?: boolean;
+  resume?: AgentResume;
   /** Model and effort for a new conversation; a resumed one keeps what it was saved with. */
   settings?: AgentModelSettings;
 }
@@ -291,6 +296,8 @@ export interface AgentSessionSnapshot {
   cols: number;
   rows: number;
   status: AgentSessionStatus;
+  /** Set when the CLI runs a conversation with a known id. */
+  conversationId?: string;
 }
 
 export interface WorkbenchApi {
@@ -298,6 +305,8 @@ export interface WorkbenchApi {
   persistence: {
     load: () => Promise<PersistedState>;
     save: (state: PersistedState) => Promise<void>;
+    /** Blocks until written, for a window that is closing: the app may exit before an asynchronous save finishes. */
+    saveNow: (state: PersistedState) => void;
   };
   workspace: {
     chooseDirectory: () => Promise<string | null>;
