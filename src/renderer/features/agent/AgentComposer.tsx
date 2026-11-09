@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import {
   Button as AriaButton,
   Dialog,
   DialogTrigger,
+  FileTrigger,
   ListBox,
   ListBoxItem,
   Modal,
@@ -18,10 +19,13 @@ import type { AgentSessionStatus, AgentViewState } from "../../../shared/models"
 import { services } from "../../core/services";
 import type { ViewStatus } from "../../core/view-status";
 import { Button, IconButton } from "../../ui/controls";
-import { ArrowUpIcon, ChevronDownIcon, CloseIcon, EyeIcon, HistoryIcon, NewChatIcon, QuoteIcon, StopIcon } from "../../ui/icons";
+import { ArrowUpIcon, ChevronDownIcon, CloseIcon, EyeIcon, FilesIcon, HistoryIcon, NewChatIcon, PlusIcon, QuoteIcon, StopIcon } from "../../ui/icons";
+import { errorMessage } from "../../core/errors";
+import { MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
 import { isUnusedConversation, useAgentRuntimes } from "../../core/agent-runtimes";
 import { modelLabel, modelSettings, useAgentModels } from "./agent-models";
 import { clearComposerResult, emptyComposerRuntime, patchComposer, pendingSettings, useComposerState, type PromptPreview } from "./composer-state";
+import { ComposerAttachments } from "./ComposerAttachments";
 import { PromptMenuBar } from "./prompt-menus/PromptMenuBar";
 
 export interface ComposerSession {
@@ -46,7 +50,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const target = { workspaceId, viewId };
   const runtime = useComposerState((s) => s.views[viewId] ?? emptyComposerRuntime);
   const agent = useAgentRuntimes((s) => s.sessions[viewId]);
-  const patch = (value: Pick<AgentViewState, "draft" | "quotations" | "intent" | "modelSettings">) => patchComposer(target, value);
+  const patch = (value: Pick<AgentViewState, "draft" | "quotations" | "attachments" | "intent" | "modelSettings">) => patchComposer(target, value);
   const providerId = state.providerId ?? "";
   const choices = useAgentModels((s) => s[providerId]) ?? [];
   const settings = choices.length ? modelSettings(providerId, state.modelSettings?.[providerId]) : null;
@@ -61,27 +65,51 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const [historyId, setHistoryId] = useState<string>();
   const [error, setError] = useState("");
   const [copiedRevision, setCopiedRevision] = useState<number>();
+  const [dropping, setDropping] = useState(false);
   const status = session?.status;
   const planning = session?.planning ?? false;
   const wantsPlan = state.intent === "plan";
   const busy = runtime.sending || runtime.launching;
   const hasDraft = Boolean(state.draft?.trim());
+  const attachments = state.attachments ?? [];
   // Model and effort are launch arguments: a change waits for a new conversation (before the first prompt, Send restarts it).
   const pending = session ? pendingSettings(agent, state) : undefined;
   const restartLabel = pending !== undefined ? modelLabel(providerId, pending) : "";
   const unused = Boolean(agent && isUnusedConversation(agent));
   // A CLI that's still starting takes the prompt too: it's held until the CLI is ready.
   const starting = Boolean(session && !status?.canSubmit && status?.lifecycle !== "exited" && status?.lifecycle !== "failed");
-  const canSend = session
+  const canSend = !runtime.attaching && (session
     ? starting ? Boolean(hasDraft && !busy && (!wantsPlan || planning))
       : Boolean(hasDraft && status?.canSubmit && !busy && (!wantsPlan || planning))
-    : Boolean(hasDraft && canLaunch && !busy && !wantsPlan);
+    : Boolean(hasDraft && canLaunch && !busy && !wantsPlan));
   const historyEntry = runtime.history.find((entry) => entry.id === historyId) ?? runtime.history[0];
   const assembly = () => services.commands.execute<PromptPreview>("agent.composer.preview", target);
   const send = () => {
     if (!canSend) return;
     setError(""); promptRef.current?.focus();
     void services.commands.execute(session ? "agent.composer.send" : "agent.session.launch", { ...target, providerId: state.providerId }).catch((e: unknown) => setError(String(e)));
+  };
+  const attach = (files: File[]) => {
+    if (!files.length) return;
+    setError("");
+    void services.commands.execute("agent.composer.attach", { ...target, files }).catch((e: unknown) => setError(errorMessage(e)));
+  };
+  // Native events rather than a drop-zone primitive: only file drags are ours, so text can still be dragged into the prompt.
+  const carriesFiles = (event: DragEvent) => event.dataTransfer.types.includes("Files");
+  const dragOver = (event: DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDropping(true);
+  };
+  const drop = (event: DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDropping(false);
+    const items = [...event.dataTransfer.items].filter((item) => item.kind === "file");
+    const files = items.filter((item) => !item.webkitGetAsEntry()?.isDirectory).flatMap((item) => item.getAsFile() ?? []);
+    attach(files);
+    if (files.length < items.length) setError("Folders can’t be attached. Drop the files inside them instead.");
   };
   const quote = async () => {
     await services.commands.execute("agent.composer.quote", { ...target, text: session?.selection ?? "" });
@@ -90,7 +118,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const waiting = status?.activity === "waiting-for-input" ? "Answer the question in the terminal: your prompt goes as soon as the CLI is ready."
     : status?.inputState === "draft" ? "There’s a draft in the terminal. Send or clear it there, then this prompt goes."
       : "Waiting for the CLI to be ready, then sending…";
-  const feedback = error || (runtime.launching ? (session ? waiting : "Starting the CLI…")
+  const feedback = error || (runtime.attaching ? "Attaching…" : "") || (runtime.launching ? (session ? waiting : "Starting the CLI…")
     : runtime.sending ? (wantsPlan ? "Switching to Plan mode if needed, then delivering…" : "Delivering prompt…")
       : runtime.result?.outcome === "uncertain" ? `Delivery uncertain. ${runtime.result.message}`
         : runtime.result?.outcome === "not-sent" ? `Not sent. ${runtime.result.message}`
@@ -142,19 +170,30 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
         <Button className="strip-button" onPress={() => void services.commands.execute("agent.session.reset", target)}><NewChatIcon size={13} />New conversation</Button>
       </div>
     </div>}
-    <div className="composer-box">
+    <div className={`composer-box ${dropping ? "is-dropping" : ""}`} onDragOver={dragOver} onDrop={drop}
+      onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropping(false); }}>
+      {dropping && <div className="composer-drop-hint"><FilesIcon size={16} />Drop to attach</div>}
       <div className="composer-box-top">
-        {!!state.quotations?.length && <div className="composer-quotations" aria-label={`Quoted context: ${state.quotations.length} selections`}>
-          {state.quotations.map((item, index) => <div className="composer-quotation" key={item.id}>
-            <details><summary>Terminal selection {index + 1}</summary><pre>{item.content}</pre></details>
-            <IconButton label={`Remove terminal selection ${index + 1}`} onPress={() => patch({ quotations: state.quotations?.filter((quote) => quote.id !== item.id) })}><CloseIcon size={11} /></IconButton>
-          </div>)}
+        {(attachments.length > 0 || runtime.attaching > 0 || !!state.quotations?.length) && <div className="composer-context">
+          <ComposerAttachments viewId={viewId} attachments={attachments} pending={runtime.attaching}
+            onRemove={(id) => patch({ attachments: attachments.filter((item) => item.id !== id) })} />
+          {!!state.quotations?.length && <div className="composer-quotations" aria-label={`Quoted context: ${state.quotations.length} selections`}>
+            {state.quotations.map((item, index) => <div className="composer-quotation" key={item.id}>
+              <details><summary>Terminal selection {index + 1}</summary><pre>{item.content}</pre></details>
+              <IconButton label={`Remove terminal selection ${index + 1}`} onPress={() => patch({ quotations: state.quotations?.filter((quote) => quote.id !== item.id) })}><CloseIcon size={11} /></IconButton>
+            </div>)}
+          </div>}
         </div>}
         <span className="kbd-hint">⌘/Ctrl + Enter</span>
         {onCollapse && <IconButton label="Collapse composer" onPress={onCollapse}><ChevronDownIcon size={14} /></IconButton>}
       </div>
       <TextArea ref={promptRef} aria-label="Prompt" placeholder={`Ask ${agentLabel} to build, investigate, or refine…`} value={state.draft ?? ""}
         onChange={(event) => patch({ draft: event.currentTarget.value })}
+        onPaste={(event) => {
+          // A copied file or screenshot; when there is text too (a spreadsheet's cells), the text is what was meant.
+          const files = [...event.clipboardData.files];
+          if (files.length && !event.clipboardData.getData("text/plain")) { event.preventDefault(); attach(files); }
+        }}
         onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); send(); } }} />
       <div className="composer-feedback" aria-live="polite">{feedback}</div>
       {needsHandoff && <div className="composer-handoff">
@@ -165,7 +204,13 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
         <Button onPress={() => { void services.commands.execute("agent.session.restart", target).catch((e: unknown) => setError(String(e))); }}>Restart with {restartLabel}</Button>
       </div>}
       <div className="composer-toolbar">
-        <PromptMenuBar target={target} selections={state.promptSelections ?? {}} />
+        <div className="composer-toolbar-start">
+          <FileTrigger allowsMultiple onSelect={(list) => attach([...(list ?? [])])}>
+            <IconButton label="Attach files" className="composer-attach" isDisabled={attachments.length + runtime.attaching >= MAX_ATTACHMENTS}><PlusIcon size={17} /></IconButton>
+          </FileTrigger>
+          <span className="composer-toolbar-divider" aria-hidden="true" />
+          <PromptMenuBar target={target} selections={state.promptSelections ?? {}} />
+        </div>
         <div className="composer-toolbar-end">
           {services.widgets.forSlot("agent.composer.toolbar").map((widget) => {
             const Widget = widget.component;

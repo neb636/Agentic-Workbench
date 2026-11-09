@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptQuotation } from "../../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptAttachment, PromptQuotation } from "../../../shared/models";
+import { attachmentsPrompt, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
 import { resetSelections, resolveOptions, type PromptSelections } from "../../../shared/prompt-options";
 import type { AssembledPrompt } from "../../core/prompt-assembler";
 import { createId } from "../../core/id";
@@ -16,6 +17,7 @@ export interface PromptHistoryEntry {
   createdAt: number;
   draft: string;
   quotations: PromptQuotation[];
+  attachments: PromptAttachment[];
   preview: PromptPreview;
   outcome: AgentDeliveryResult["outcome"] | "saved";
   message: string;
@@ -24,9 +26,11 @@ interface ComposerRuntime {
   history: PromptHistoryEntry[];
   sending: boolean;
   launching: boolean;
+  /** Files still being stored; the prompt can't go until they are. */
+  attaching: number;
   result?: AgentDeliveryResult;
 }
-const emptyRuntime: ComposerRuntime = { history: [], sending: false, launching: false };
+const emptyRuntime: ComposerRuntime = { history: [], sending: false, launching: false, attaching: 0 };
 export const useComposerState = create<{ views: Record<string, ComposerRuntime> }>(() => ({ views: {} }));
 export const emptyComposerRuntime = emptyRuntime;
 
@@ -36,7 +40,7 @@ function stateFor({ workspaceId, viewId }: ComposerTarget): AgentViewState | und
 function patchView(target: ComposerTarget, patch: Partial<AgentViewState>): void {
   useWorkbenchStore.getState().updateViewState(target.workspaceId, target.viewId, patch);
 }
-export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "quotations" | "intent" | "modelSettings">): void {
+export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "quotations" | "attachments" | "intent" | "modelSettings">): void {
   patchView(target, { ...patch, composerRevision: (stateFor(target)?.composerRevision ?? 0) + 1 });
 }
 export function setPromptSelections(target: ComposerTarget, promptSelections: PromptSelections): void {
@@ -61,7 +65,7 @@ function previewFor(target: ComposerTarget): PromptPreview {
 }
 function entryFor(target: ComposerTarget, outcome: PromptHistoryEntry["outcome"], message: string): PromptHistoryEntry {
   const state = stateFor(target);
-  return { id: createId("prompt"), createdAt: Date.now(), draft: state?.draft ?? "", quotations: [...(state?.quotations ?? [])], preview: previewFor(target), outcome, message };
+  return { id: createId("prompt"), createdAt: Date.now(), draft: state?.draft ?? "", quotations: [...(state?.quotations ?? [])], attachments: [...(state?.attachments ?? [])], preview: previewFor(target), outcome, message };
 }
 function remember(viewId: string, entry: PromptHistoryEntry): boolean {
   if (JSON.stringify(entry).length > 2_000_000) return false;
@@ -80,6 +84,25 @@ function resetMenusAfterSend(target: ComposerTarget): void {
   let selections = stateFor(target)?.promptSelections ?? {};
   for (const { menu, options } of services.promptMenus.resolve(target)) selections = resetSelections(options, selections, menu.resetAfterSend);
   setPromptSelections(target, selections);
+}
+
+/** Stores what fits and adds it to the prompt, in order; reports the rest in one error. */
+async function attachFiles(target: ComposerTarget, files: File[]): Promise<void> {
+  const attaching = () => useComposerState.getState().views[target.viewId]?.attaching ?? 0;
+  const room = Math.max(0, MAX_ATTACHMENTS - (stateFor(target)?.attachments?.length ?? 0) - attaching());
+  const fitting = files.filter((file) => file.size <= MAX_ATTACHMENT_BYTES);
+  const accepted = fitting.slice(0, room);
+  const problems: string[] = [];
+  if (fitting.length < files.length) problems.push(`Files over ${MAX_ATTACHMENT_BYTES / (1024 * 1024)} MB can’t be attached.`);
+  if (accepted.length < fitting.length) problems.push(`A prompt can hold ${MAX_ATTACHMENTS} attachments.`);
+  updateRuntime(target.viewId, { attaching: attaching() + accepted.length });
+  const saved = await Promise.allSettled(accepted.map(async (file) =>
+    window.workbench.attachments.save(target.viewId, file.name, new Uint8Array(await file.arrayBuffer()))));
+  updateRuntime(target.viewId, { attaching: attaching() - accepted.length });
+  const added = saved.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+  if (added.length && exists(target)) patchComposer(target, { attachments: [...(stateFor(target)?.attachments ?? []), ...added] });
+  saved.forEach((result, index) => { if (result.status === "rejected") problems.push(`Could not attach ${accepted[index].name}.`); });
+  if (problems.length) throw new Error(problems.join(" "));
 }
 
 /** The folder the CLI runs in, creating the session's worktree the first time it is needed. */
@@ -128,7 +151,13 @@ export function registerComposerContributions(): void {
     (stateFor(target)?.quotations ?? []).map((quote, index) => ({ id: quote.id, kind: "context", source: `Terminal selection ${index + 1}`,
       enabled: true, content: `Terminal selection ${index + 1}:\n${quote.content.split("\n").map((line) => `> ${line}`).join("\n")}` })),
   });
+  services.promptContributors.register({ id: "attachments", contributions: (target) => {
+    const attachments = stateFor(target)?.attachments ?? [];
+    return attachments.length ? [{ id: "attachments", kind: "attachment", enabled: true, content: attachmentsPrompt(attachments),
+      source: attachments.length === 1 ? attachments[0].name : `${attachments.length} attachments` }] : [];
+  } });
   services.commands.register<ComposerTarget, PromptPreview>("agent.composer.preview", previewFor);
+  services.commands.register<ComposerTarget & { files: File[] }>("agent.composer.attach", ({ files, ...target }) => attachFiles(target, files));
   services.commands.register<ComposerTarget & { text: string }>("agent.composer.quote", (target) => {
     if (!exists(target) || !target.text.trim()) return;
     // A quotation is text, never a terminal control sequence.
@@ -141,11 +170,11 @@ export function registerComposerContributions(): void {
     const entry = useComposerState.getState().views[target.viewId]?.history.find((item) => item.id === target.entryId);
     if (!entry || !exists(target)) return;
     const current = stateFor(target);
-    if ((current?.draft?.trim() || current?.quotations?.length) && !remember(target.viewId, entryFor(target, "saved", "Draft saved before recall."))) {
+    if ((current?.draft?.trim() || current?.quotations?.length || current?.attachments?.length) && !remember(target.viewId, entryFor(target, "saved", "Draft saved before recall."))) {
       throw new Error("The current draft is too large for recent history. Copy it before replacing it.");
     }
     patchComposer(target, {
-      draft: entry.draft, quotations: entry.quotations, intent: entry.preview.intent,
+      draft: entry.draft, quotations: entry.quotations, attachments: entry.attachments, intent: entry.preview.intent,
     });
   });
   services.commands.register<ComposerTarget>("agent.composer.send", async (target) => {
@@ -196,7 +225,7 @@ export function registerComposerContributions(): void {
       patchView(target, { autoTitle: false });
     }
     if ((stateFor(target)?.composerRevision ?? 0) === revision) {
-      patchComposer(target, { draft: "", quotations: [], intent: "default" });
+      patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
     }
   });
   // The CLI starts when the first prompt is sent: prepare its folder, launch it, wait for its input, then deliver.
@@ -235,6 +264,6 @@ export function registerComposerContributions(): void {
     closeAgentRuntime(target.viewId);
     clearComposerRuntime(target.viewId);
     patchView(target, { promptSelections: {} });
-    patchComposer(target, { draft: "", quotations: [], intent: "default" });
+    patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
   });
 }

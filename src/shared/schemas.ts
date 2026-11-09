@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PromptCondition } from "./prompt-options";
+import { MAX_ATTACHMENT_BYTES } from "./prompt-attachments";
 
 export const workbenchViewSchema = z.object({
   id: z.string(),
@@ -134,6 +135,13 @@ export const agentPromptSchema = z.object({
 });
 
 export const agentSessionActionSchema = z.object({ sessionId: z.string().min(1) });
+
+export const attachmentSaveSchema = z.object({
+  viewId: z.string().min(1).max(200),
+  name: z.string().min(1).max(1024),
+  bytes: z.instanceof(Uint8Array).refine((bytes) => bytes.byteLength <= MAX_ATTACHMENT_BYTES, "That file is too large to attach."),
+});
+export const attachmentLocationSchema = z.object({ viewId: z.string().min(1).max(200), id: z.uuid() });
 
 export const fileLocationSchema = z.object({ root: z.string().min(1), path: z.string().max(4096) });
 export const fileFindSchema = z.object({ root: z.string().min(1), query: z.string().max(256) });

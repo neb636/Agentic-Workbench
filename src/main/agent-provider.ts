@@ -30,6 +30,8 @@ export interface AgentProviderAdapter {
   label: string;
   executable: string;
   args: (resume: boolean) => string[];
+  /** Launch arguments that let a CLI which asks before reading outside where it runs read this folder (prompt attachments). */
+  readFolderArgs?: (folder: string) => string[];
   /** Models offered for new conversations. */
   models?: AgentModelChoice[];
   /** Model and effort as launch arguments; only called with a choice from `models`. */

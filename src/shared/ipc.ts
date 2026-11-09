@@ -19,6 +19,8 @@ export const IPC = {
   agentEvent: "agent:event",
   appMetrics: "app:metrics",
   menuCommand: "app:menu-command",
+  attachmentsSave: "attachments:save",
+  attachmentsThumbnail: "attachments:thumbnail",
   filesList: "files:list",
   filesRead: "files:read",
   filesFind: "files:find",
