@@ -118,6 +118,8 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .wb-popover [role="menuitem"] > div, .wb-popover [role="option"] > div { display: grid; gap: 2px; min-width: 0; }
 .wb-popover [role="menuitem"] small, .wb-popover [role="option"] small { color: var(--wb-text-secondary); font-size: 11px; }
 .wb-popover [data-focused], .wb-popover [data-hovered] { background: var(--wb-bg-hover); }
+/* With nothing selected, focus rests on the list itself. */
+.wb-popover [role="listbox"][data-focused] { background: none; }
 .wb-popover [data-selected] { font-weight: 600; }
 .wb-popover [data-disabled] { opacity: 0.45; }
 .wb-popover .is-destructive { color: var(--wb-status-error); }

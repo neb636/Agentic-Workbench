@@ -15,6 +15,8 @@ export interface Workspace {
   id: string;
   name: string;
   path: string;
+  /** A PNG data URL shown instead of the folder icon. */
+  icon?: string;
   views: WorkbenchView[];
   activeViewId?: string;
 }
@@ -100,10 +102,10 @@ export interface AgentModelChoice {
   efforts: string[];
 }
 
-/** Model and effort for a new conversation; omitted, the CLI uses its own defaults. */
+/** Model and effort for a new conversation. `effort` is absent for a model with no effort levels. */
 export interface AgentModelSettings {
   model: string;
-  effort: string;
+  effort?: string;
 }
 
 export interface AgentProviderInfo {
@@ -316,6 +318,8 @@ export interface WorkbenchApi {
   };
   workspace: {
     chooseDirectory: () => Promise<string | null>;
+    /** Asks for a picture and returns it as a small PNG data URL; null if none was chosen or it couldn't be read. */
+    chooseIcon: () => Promise<string | null>;
   };
   app: {
     textMenu: () => void;
@@ -328,6 +332,8 @@ export interface WorkbenchApi {
     save: (viewId: string, name: string, bytes: Uint8Array) => Promise<PromptAttachment>;
     /** A small picture of a stored image as a data URL; null when there is nothing to show. */
     thumbnail: (viewId: string, id: string) => Promise<string | null>;
+    /** A stored image at full size as a data URL; null when there is nothing to show. */
+    image: (viewId: string, id: string) => Promise<string | null>;
   };
   files: {
     onProgress: (listener: (progress: FileOperationProgress) => void) => () => void;
@@ -380,6 +386,7 @@ export interface WorkbenchApi {
   };
   agent: {
     providers: () => Promise<AgentProviderInfo[]>;
+    onProvidersChanged: (listener: (providers: AgentProviderInfo[]) => void) => () => void;
     create: (options: AgentSessionCreateOptions) => Promise<string>;
     attach: (sessionId: string) => Promise<AgentSessionSnapshot>;
     input: (sessionId: string, data: string) => void;

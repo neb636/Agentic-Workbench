@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, MenuItem, nativeImage, shell } from "electron";
 import path from "node:path";
+import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { AgentSessionManager } from "./agent-session-manager";
 import { CommitMessages } from "./internal-ai/commit-message";
 import { InternalAiService } from "./internal-ai/internal-ai-service";
@@ -30,7 +31,8 @@ function shrinkPicture(bytes: Buffer): string | null {
 const ptyManager = new PtyManager();
 const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), shrinkPicture);
 const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
-const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId));
+const agentModels = new AgentModelCatalogue(agentProviders);
+const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels);
 const internalAi = new InternalAiService(agentProviders, () => path.join(app.getPath("userData"), "internal-ai"));
 const roots = new WorkspaceRoots();
 const sourceControl = new SourceControlService([new GitSourceControlProvider()]);
@@ -108,6 +110,10 @@ app.whenReady().then(() => {
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments);
   addMenuItems();
   createWindow();
+  agentModels.start(() => {
+    const providers = agentSessionManager.discover();
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send(IPC.agentProvidersChanged, providers);
+  });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -118,6 +124,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  agentModels.stop();
   internalAi.terminateAll();
   agentSessionManager.terminateAll();
   ptyManager.terminateAll();

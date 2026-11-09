@@ -73,6 +73,7 @@
   background: var(--wb-bg-field);
   color: var(--wb-text-secondary);
 }
+.workspace-icon img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 .workspace-row.is-active .workspace-icon { background: var(--wb-bg-raised); color: var(--wb-text-primary); box-shadow: var(--wb-shadow-thumb), 0 0 0 1px var(--wb-border-subtle); }
 .workspace-copy { display: grid; flex: 1; min-width: 0; gap: 1px; }
 .workspace-copy strong, .session-title { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }

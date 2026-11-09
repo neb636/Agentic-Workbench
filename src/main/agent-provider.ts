@@ -24,6 +24,16 @@ export interface AgentSubmission {
  */
 export type ModeSwitch = { command: string } | { cycle: string };
 
+/** How to ask a CLI which models it offers, without starting a conversation. */
+export interface AgentModelListing {
+  args: string[];
+  /** Written to the CLI's stdin, which then stays open. */
+  input?: string;
+  /** For a CLI that keeps running after it answers: true once the output is complete, and the CLI is stopped. */
+  ready?: (stdout: string) => boolean;
+  parse: (stdout: string) => AgentModelChoice[];
+}
+
 /** Executable, native UI and key protocol knowledge belongs to an adapter. */
 export interface AgentProviderAdapter {
   id: string;
@@ -34,9 +44,10 @@ export interface AgentProviderAdapter {
   conversationArgs?: (id: string) => string[];
   /** Launch arguments that let a CLI which asks before reading outside where it runs read this folder (prompt attachments). */
   readFolderArgs?: (folder: string) => string[];
-  /** Models offered for new conversations. */
+  /** Models offered for new conversations until the CLI's own list has been read, or when it can't be. */
   models?: AgentModelChoice[];
-  /** Model and effort as launch arguments; only called with a choice from `models`. */
+  listModels?: AgentModelListing;
+  /** Model and effort as launch arguments; only called with a model the catalogue offers. */
   modelArgs?: (settings: AgentModelSettings) => string[];
   /** Run once without a terminal: prompt on stdin, answer as plain text on stdout. Used only by InternalAiService. */
   oneShot?: { args: () => string[]; quickTaskModel: AgentModelSettings };

@@ -15,6 +15,7 @@ interface WorkbenchStore extends PersistedState {
   addWorkspace: (path: string) => string;
   removeWorkspace: (workspaceId: string) => void;
   selectWorkspace: (workspaceId: string) => void;
+  setWorkspaceIcon: (workspaceId: string, icon: string | undefined) => void;
   createView: (workspaceId: string, type: string, title: string, state?: unknown) => string;
   selectView: (workspaceId: string, viewId: string) => void;
   closeView: (workspaceId: string, viewId: string) => void;
@@ -88,6 +89,9 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
       };
     }),
   selectWorkspace: (workspaceId) => set({ activeWorkspaceId: workspaceId }),
+  setWorkspaceIcon: (workspaceId, icon) => set((state) => ({
+    workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => ({ ...workspace, icon })),
+  })),
   updateViewState: (workspaceId, viewId, patch) => set((state) => ({
     workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => ({
       ...workspace, views: workspace.views.map((view) => view.id !== viewId ? view : {
