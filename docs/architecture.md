@@ -129,6 +129,7 @@ After `npm run build`, `npm run qa:composer` runs deterministic Electron checks 
 - quote, preview, and recall;
 - attachments from the picker, a drop and a paste: their stored paths in the prompt, the limit, restart, and cleanup;
 - uncertain delivery handoff;
+- Plan chosen before the CLI starts, delivered only after the Plan footer appears, and a first Plan prompt held through startup work;
 - the Files tree, search, and editing and saving a file;
 - Source control: opening a change as a diff, and commit;
 - Active views and tab overflow;
