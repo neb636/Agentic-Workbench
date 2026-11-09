@@ -47,13 +47,25 @@ export class PromptAttachments {
     return { id, name: safeName, path: file, size: bytes.byteLength, image: Boolean(imageType(safeName)) };
   }
 
-  async thumbnail(viewId: string, id: string): Promise<string | null> {
+  /** The stored file when it is a picture. Each attachment's folder holds just that one file. */
+  private async picture(viewId: string, id: string): Promise<{ bytes: Buffer; dataUrl: () => string } | null> {
     const folder = path.join(this.folder(viewId), id);
     const [name] = await fs.readdir(folder).catch(() => []);
     const type = name ? imageType(name) : undefined;
     if (!name || !type) return null;
     const bytes = await fs.readFile(path.join(folder, name));
-    return this.shrink(bytes) ?? (bytes.length <= ORIGINAL_PREVIEW_LIMIT ? `data:${type};base64,${bytes.toString("base64")}` : null);
+    return { bytes, dataUrl: () => `data:${type};base64,${bytes.toString("base64")}` };
+  }
+
+  async thumbnail(viewId: string, id: string): Promise<string | null> {
+    const picture = await this.picture(viewId, id);
+    if (!picture) return null;
+    return this.shrink(picture.bytes) ?? (picture.bytes.length <= ORIGINAL_PREVIEW_LIMIT ? picture.dataUrl() : null);
+  }
+
+  /** The picture at full size, for the preview. */
+  async image(viewId: string, id: string): Promise<string | null> {
+    return (await this.picture(viewId, id))?.dataUrl() ?? null;
   }
 
   /** Deletes the folders of views that no longer exist. */

@@ -155,6 +155,26 @@
   animation: attachment-in 160ms ease-out;
 }
 .attachment-tile img { display: block; width: 100%; height: 100%; border-radius: var(--wb-radius-lg); object-fit: cover; }
+.attachment-preview-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--wb-radius-lg);
+  background: transparent;
+  box-shadow: none;
+  cursor: zoom-in;
+  outline: none;
+}
+.attachment-preview-trigger img { transition: transform 180ms ease-out; }
+.attachment-preview-trigger[data-hovered] img { transform: scale(1.06); }
+.attachment-preview-trigger[data-focus-visible] { box-shadow: 0 0 0 2px var(--wb-focus-ring); }
+.attachment-preview-hint { position: absolute; inset: 0; display: grid; place-items: center; background: var(--wb-overlay); color: var(--wb-code-fg); opacity: 0; transition: opacity 120ms; }
+.attachment-preview-hint svg { box-sizing: content-box; padding: 6px; border-radius: 50%; background: var(--wb-lightbox-scrim); }
+.attachment-preview-trigger[data-hovered] .attachment-preview-hint, .attachment-preview-trigger[data-focus-visible] .attachment-preview-hint { opacity: 1; }
 .attachment-file { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 0 7px; border-radius: var(--wb-radius-lg); color: var(--wb-text-secondary); }
 .attachment-file svg { margin-bottom: 4px; }
 .attachment-stem { max-width: 100%; overflow: hidden; color: var(--wb-text-primary); font-size: 10.5px; font-weight: 500; line-height: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -179,6 +199,70 @@
 @keyframes attachment-in { from { opacity: 0; transform: scale(0.92); } }
 @keyframes attachment-shimmer { to { background-position: -220% 0; } }
 @media (prefers-reduced-motion: reduce) { .attachment-tile, .attachment-tile.is-pending { animation: none; } }
+
+/* Image preview: the picture alone on a dark scrim, its details in a pill below. */
+.wb-modal-overlay.image-preview-overlay {
+  background: var(--wb-lightbox-scrim);
+  backdrop-filter: blur(16px) saturate(1.2);
+  /* The title bar's drag regions would otherwise take clicks meant for the scrim and the close button. */
+  -webkit-app-region: no-drag;
+}
+.image-preview-overlay[data-entering] { animation: image-preview-fade 160ms ease-out; }
+.image-preview-overlay[data-exiting] { animation: image-preview-fade 120ms ease-in reverse; }
+.image-preview-dialog { outline: none; }
+.image-preview-figure { display: grid; place-items: center; margin: 0; }
+.image-preview-picture {
+  display: block;
+  max-width: calc(100vw - 96px);
+  max-height: calc(100vh - 136px);
+  border-radius: var(--wb-radius-lg);
+  /* Shows through a transparent picture, whose edges would otherwise vanish into the scrim. */
+  background: repeating-conic-gradient(var(--wb-bg-field) 0 25%, var(--wb-bg-raised) 0 50%) 0 0 / 20px 20px;
+  box-shadow: 0 0 0 1px var(--wb-lightbox-edge), var(--wb-shadow-lightbox);
+  animation: image-preview-in 220ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+/* The thumbnail stands in only when loading is slow enough to notice. */
+.image-preview-placeholder { display: block; max-width: 240px; max-height: 240px; border-radius: var(--wb-radius-lg); filter: blur(6px); opacity: 0.75; animation: image-preview-fade 160ms 180ms backwards; }
+.image-preview-placeholder.is-failed { filter: none; opacity: 1; animation: none; box-shadow: 0 0 0 1px var(--wb-lightbox-edge); }
+.image-preview-caption {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  max-width: calc(100vw - 48px);
+  padding: 7px 14px;
+  border: 1px solid var(--wb-lightbox-edge);
+  border-radius: var(--wb-radius-2xl);
+  background: var(--wb-lightbox-surface);
+  color: var(--wb-code-fg);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.image-preview-name { min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; }
+.image-preview-details { flex: none; color: var(--wb-code-muted); font-variant-numeric: tabular-nums; }
+.image-preview-error { flex: none; color: var(--wb-status-warning); }
+.wb-icon-button.image-preview-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--wb-lightbox-edge);
+  border-radius: 50%;
+  background: var(--wb-lightbox-surface);
+  color: var(--wb-code-fg);
+}
+.wb-icon-button.image-preview-close[data-hovered] { background: var(--wb-lightbox-surface-hover); color: var(--wb-code-fg); }
+@keyframes image-preview-fade { from { opacity: 0; } }
+@keyframes image-preview-in { from { opacity: 0; transform: scale(0.96); } }
+@media (prefers-reduced-motion: reduce) {
+  .image-preview-overlay[data-entering], .image-preview-overlay[data-exiting], .image-preview-picture, .image-preview-placeholder { animation: none; }
+  .attachment-preview-trigger img { transition: none; }
+}
 .composer-drop-hint {
   position: absolute;
   inset: 4px;

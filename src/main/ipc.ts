@@ -194,6 +194,10 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     const { viewId, id } = attachmentLocationSchema.parse(input);
     return attachments.thumbnail(viewId, id);
   });
+  handle(IPC.attachmentsImage, (_event, input: unknown) => {
+    const { viewId, id } = attachmentLocationSchema.parse(input);
+    return attachments.image(viewId, id);
+  });
   handle(IPC.filesList, (_event, input: unknown) => {
     const { root, path } = fileLocationSchema.parse(input);
     return workspace.files.list(root, path);

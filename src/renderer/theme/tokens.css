@@ -51,6 +51,13 @@
   --wb-shadow-inset: inset 0 1px 2px #3232321a;
   --wb-shadow-strong: inset 0 0.5px 1px #ffffff26, 0 2px 4px -1px #0d0d0d80, 0 0 0 1px var(--wb-strong-ring);
 
+  /* Image preview: always dark, so a picture reads the same whatever surrounds it */
+  --wb-lightbox-scrim: #0b0d11e6;
+  --wb-lightbox-surface: #ffffff1a;
+  --wb-lightbox-surface-hover: #ffffff2b;
+  --wb-lightbox-edge: #ffffff1f;
+  --wb-shadow-lightbox: 0 32px 80px -16px #000000b3;
+
   /* Shape and type */
   --wb-radius-xs: 6px;
   --wb-radius-sm: 8px;
