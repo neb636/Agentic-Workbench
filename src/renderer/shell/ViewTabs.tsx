@@ -1,3 +1,5 @@
+import { useContextMenu } from "../ui/ContextMenu";
+import { viewActions } from "../features/views/view-actions";
 import { useEffect, useRef, useState } from "react";
 import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tab, TabList, Tabs } from "react-aria-components";
 import type { WorkbenchView, Workspace } from "../../shared/models";
@@ -32,9 +34,9 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
   const selectView = useWorkbenchStore((state) => state.selectView);
   const stripRef = useRef<HTMLDivElement>(null);
   const [capacity, setCapacity] = useState(Infinity);
-  const [menu, setMenu] = useState<{ view: WorkbenchView; x: number; y: number }>();
+  const context = useContextMenu("View actions");
   const [dropBefore, setDropBefore] = useState<string>();
-  const anchor = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const element = stripRef.current;
     if (!element) return;
@@ -47,16 +49,11 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
   // A click, unlike arrowing through the tabs, also wakes the view; it counts on the tab that is already selected too.
   const activate = (viewId: string) => { if (workspace) void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId }); };
   const close = (view: WorkbenchView) => void services.commands.execute("view.close", { workspaceId: view.workspaceId, viewId: view.id });
-  const closeOthers = async (keep: WorkbenchView) => {
-    for (const view of views) if (view.id !== keep.id) await services.commands.execute("view.close", { workspaceId: view.workspaceId, viewId: view.id });
-  };
-  const menuItems = menu ? [
-    { id: "close", label: "Close", run: () => close(menu.view) },
-    { id: "close-others", label: "Close others", run: () => void closeOthers(menu.view) },
-    ...(services.views.get(menu.view.type)?.tabMenu?.(menu.view) ?? []),
-  ] : [];
 
-  return <div className={`tab-strip ${showLeftToggle ? "has-traffic-lights" : ""}`}>
+  return <div className={`tab-strip ${showLeftToggle ? "has-traffic-lights" : ""}`} onKeyDown={context.bind((target) => {
+    const view = workspace?.views.find((v) => v.id === target.closest("[role=tab]")?.getAttribute("data-key"));
+    return workspace && view ? viewActions(workspace, view) : [];
+  }).onKeyDown}>
     {showLeftToggle && <IconButton label="Show sidebar" onPress={onShowLeft}><SidebarLeftIcon size={16} /></IconButton>}
     <div className="tab-strip-tabs" ref={stripRef} onDragOver={(event) => {
       if (!event.dataTransfer.types.includes(DRAG_TYPE)) return;
@@ -78,7 +75,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
             const status = viewStatus(view, statuses);
             const unsaved = dirty[view.id];
             const preview = definition?.isPreview?.(view);
-            return <Tab id={view.id} className={`view-tab ${preview ? "is-preview" : ""} ${dropBefore === view.id ? "is-drop-before" : ""}`} aria-label={view.title}>
+            return <Tab id={view.id} className={`view-tab ${preview ? "is-preview" : ""} ${dropBefore === view.id ? "is-drop-before" : ""}`} aria-label={view.title} {...context.bind(() => viewActions(workspace, view))}>
               {/* Draggable inside the tab: react-aria leaves native drags alone on draggable elements. */}
               <span className="view-tab-grip" draggable title={view.title}
                 onClick={() => activate(view.id)}
@@ -90,7 +87,6 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
                   const index = views.findIndex((item) => item.id === view.id);
                   setDropBefore(event.clientX < box.left + box.width / 2 ? view.id : views[index + 1]?.id);
                 }}
-                onContextMenu={(event) => { event.preventDefault(); setMenu({ view, x: event.clientX, y: event.clientY }); }}
                 onAuxClick={(event) => { if (event.button === 1) close(view); }}
                 onDoubleClick={() => { if (preview) useWorkbenchStore.getState().updateViewState(view.workspaceId, view.id, { preview: false }); }}>
                 {Icon && <Icon size={14} />}
@@ -105,12 +101,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
         </TabList>
       </Tabs>}
     </div>
-    <div ref={anchor} className="tab-menu-anchor" style={menu ? { left: menu.x, top: menu.y } : undefined} />
-    {menu && <Popover className="wb-popover" triggerRef={anchor} isOpen placement="bottom start" onOpenChange={(open) => { if (!open) setMenu(undefined); }}>
-      <Menu aria-label={`${menu.view.title} menu`} autoFocus="first" onAction={(key) => { menuItems.find((item) => item.id === key)?.run(); setMenu(undefined); }}>
-        {menuItems.map((item) => <MenuItem key={item.id} id={item.id}>{item.label}</MenuItem>)}
-      </Menu>
-    </Popover>}
+    {context.overlay}
     {workspace && hidden.length > 0 && <MenuTrigger>
       <AriaButton className="tab-overflow" aria-label={`${hidden.length} more views`}>+{hidden.length} more<ChevronDownIcon size={12} /></AriaButton>
       <Popover className="wb-popover" placement="bottom end">

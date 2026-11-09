@@ -128,3 +128,11 @@
 .branch-field input { height: 30px; padding: 0 8px; border: 1px solid var(--wb-border); border-radius: var(--wb-radius-sm); outline: none; background: var(--wb-bg-raised); color: var(--wb-text-primary); }
 .branch-field input[data-focused] { border-color: var(--wb-accent); }
 .branch-popover { max-height: 280px; overflow: auto; }
+
+.file-search-scope { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--wb-text-secondary); font-size: 11.5px; padding: 2px 6px; }
+.file-search-scope span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-operation-note { overflow-wrap: anywhere; white-space: pre-wrap; }
+.file-search-field input { width: 100%; min-width: 0; }
+
+.search-line code { flex: 1; }
+.search-line[data-hovered] .row-action, .search-line:focus-within .row-action { opacity: 1; }

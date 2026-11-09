@@ -184,7 +184,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
     this.searches.get(root)?.kill();
     // The query follows -e so it is never read as an option.
     const args = ["-c", "core.quotePath=false", "grep", "-n", "-I", "--untracked", "--no-color", "-z",
-      ...(options.caseSensitive ? [] : ["-i"]), options.regex ? "-E" : "-F", "-e", query, "--", "."];
+      ...(options.caseSensitive ? [] : ["-i"]), options.regex ? "-E" : "-F", "-e", query, "--", options.directory ? `:(literal)${options.directory}` : "."];
     return new Promise((resolve, reject) => {
       let output = "";
       let limited = false;

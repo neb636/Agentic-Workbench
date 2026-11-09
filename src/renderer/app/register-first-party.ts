@@ -1,3 +1,4 @@
+import { copyPath, terminalAt, revealFile, registerFileActionContributions } from "../features/files/file-actions";
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
 import type { FileViewState } from "../../shared/models";
@@ -11,7 +12,6 @@ import { clearComposerRuntime, registerComposerContributions } from "../features
 import { agentIdleStatus, publishAgentStatuses } from "../features/agent/session-status";
 import { personaMenu } from "../features/personas/persona-menu";
 import { instructionsMenu } from "../features/instructions/instructions-menu";
-import { openPanel } from "../features/explorer/explorer-store";
 import { FileView } from "../features/files/FileView";
 import { FilesPanel } from "../features/files/FilesPanel";
 import { registerFileCommands } from "../features/files/file-commands";
@@ -60,8 +60,9 @@ export function registerFirstPartyContributions(): void {
       const keep = preview ? [{ id: "keep", label: "Keep open", run: () => useWorkbenchStore.getState().updateViewState(view.workspaceId, view.id, { preview: false }) }] : [];
       return [
         ...keep,
-        { id: "copy-path", label: "Copy path", run: () => void navigator.clipboard.writeText(path).catch(() => undefined) },
-        { id: "reveal", label: "Reveal in files", run: () => openPanel("files") },
+        { id: "copy-relative-path", label: "Copy Relative Path", run: () => copyPath({ root, path }, true) },
+        { id: "copy-path", label: "Copy Path", run: () => copyPath({ root, path }) },
+        { id: "reveal", label: "Reveal in files", run: () => { const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === view.workspaceId); if (workspace) revealFile(workspace, { root, path }); } },
         { id: "reveal-system", label: "Reveal in system file manager", run: () => window.workbench.files.reveal(root, path) },
       ];
     },
@@ -87,6 +88,24 @@ export function registerFirstPartyContributions(): void {
   services.widgets.register({ id: "terminals", slot: "statusbar.end", order: 20, component: TerminalCount });
   services.widgets.register({ id: "memory", slot: "statusbar.end", order: 30, component: MemoryUsage });
 
+  services.commands.register<{ workspaceId: string }>("workspace.reveal", ({ workspaceId }) => {
+    const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
+    if (workspace) window.workbench.files.reveal(workspace.path, "");
+  });
+  services.commands.register<{ workspaceId: string }>("workspace.copyPath", async ({ workspaceId }) => {
+    const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
+    if (workspace) await copyPath({ root: workspace.path, path: "" });
+  });
+  services.commands.register<{ workspaceId: string }>("workspace.terminal", async ({ workspaceId }) => {
+    const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
+    if (workspace) await terminalAt(workspace, { root: workspace.path, path: "" });
+  });
+  services.contextMenus.register({ id: "workspace.actions", kind: "workspace", items: (context) => context.kind !== "workspace" ? [] : [
+    ...services.views.list().filter((d) => d.creatable !== false).map((d) => ({ id: `new-${d.id}`, label: `New ${d.label}`, section: "create", run: () => services.commands.execute("view.create", { workspaceId: context.workspace.id, viewType: d.id }) })),
+    ...[{ id: "reveal", label: "Reveal Folder", command: "workspace.reveal" }, { id: "terminal", label: "Open in Terminal", command: "workspace.terminal" }, { id: "copy", label: "Copy Path", command: "workspace.copyPath" }].map((item) => ({ ...item, section: "workspace", run: () => services.commands.execute(item.command, { workspaceId: context.workspace.id }) })),
+    { id: "remove", label: "Remove Workspace", destructive: true, section: "remove", run: () => services.commands.execute("workspace.remove", context.workspace.id) },
+  ] });
+  registerFileActionContributions();
   registerFileCommands();
   services.commands.register("workspace.add", async () => {
     const path = await window.workbench.workspace.chooseDirectory();

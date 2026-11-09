@@ -5,7 +5,8 @@ export type FileSearchMode = "names" | "contents";
 
 /** One-shot requests to the Files panel (⇧⌘F focuses its Contents search). Not persisted. */
 interface ExplorerRequests {
-  search?: { mode: FileSearchMode; nonce: number };
+  search?: { mode: FileSearchMode; nonce: number; directory?: string };
+  reveal?: { workspaceId: string; root: string; path: string; nonce: number };
 }
 
 export const useExplorerRequests = create<ExplorerRequests>(() => ({}));

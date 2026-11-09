@@ -1,3 +1,4 @@
+import type { FileOperation, FileOperationResult, FileOperationProgress } from "./file-operations";
 import type { PromptOptionDefinition, PromptSelections } from "./prompt-options";
 
 export type ViewType = string;
@@ -202,7 +203,10 @@ export type FileWriteResult =
   /** The file changed on disk since it was opened: nothing was written; here is what's there now. */
   | { ok: false; disk: FileContent | null };
 
+export interface TerminalViewState { cwd?: string }
+
 export interface SearchOptions {
+  directory?: string;
   caseSensitive?: boolean;
   regex?: boolean;
 }
@@ -312,6 +316,7 @@ export interface WorkbenchApi {
     chooseDirectory: () => Promise<string | null>;
   };
   app: {
+    textMenu: () => void;
     metrics: () => Promise<AppMetrics>;
     /** Returns unsubscribe. */
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
@@ -323,6 +328,10 @@ export interface WorkbenchApi {
     thumbnail: (viewId: string, id: string) => Promise<string | null>;
   };
   files: {
+    onProgress: (listener: (progress: FileOperationProgress) => void) => () => void;
+    operate: (operation: FileOperation) => Promise<FileOperationResult>;
+    locate: (root: string, path: string) => Promise<string>;
+    openExternal: (root: string, path: string) => Promise<void>;
     list: (root: string, path: string) => Promise<FileEntry[]>;
     read: (root: string, path: string) => Promise<FileContent>;
     find: (root: string, query: string) => Promise<string[]>;

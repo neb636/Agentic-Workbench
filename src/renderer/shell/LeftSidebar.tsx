@@ -1,32 +1,20 @@
+import { useContextMenu } from "../ui/ContextMenu";
+import { viewActions, workspaceActions } from "../features/views/view-actions";
 import { useState } from "react";
-import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tree, TreeItem, TreeItemContent, type Key } from "react-aria-components";
+import { Button as AriaButton, Tree, TreeItem, TreeItemContent, type Key } from "react-aria-components";
 import type { Workspace } from "../../shared/models";
 import { services } from "../core/services";
 import { useViewStatuses, viewStatus } from "../core/view-status";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
-import { ChevronRightIcon, FolderIcon, MoreIcon, PlusIcon, SidebarLeftIcon } from "../ui/icons";
+import { ChevronRightIcon, FolderIcon, PlusIcon, SidebarLeftIcon } from "../ui/icons";
 
 function sidebarViews(workspace: Workspace) {
   return workspace.views.filter((view) => services.views.get(view.type)?.listInSidebar);
 }
 
-function WorkspaceMenu({ workspace }: { workspace: Workspace }) {
-  return <MenuTrigger>
-    <AriaButton className="row-action" aria-label={`${workspace.name} actions`}><MoreIcon size={14} /></AriaButton>
-    <Popover className="wb-popover" placement="bottom end">
-      <Menu aria-label={`${workspace.name} actions`} onAction={(key) => {
-        if (key === "remove") void services.commands.execute("workspace.remove", workspace.id);
-        else void services.commands.execute("view.create", { workspaceId: workspace.id, viewType: String(key) });
-      }}>
-        {services.views.list().filter((definition) => definition.creatable !== false).map((definition) => <MenuItem key={definition.id} id={definition.id}>New {definition.label.toLowerCase()}</MenuItem>)}
-        <MenuItem id="remove" className="is-destructive">Remove workspace</MenuItem>
-      </Menu>
-    </Popover>
-  </MenuTrigger>;
-}
-
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
+  const menu = useContextMenu("Workspace and view actions");
   const workspaces = useWorkbenchStore((state) => state.workspaces);
   const activeWorkspaceId = useWorkbenchStore((state) => state.activeWorkspaceId ?? state.workspaces[0]?.id);
   const statuses = useViewStatuses();
@@ -39,7 +27,15 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     if (owner) void services.commands.execute("view.activate", { workspaceId: owner.id, viewId: String(key) });
   };
 
-  return <aside className="sidebar-card left-sidebar" aria-label="Workspaces sidebar">
+  return <aside className="sidebar-card left-sidebar" aria-label="Workspaces sidebar" onKeyDown={menu.bind((target) => {
+    const key = target.closest("[role=row]")?.getAttribute("data-key");
+    const workspace = workspaces.find((w) => w.id === key);
+    if (workspace) return workspaceActions(workspace);
+    const owner = workspaces.find((w) => w.views.some((v) => v.id === key));
+    const view = owner?.views.find((v) => v.id === key);
+    return owner && view ? viewActions(owner, view) : [];
+  }).onKeyDown}>
+    {menu.overlay}
     <div className="sidebar-titlebar">
       <IconButton label="Hide sidebar" onPress={onCollapse}><SidebarLeftIcon size={16} /></IconButton>
     </div>
@@ -54,7 +50,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         const sessions = sidebarViews(workspace);
         const isActive = workspace.id === activeWorkspaceId;
         return <TreeItem key={workspace.id} id={workspace.id} textValue={workspace.name} hasChildItems={sessions.length > 0}
-          className={`workspace-row ${isActive ? "is-active" : ""}`}>
+          className={`workspace-row ${isActive ? "is-active" : ""}`} {...menu.bind(() => workspaceActions(workspace))}>
           <TreeItemContent>
             {({ isExpanded, hasChildItems }) => <div className="workspace-row-content">
               {hasChildItems
@@ -69,13 +65,13 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 })}</small>
               </span>
               <span className="count-badge">{workspace.views.length}</span>
-              <WorkspaceMenu workspace={workspace} />
+              {menu.overflow(workspaceActions(workspace), workspace.name)}
             </div>}
           </TreeItemContent>
           {sessions.map((view) => {
             const status = viewStatus(view, statuses);
             const isCurrent = isActive && workspace.activeViewId === view.id;
-            return <TreeItem key={view.id} id={view.id} textValue={view.title} className={`session-row ${isCurrent ? "is-current" : ""}`}>
+            return <TreeItem key={view.id} id={view.id} textValue={view.title} className={`session-row ${isCurrent ? "is-current" : ""}`} {...menu.bind(() => viewActions(workspace, view))}>
               <TreeItemContent>
                 <div className="session-row-content">
                   <span className={`status-dot tone-${status?.tone ?? "idle"} ${status?.unseen ? "is-unseen" : ""}`} aria-hidden="true" />
@@ -83,6 +79,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                     <span className="session-title">{view.title}</span>
                     <small>{[status?.label, status?.detail].filter(Boolean).join(" · ")}</small>
                   </span>
+                  {menu.overflow(viewActions(workspace, view), view.title)}
                 </div>
               </TreeItemContent>
             </TreeItem>;

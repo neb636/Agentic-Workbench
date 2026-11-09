@@ -1,3 +1,5 @@
+import { useContextMenu } from "../../ui/ContextMenu";
+import { locationActions } from "../files/file-actions";
 import { useEffect, useState } from "react";
 import {
   Button as AriaButton,
@@ -82,6 +84,7 @@ function BranchSwitcher({ root, current, changes }: { root: string; current?: st
 }
 
 export function SourceControlPanel({ workspace }: PanelProps) {
+  const menu = useContextMenu("Changed file actions");
   const root = activeRoot(workspace);
   const entry = useSourceControlStatus(root, true);
   const status = entry?.status;
@@ -89,6 +92,13 @@ export function SourceControlPanel({ workspace }: PanelProps) {
   const [committing, setCommitting] = useState(false);
   const [error, setError] = useState("");
   const count = status?.changes.length ?? 0;
+  const changeActions = (path: string) => {
+    const change = status?.changes.find((c) => c.path === path);
+    return change ? [
+      { id: "changes", label: "Open Changes", disabled: change.kind === "deleted", run: () => services.commands.execute("file.open", { workspaceId: workspace.id, root, path, diff: true, preview: false }) },
+      ...locationActions(workspace, { root, path }, false, change.kind !== "deleted"),
+    ] : [];
+  };
   const commit = async (close: () => void) => {
     setCommitting(true); setError("");
     try { await window.workbench.sourceControl.commit(root, message.trim()); setMessage(""); }
@@ -96,7 +106,8 @@ export function SourceControlPanel({ workspace }: PanelProps) {
     finally { setCommitting(false); close(); void refreshSourceControl(root); }
   };
 
-  return <div className="side-panel source-control-panel">
+  return <div className="side-panel source-control-panel" onKeyDown={menu.bind((target) => changeActions(target.closest("[role=row]")?.getAttribute("data-key") ?? "")).onKeyDown}>
+    {menu.overlay}
     <div className="side-panel-header">
       <h2>{folderName(root)}</h2>
       <IconButton label="Refresh changes" onPress={() => void refreshSourceControl(root)}><RefreshIcon size={14} /></IconButton>
@@ -130,14 +141,14 @@ export function SourceControlPanel({ workspace }: PanelProps) {
       </div>
       <div className="panel-section-header"><Label>Changes</Label><span className="count-badge">{count}{status.truncated ? "+" : ""}</span></div>
       <GridList aria-label="Changes" className="panel-list change-list" items={status.changes.map((change) => ({ ...change, id: change.path }))}
-        disabledKeys={status.changes.filter((change) => change.kind === "deleted").map((change) => change.path)}
-        onAction={(key) => void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key), diff: true, preview: true })}
+        onAction={(key) => { if (status.changes.find((c) => c.path === key)?.kind === "deleted") return; void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key), diff: true, preview: true }); }}
         renderEmptyState={() => <p className="panel-empty">No uncommitted changes.</p>}>
-        {(change) => <GridListItem id={change.id} textValue={change.path} className="panel-list-item">
+        {(change) => <GridListItem id={change.id} textValue={change.path} className="panel-list-item" {...menu.bind(() => changeActions(change.path))}>
           <FileIcon size={14} />
           <span className="file-tree-name">{change.path.split("/").at(-1)}</span>
           <small>{change.path.split("/").slice(0, -1).join("/")}</small>
           <span className={`change-letter kind-${change.kind}`} title={`${change.kind}${change.staged ? ", staged" : ""}`}>{CHANGE_LETTERS[change.kind]}</span>
+          {menu.overflow(changeActions(change.path), change.path)}
         </GridListItem>}
       </GridList>
     </>}

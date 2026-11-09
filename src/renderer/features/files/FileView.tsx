@@ -1,3 +1,7 @@
+import { useContextMenu } from "../../ui/ContextMenu";
+import { undo, redo, undoDepth, redoDepth, selectAll } from "@codemirror/commands";
+import { openSearchPanel } from "@codemirror/search";
+import { fileSaveHandlers } from "./file-actions";
 import { useEffect, useRef, useState } from "react";
 import { ToggleButton, ToggleButtonGroup } from "react-aria-components";
 import { Compartment, EditorState, Text } from "@codemirror/state";
@@ -9,7 +13,7 @@ import { LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import type { DiffBase, FileContent, FileViewState } from "../../../shared/models";
 import { errorMessage } from "../../core/errors";
-import { fileBuffers, setViewDirty } from "../../core/dirty-views";
+import { fileBuffers, isViewDirty, setViewDirty } from "../../core/dirty-views";
 import type { ViewComponentProps } from "../../core/view-registry";
 import { watchWorkspace } from "../../core/workspace-watch";
 import { useWorkbenchStore } from "../../state/workbench-store";
@@ -52,6 +56,7 @@ function PictureView({ root, path }: { root: string; path: string }) {
  * Views like this have no session: they are only persisted UI state.
  */
 export function FileView({ view, workspace }: ViewComponentProps) {
+  const menu = useContextMenu("Editor actions");
   const state = (view.state ?? {}) as FileViewState;
   const { root, path } = state;
   const diffBase: DiffBase = state.diffBase ?? "head";
@@ -83,7 +88,7 @@ export function FileView({ view, workspace }: ViewComponentProps) {
     let active = true;
     window.workbench.files.read(root, path).then((content) => {
       if (!active) return;
-      missing.current = false; setFile(content); setError(""); baseHash.current = content.hash;
+      missing.current = false; setFile(content); setError(""); setConflict(undefined); baseHash.current = content.hash;
     }).catch((e: unknown) => {
       if (!active) return;
       // Gone from disk while the tab was hidden with edits: bring the edits back and say the file is gone.
@@ -134,23 +139,29 @@ export function FileView({ view, workspace }: ViewComponentProps) {
       }
     } catch (caught) { setNotice(errorMessage(caught)); }
   };
+  useEffect(() => {
+    fileSaveHandlers.set(view.id, async () => { await saveRef.current(); return !isViewDirty(view.id); });
+    return () => { fileSaveHandlers.delete(view.id); };
+  }, [view.id]);
   const saveRef = useRef(save);
   saveRef.current = save;
 
   // Something else changed the file: reload a clean tab, ask on one with edits.
   useEffect(() => {
     if (picture) return;
-    return watchWorkspace(root, (event) => {
+    let active = true;
+    const off = watchWorkspace(root, (event) => {
       if (!event.paths.some((changed) => changed === path || changed === "")) return;
       void window.workbench.files.read(root, path).then((content) => {
-        if (content.hash === baseHash.current) return;
+        if (!active || content.hash === baseHash.current) return;
         const editor = editorRef.current;
         if (!editor || editor.state.doc.eq(saved.current)) {
           if (editor) replaceDoc(content); else setFile(content);
           setConflict(undefined);
         } else setConflict({ disk: content, saving: false });
-      }).catch(() => setConflict({ disk: null, saving: false }));
+      }).catch(() => { if (active) setConflict({ disk: null, saving: false }); });
     });
+    return () => { active = false; off(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [root, path, picture]);
 
@@ -230,6 +241,7 @@ export function FileView({ view, workspace }: ViewComponentProps) {
   const segments = path.split("/");
   const badge = file?.truncated ? "Read-only (over 2 MB)" : state.preview ? "Preview" : dirty ? "Unsaved" : "";
   return <section className="file-view" aria-label={`File ${path}`}>
+    {menu.overlay}
     <div className="code-card">
       <div className="code-breadcrumbs">
         <nav aria-label="File path">{segments.map((segment, index) => <span key={`${segment}-${index}`} className={index === segments.length - 1 ? "is-current" : ""}>{segment}</span>)}</nav>
@@ -252,7 +264,24 @@ export function FileView({ view, workspace }: ViewComponentProps) {
       {picture ? <PictureView root={root} path={path} />
         : error ? <div className="code-message" role="alert">{error}</div>
           : file?.binary ? <div className="code-message">This file looks binary, so it is not shown.</div>
-            : <div className="code-editor" ref={hostRef} />}
+            : <div className="code-editor" ref={hostRef} {...menu.bind(() => {
+          const editor = editorRef.current;
+          if (!editor) return [];
+          const writable = !file?.truncated && !editor.state.readOnly;
+          const selected = editor.state.sliceDoc(editor.state.selection.main.from, editor.state.selection.main.to);
+          const replace = (text: string) => { editor.focus(); editor.dispatch(editor.state.replaceSelection(text)); };
+          return [
+            { id: "undo", label: "Undo", disabled: !writable || !undoDepth(editor.state), run: () => { undo(editor); } },
+            { id: "redo", label: "Redo", disabled: !writable || !redoDepth(editor.state), run: () => { redo(editor); } },
+            { id: "cut", label: "Cut", disabled: !writable || !selected, section: "clipboard", run: async () => { await navigator.clipboard.writeText(selected); replace(""); } },
+            { id: "copy", label: "Copy", disabled: !selected, section: "clipboard", run: () => navigator.clipboard.writeText(selected) },
+            { id: "paste", label: "Paste", disabled: !writable, section: "clipboard", run: async () => replace(await navigator.clipboard.readText()) },
+            { id: "select-all", label: "Select All", section: "selection", run: () => { selectAll(editor); } },
+            { id: "find", label: "Find…", section: "search", run: () => { openSearchPanel(editor); } },
+            { id: "replace", label: "Replace…", disabled: !writable, section: "search", run: () => { openSearchPanel(editor); requestAnimationFrame(() => hostRef.current?.querySelector<HTMLInputElement>('input[name="replace"]')?.focus()); } },
+            { id: "save", label: "Save", disabled: !writable || !dirty, section: "save", run: () => save() },
+          ];
+        })} />}
       <div className="code-footer">
         <span>Ln {cursor.line}, Col {cursor.column} · LF · UTF-8{state.diff ? ` · diff vs ${DIFF_BASES[diffBase].toLowerCase()}${original === null ? " (new file)" : ""}` : ""}</span>
         <span>{notice && <span className="code-notice">{notice} · </span>}{file ? `${formatSize(file.size)}${file.truncated ? " · showing the first 2 MB" : ""}` : picture ? "Picture" : "Loading…"}</span>

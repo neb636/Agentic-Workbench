@@ -23,6 +23,7 @@ const api: WorkbenchApi = {
     chooseDirectory: () => ipcRenderer.invoke(IPC.workspaceChooseDirectory) as Promise<string | null>,
   },
   app: {
+    textMenu: () => ipcRenderer.send(IPC.appTextMenu),
     metrics: () => ipcRenderer.invoke(IPC.appMetrics),
     onMenuCommand: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
@@ -35,6 +36,14 @@ const api: WorkbenchApi = {
     thumbnail: (viewId, id) => ipcRenderer.invoke(IPC.attachmentsThumbnail, { viewId, id }),
   },
   files: {
+    onProgress: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, progress: import("../shared/file-operations").FileOperationProgress) => listener(progress);
+      ipcRenderer.on(IPC.filesProgress, wrapped);
+      return () => ipcRenderer.removeListener(IPC.filesProgress, wrapped);
+    },
+    operate: (operation) => ipcRenderer.invoke(IPC.filesOperate, operation),
+    locate: (root, path) => ipcRenderer.invoke(IPC.filesLocate, { root, path }),
+    openExternal: (root, path) => ipcRenderer.invoke(IPC.filesOpenExternal, { root, path }),
     list: (root, path) => ipcRenderer.invoke(IPC.filesList, { root, path }),
     read: (root, path) => ipcRenderer.invoke(IPC.filesRead, { root, path }),
     find: (root, query) => ipcRenderer.invoke(IPC.filesFind, { root, query }),

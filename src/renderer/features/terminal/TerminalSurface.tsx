@@ -1,4 +1,5 @@
-import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
+import { useContextMenu } from "../../ui/ContextMenu";
+import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
@@ -15,6 +16,8 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
   root?: string;
   onOpenPath?: (path: string, line?: number) => void;
 }) {
+  const [exited, setExited] = useState(false);
+  const menu = useContextMenu("Terminal actions");
   const openPath = useRef(onOpenPath);
   useEffect(() => { openPath.current = onOpenPath; }, [onOpenPath]);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -23,6 +26,7 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
   useEffect(() => { selectionCallback.current = onSelectionChange; }, [onSelectionChange]);
   useImperativeHandle(ref, () => ({ focus: () => terminalRef.current?.focus() }), []);
   useEffect(() => {
+    setExited(false);
     const host = hostRef.current;
     if (!host) return;
     const styles = getComputedStyle(document.documentElement);
@@ -77,7 +81,9 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
     };
     let detach: (() => void) | undefined;
     let offExit: (() => void) | undefined;
+    let offStatus: (() => void) | undefined;
     if ("attach" in controller) {
+      offStatus = controller.onStatus((status) => setExited(status.lifecycle === "exited" || status.lifecycle === "failed" || status.inputState === "unavailable"));
       for (const identifier of [{ final: "c" }, { prefix: ">", final: "c" }, { final: "n" }, { prefix: "?", final: "n" }, { final: "t" }]) {
         terminal.parser.registerCsiHandler(identifier, () => true);
       }
@@ -91,15 +97,24 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
     } else {
       attached = true; resize();
       detach = controller.onData?.(write);
-      offExit = controller.onExit?.((code) => write(`\r\nProcess exited with code ${code}\r\n`));
+      offExit = controller.onExit?.((code) => { setExited(true); write(`\r\nProcess exited with code ${code}\r\n`); });
     }
     const input = terminal.onData((data) => { if (attached) { followOutput = true; controller.input?.(data); } });
     const observer = new ResizeObserver(resize); observer.observe(host);
     return () => {
-      active = false; observer.disconnect(); detach?.(); offExit?.(); input.dispose(); scroll.dispose();
+      active = false; observer.disconnect(); detach?.(); offExit?.(); offStatus?.(); input.dispose(); scroll.dispose();
       selection.dispose(); links?.dispose(); terminalRef.current = null;
       host.removeEventListener("wheel", wheel); host.removeEventListener("pointerdown", pointer); terminal.dispose();
     };
   }, [controller, root]);
-  return <div className="terminal-host" ref={hostRef} aria-label="Native CLI terminal" />;
+  return <><div className="terminal-host" ref={hostRef} aria-label="Native CLI terminal" {...menu.bind(() => {
+    const terminal = terminalRef.current;
+    return [
+      { id: "copy", label: "Copy Selection", disabled: !terminal?.hasSelection(), run: () => navigator.clipboard.writeText(terminal?.getSelection() ?? "") },
+      { id: "paste", label: "Paste", disabled: !controller.input || exited, run: async () => { const text = await navigator.clipboard.readText(); terminal?.paste(text); terminal?.focus(); } },
+      { id: "select-all", label: "Select All", run: () => terminal?.selectAll() },
+      { id: "bottom", label: "Scroll to Bottom", run: () => terminal?.scrollToBottom() },
+      ...(!("attach" in controller) ? [{ id: "clear", label: "Clear Display", run: () => terminal?.clear() }] : []),
+    ];
+  })} />{menu.overlay}</>;
 }
