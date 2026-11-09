@@ -10,7 +10,7 @@ import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button } from "../../ui/controls";
 import { ChevronUpIcon } from "../../ui/icons";
 import { AgentComposer, type ComposerSession } from "./AgentComposer";
-import { modelSettings, rememberAgentModels } from "./agent-models";
+import { modelSettings, needsModelChoice, rememberAgentModels, useAgentModels } from "./agent-models";
 import { prepareSessionFolder } from "./composer-state";
 import { SessionLauncher } from "./SessionLauncher";
 import { SessionResume } from "./SessionResume";
@@ -48,11 +48,12 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     return () => { active = false; };
   }, []);
   const selected = state.providerId ?? providers.find((p) => p.available)?.id ?? providers[0]?.id;
+  const needsModel = useAgentModels(() => needsModelChoice(selected ?? "", state.modelSettings?.[selected ?? ""]));
   const patch = (value: Partial<AgentViewState>) => update(workspace.id, view.id, value);
   const start = async (resume = false) => {
     if (busy) return;
     const provider = services.sessions.get(selected ?? "");
-    if (provider?.kind !== "agent") return;
+    if (provider?.kind !== "agent" || (!resume && needsModel)) return;
     setBusy(true); setError(""); patch({ providerId: provider.id });
     // A new conversation launches with the composer's model and effort; a resumed one keeps its own.
     const settings = resume ? undefined : modelSettings(provider.id, state.modelSettings?.[provider.id]) ?? undefined;
@@ -73,7 +74,7 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
       root={state.cwd ?? workspace.path} onOpenPath={(path, line) => void services.commands.execute("file.open", { workspaceId: workspace.id, root: state.cwd ?? workspace.path, path, line, preview: true })} /></div>
     : conversation ? <SessionResume workspaceId={workspace.id} viewId={view.id} location={state.cwd ?? workspace.path}
         provider={providers.find((p) => p.id === conversation.providerId)} />
-    : <SessionLauncher workspace={workspace} state={state} providers={providers} selected={selected} busy={busy} error={error}
+    : <SessionLauncher workspace={workspace} state={state} providers={providers} selected={selected} busy={busy} needsModel={needsModel} error={error}
         onChange={patch} onStart={(resume) => void start(resume)} />;
   const composer = <AgentComposer key={runtime?.controller.id ?? "setup"} workspaceId={workspace.id} viewId={view.id} agentLabel={services.sessions.get(runtime?.providerId ?? selected ?? "")?.label ?? "the agent"}
     state={{ ...state, providerId: selected }} session={session} canLaunch={Boolean(providers.find((p) => p.id === selected)?.available)}

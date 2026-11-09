@@ -100,10 +100,10 @@ export interface AgentModelChoice {
   efforts: string[];
 }
 
-/** Model and effort for a new conversation; omitted, the CLI uses its own defaults. */
+/** Model and effort for a new conversation. `effort` is absent for a model with no effort levels. */
 export interface AgentModelSettings {
   model: string;
-  effort: string;
+  effort?: string;
 }
 
 export interface AgentProviderInfo {
@@ -380,6 +380,7 @@ export interface WorkbenchApi {
   };
   agent: {
     providers: () => Promise<AgentProviderInfo[]>;
+    onProvidersChanged: (listener: (providers: AgentProviderInfo[]) => void) => () => void;
     create: (options: AgentSessionCreateOptions) => Promise<string>;
     attach: (sessionId: string) => Promise<AgentSessionSnapshot>;
     input: (sessionId: string, data: string) => void;

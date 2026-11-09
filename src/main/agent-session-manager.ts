@@ -6,6 +6,7 @@ import type { IPty } from "node-pty";
 import type { AgentDeliveryResult, AgentPromptRequest, AgentProviderInfo, AgentSessionCreateOptions, AgentSessionEvent, AgentSessionSnapshot, AgentSessionStatus } from "../shared/models";
 import { IPC } from "../shared/ipc";
 import type { AgentProviderAdapter, ScreenObservation } from "./agent-provider";
+import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { executablePath } from "./executables";
 import { spawnTerminal } from "./pty-manager";
 import { footer, isProtocolInput } from "./providers/cli-screen";
@@ -66,10 +67,11 @@ export class AgentSessionManager {
     private readonly spawn = spawnTerminal,
     /** The folder holding a view's prompt attachments; it exists once this returns. */
     private readonly attachmentFolder?: (viewId: string) => string,
+    private readonly catalogue = new AgentModelCatalogue(providers),
   ) {}
 
   discover(): AgentProviderInfo[] {
-    return this.providers.map((provider) => ({ id: provider.id, label: provider.label, capabilities: provider.capabilities, available: Boolean(executablePath(provider.executable)), resume: true, models: provider.modelArgs ? provider.models : undefined,
+    return this.providers.map((provider) => ({ id: provider.id, label: provider.label, capabilities: provider.capabilities, available: Boolean(executablePath(provider.executable)), resume: true, models: provider.modelArgs ? this.catalogue.modelsFor(provider) : undefined,
       reason: executablePath(provider.executable) ? undefined : `Install ${provider.label}, or configure its WORKBENCH executable path before starting the app.` }));
   }
 
@@ -90,7 +92,8 @@ export class AgentSessionManager {
     // Model and effort are launch arguments of a new conversation; a resumed one keeps what it was saved with.
     if (options.settings && !options.resume) {
       const { model, effort } = options.settings;
-      if (!provider.modelArgs || !provider.models?.some((choice) => choice.id === model && choice.efforts.includes(effort))) {
+      const choice = this.catalogue.modelsFor(provider)?.find((item) => item.id === model);
+      if (!provider.modelArgs || !choice || !(effort ? choice.efforts.includes(effort) : !choice.efforts.length)) {
         throw new Error(`Unsupported model or effort for ${provider.label}.`);
       }
       args.push(...provider.modelArgs(options.settings));

@@ -2,6 +2,15 @@
 import { appendFileSync, existsSync } from "node:fs";
 import { setTimeout } from "node:timers";
 
+// The model list the app reads at startup, the shape of `codex debug models`.
+if (process.argv[2] === "debug" && process.argv[3] === "models") {
+  const levels = (efforts) => efforts.map((effort) => ({ effort }));
+  const model = (slug, efforts, visibility = "list") => ({ slug, display_name: slug, visibility, supported_reasoning_levels: levels(efforts) });
+  process.stdout.write(JSON.stringify({ models: [
+    model("gpt-6-astra", ["low", "medium", "high"]), model("gpt-6-luna", ["low", "medium", "high"]), model("qa-fresh-model", ["low", "high"]), model("qa-hidden-model", ["low"], "hide"),
+  ] }));
+  process.exit(0);
+}
 process.stdin.setRawMode(true);
 process.stdin.setEncoding("utf8");
 const screen = (text) => process.stdout.write(`\x1b[2J\x1b[H\x1b[?2004h${text}`);

@@ -10,8 +10,8 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 const directory = await mkdtemp(join(tmpdir(), "workbench-native-plan-"));
 await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   workspaces: [{ id: "qa", name: "Planning QA", path: process.cwd(), activeViewId: "codex", views: [
-    { id: "codex", workspaceId: "qa", type: "agent", title: "Codex plan", state: { providerId: "codex.cli" } },
-    { id: "claude", workspaceId: "qa", type: "agent", title: "Claude plan", state: { providerId: "claude.cli" } },
+    { id: "codex", workspaceId: "qa", type: "agent", title: "Codex plan", state: { providerId: "codex.cli", modelSettings: { "codex.cli": { model: "gpt-6-luna", effort: "low" } } } },
+    { id: "claude", workspaceId: "qa", type: "agent", title: "Claude plan", state: { providerId: "claude.cli", modelSettings: { "claude.cli": { model: "haiku", effort: "low" } } } },
   ] }], activeWorkspaceId: "qa", personas: [{ id: "p", name: "Test persona", instructions: "Do not use tools or change any files.", description: "Read-only integration check", scope: "global" }],
   selectedPersonaByWorkspace: { qa: "p" }, appendedInstructions: [{ id: "i", workspaceId: "qa", content: "Keep the response brief.", enabled: true }],
 }));
