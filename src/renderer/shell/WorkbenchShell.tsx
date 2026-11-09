@@ -35,7 +35,14 @@ export function WorkbenchShell() {
   const activeView = activeWorkspace?.views.find((view) => view.id === activeWorkspace.activeViewId);
   const definition = activeView ? services.views.get(activeView.type) : undefined;
 
-  useEffect(() => { void hydrate(); }, [hydrate]);
+  useEffect(() => {
+    void hydrate().then(() => {
+      // The view the app opens on is the one the person left off in, so it wakes as if they had clicked it. The others wait for a click.
+      const { workspaces: restored, activeWorkspaceId: activeId } = useWorkbenchStore.getState();
+      const workspace = restored.find((item) => item.id === activeId) ?? restored[0];
+      if (workspace?.activeViewId) void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId: workspace.activeViewId });
+    });
+  }, [hydrate]);
   // Application-menu shortcuts (⌘P, ⇧⌘F) work wherever focus is, a terminal included.
   useEffect(() => window.workbench.app.onMenuCommand((command) => {
     if (command === "quick-open") void services.commands.execute("file.quickOpen");

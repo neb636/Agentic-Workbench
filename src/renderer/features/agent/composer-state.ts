@@ -305,7 +305,7 @@ export function registerComposerContributions(): void {
     try { await startAgentRuntime(target.viewId, provider, { workspacePath: await prepareSessionFolder(target), settings: launchSettings(provider.id, target) }); }
     catch (error) { notSent(target.viewId, errorMessage(error)); }
   });
-  // Reopens the saved conversation in its folder; only a click gets here, so the app never starts CLIs on its own.
+  // Reopens the saved conversation in its folder. Only a click, or being the view the app opens on, gets here.
   services.commands.register<ComposerTarget>("agent.session.resume", async (target) => {
     const composer = useComposerState.getState().views[target.viewId];
     const reopen = reopening(target);
