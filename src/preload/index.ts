@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC } from "../shared/ipc";
 import type {
+  AgentProviderInfo,
   AgentSessionCreateOptions,
   AgentSessionEvent,
   FilesChangedEvent,
@@ -92,6 +93,11 @@ const api: WorkbenchApi = {
   },
   agent: {
     providers: () => ipcRenderer.invoke(IPC.agentProviders),
+    onProvidersChanged: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: AgentProviderInfo[]) => listener(payload);
+      ipcRenderer.on(IPC.agentProvidersChanged, wrapped);
+      return () => ipcRenderer.removeListener(IPC.agentProvidersChanged, wrapped);
+    },
     attach: (sessionId) => ipcRenderer.invoke(IPC.agentAttach, { sessionId }),
     input: (sessionId, data) => ipcRenderer.send(IPC.agentInput, { sessionId, data }),
     resize: (sessionId, cols, rows) => ipcRenderer.send(IPC.agentResize, { sessionId, cols, rows }),

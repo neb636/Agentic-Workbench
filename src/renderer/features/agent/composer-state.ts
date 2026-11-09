@@ -9,7 +9,7 @@ import { errorMessage } from "../../core/errors";
 import { services } from "../../core/services";
 import { closeAgentRuntime, isUnusedConversation, markAgentPrompted, startAgentRuntime, untilSubmittable, useAgentRuntimes, type AgentRuntime } from "../../core/agent-runtimes";
 import { useWorkbenchStore } from "../../state/workbench-store";
-import { modelSettings } from "./agent-models";
+import { modelSettings, needsModelChoice, rememberAgentModels } from "./agent-models";
 
 export interface ComposerTarget { workspaceId: string; viewId: string; }
 export interface PromptPreview extends AssembledPrompt { intent: AgentPromptRequest["intent"]; }
@@ -130,13 +130,13 @@ export async function prepareSessionFolder(target: ComposerTarget, resume = fals
 
 const sameSettings = (a: AgentModelSettings | null, b: AgentModelSettings | null) => a?.model === b?.model && a?.effort === b?.effort;
 /**
- * The composer's model and effort when they differ from what the running conversation was launched with
- * (null: the CLI's defaults). Undefined when nothing is pending, or for a resumed conversation, whose settings are its own.
+ * The composer's model and effort when they differ from what the running conversation was launched with.
+ * Undefined when nothing is pending, or for a resumed conversation, whose settings are its own.
  */
-export function pendingSettings(runtime: AgentRuntime | undefined, state: AgentViewState | undefined): AgentModelSettings | null | undefined {
+export function pendingSettings(runtime: AgentRuntime | undefined, state: AgentViewState | undefined): AgentModelSettings | undefined {
   if (!runtime || runtime.settings === undefined) return undefined;
   const wanted = modelSettings(runtime.providerId, state?.modelSettings?.[runtime.providerId]);
-  return sameSettings(wanted, runtime.settings) ? undefined : wanted;
+  return wanted && !sameSettings(wanted, runtime.settings) ? wanted : undefined;
 }
 function launchSettings(providerId: string, target: ComposerTarget): AgentModelSettings | undefined {
   return modelSettings(providerId, stateFor(target)?.modelSettings?.[providerId]) ?? undefined;
@@ -177,6 +177,7 @@ function titleFromPrompt(draft: string): string {
 
 export function registerComposerContributions(): void {
   rememberConversations();
+  window.workbench.agent.onProvidersChanged(rememberAgentModels);
   services.promptContributors.register({ id: "prompt-menus", contributions: (target) => {
     const selections = stateFor(target)?.promptSelections ?? {};
     const menus = services.promptMenus.resolve(target);
@@ -281,6 +282,7 @@ export function registerComposerContributions(): void {
     const reopen = reopening(target);
     const provider = reopen?.provider ?? services.sessions.get(providerId ?? state.providerId ?? "");
     if (provider?.kind !== "agent") { notSent(target.viewId, "Choose an available harness first."); return; }
+    if (!reopen && needsModelChoice(provider.id, state.modelSettings?.[provider.id])) { notSent(target.viewId, "Choose a model first."); return; }
     if (state.providerId !== provider.id) patchView(target, { providerId: provider.id });
     updateRuntime(target.viewId, { launching: true, result: undefined, resumeError: undefined });
     try {
@@ -319,12 +321,12 @@ export function registerComposerContributions(): void {
   services.commands.register<ComposerTarget>("agent.session.forget", (target) => {
     closeAgentRuntime(target.viewId);
     updateRuntime(target.viewId, { resumeError: undefined, result: undefined });
-    patchView(target, { conversation: null });
+    patchView(target, { conversation: null, modelSettings: {} });
   });
   services.commands.register<ComposerTarget>("agent.session.reset", (target) => {
     closeAgentRuntime(target.viewId);
     clearComposerRuntime(target.viewId);
-    patchView(target, { promptSelections: {}, conversation: null });
+    patchView(target, { promptSelections: {}, conversation: null, modelSettings: {} });
     patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
   });
 }

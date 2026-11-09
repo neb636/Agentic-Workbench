@@ -126,8 +126,21 @@ try {
   await shot("instructions-menu");
   await page.keyboard.press("Escape");
 
-  // Model and effort are launch arguments of the new conversation.
+  // No model is chosen for a new session, so neither Send nor Start session can go yet.
+  await prompt().fill("Waiting for a model");
+  await page.getByRole("button", { name: /Select model/ }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Send prompt", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Start session", exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole("button", { name: "Resume previous…", exact: true }).isDisabled(), false);
+  await waitFeedback("Choose a model to start.");
+  await shot("no-model-selected");
+
+  // Model and effort are launch arguments of the new conversation. The list is the one the CLI just reported.
   await page.getByRole("button", { name: /Model/ }).click();
+  await page.getByRole("option", { name: "qa-fresh-model", exact: true }).waitFor();
+  assert.equal(await page.getByRole("option", { name: /CLI default/ }).count(), 0);
+  assert.equal(await page.getByRole("option", { name: "qa-hidden-model", exact: true }).count(), 0);
+  await shot("model-list");
   await page.getByRole("option", { name: "gpt-6-astra", exact: true }).click();
   await page.getByRole("button", { name: /Effort/ }).click();
   await page.getByRole("option", { name: "high", exact: true }).click();
@@ -258,12 +271,17 @@ try {
   assert.equal(await tiles.count(), 1);
 
   // Plan before the CLI exists: Send starts it, waits for startup, enters Plan mode (the fixture shows it late), then delivers.
+  const chooseModel = async () => {
+    await page.getByRole("button", { name: /Select model/ }).click();
+    await page.getByRole("option", { name: "gpt-6-luna", exact: true }).click();
+  };
   const choosePlan = async () => {
     await page.locator(".mode-select button").click();
     await page.getByRole("option", { name: /^Plan/ }).click();
   };
   await page.getByRole("tab", { name: "Plan first" }).click();
   await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  await chooseModel();
   await choosePlan();
   await prompt().fill("Plan the first step");
   await shot("plan-before-start");
@@ -279,9 +297,17 @@ try {
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".composer-feedback")?.textContent.includes("Prompt handed"));
   assert.equal((await prompts()).at(-1).plan, false);
+  // A new conversation is a new session: the model has to be chosen again.
+  await page.getByRole("button", { name: "New conversation" }).click();
+  await page.getByRole("heading", { name: "Start a new session" }).waitFor();
+  await page.getByRole("button", { name: /Select model/ }).waitFor();
+  await prompt().fill("Needs a model again");
+  assert.equal(await page.getByRole("button", { name: "Send prompt", exact: true }).isDisabled(), true);
+  await prompt().fill("");
 
   // A first Plan prompt waits out startup work instead of being refused.
   await page.getByRole("tab", { name: "Plan held" }).click();
+  await chooseModel();
   await page.getByRole("button", { name: "Start session", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
   await choosePlan();

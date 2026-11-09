@@ -129,7 +129,7 @@ export const agentSessionCreateOptionsSchema = z.object({
     z.object({ kind: z.literal("latest") }),
     z.object({ kind: z.literal("pick") }),
   ]).optional(),
-  settings: z.object({ model: z.string().min(1).max(100), effort: z.string().min(1).max(20) }).optional(),
+  settings: z.object({ model: z.string().min(1).max(100), effort: z.string().min(1).max(20).optional() }).optional(),
 });
 
 export const agentPromptSchema = z.object({

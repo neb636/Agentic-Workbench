@@ -1,5 +1,6 @@
 import { app, BrowserWindow, Menu, MenuItem, nativeImage, shell } from "electron";
 import path from "node:path";
+import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { AgentSessionManager } from "./agent-session-manager";
 import { registerIpc } from "./ipc";
 import { ClaudeAgentProvider } from "./providers/claude-agent-provider";
@@ -27,10 +28,9 @@ function shrinkPicture(bytes: Buffer): string | null {
 
 const ptyManager = new PtyManager();
 const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), shrinkPicture);
-const agentSessionManager = new AgentSessionManager([
-  new CodexAgentProvider(),
-  new ClaudeAgentProvider(),
-], undefined, (viewId) => attachments.folderFor(viewId));
+const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
+const agentModels = new AgentModelCatalogue(agentProviders);
+const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels);
 const roots = new WorkspaceRoots();
 const workspaceServices = {
   roots,
@@ -105,6 +105,10 @@ app.whenReady().then(() => {
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments);
   addMenuItems();
   createWindow();
+  agentModels.start(() => {
+    const providers = agentSessionManager.discover();
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.send(IPC.agentProvidersChanged, providers);
+  });
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -115,6 +119,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  agentModels.stop();
   agentSessionManager.terminateAll();
   ptyManager.terminateAll();
 });

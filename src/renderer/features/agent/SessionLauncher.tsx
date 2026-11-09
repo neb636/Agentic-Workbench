@@ -13,12 +13,14 @@ function suggestedBranch(): string {
   return `wb/session-${stamp}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-export function SessionLauncher({ workspace, state, providers, selected, busy, error, onChange, onStart }: {
+export function SessionLauncher({ workspace, state, providers, selected, busy, needsModel, error, onChange, onStart }: {
   workspace: Workspace;
   state: AgentViewState;
   providers: AgentProviderInfo[];
   selected?: string;
   busy: boolean;
+  /** No model is chosen yet, so a new conversation can't start. Resuming keeps the conversation's own model. */
+  needsModel: boolean;
   error: string;
   onChange: (patch: Partial<AgentViewState>) => void;
   onStart: (resume: boolean) => void;
@@ -44,7 +46,7 @@ export function SessionLauncher({ workspace, state, providers, selected, busy, e
   return <section className="session-launcher" aria-label="New agent session">
     <div className="launcher-heading">
       <h2>Start a new session</h2>
-      <p>Choose a harness, then send your first prompt. The CLI starts when you send.</p>
+      <p>Choose a harness and a model, then send your first prompt. The CLI starts when you send.</p>
     </div>
     <RadioGroup aria-label="Coding harness" value={selected ?? ""} onChange={(providerId) => onChange({ providerId })} className="harness-options" orientation="horizontal">
       {agents.map((p) => {
@@ -92,7 +94,7 @@ export function SessionLauncher({ workspace, state, providers, selected, busy, e
     {error && <p role="alert" className="agent-error">{error}</p>}
     <div className="launcher-actions">
       <Button isDisabled={busy || !available} onPress={() => onStart(true)}>Resume previous…</Button>
-      <Button isDisabled={busy || !available} onPress={() => onStart(false)}>{busy ? "Starting…" : "Start session"}</Button>
+      <Button isDisabled={busy || !available || needsModel} onPress={() => onStart(false)}>{busy ? "Starting…" : "Start session"}</Button>
     </div>
   </section>;
 }

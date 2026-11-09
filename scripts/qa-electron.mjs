@@ -16,8 +16,8 @@ if (process.argv.includes("--plan")) {
 const directory = await mkdtemp(join(tmpdir(), "workbench-cli-qa-"));
 await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   workspaces: [{ id: "qa", name: "CLI QA", path: process.cwd(), activeViewId: "codex", views: [
-    { id: "codex", workspaceId: "qa", type: "agent", title: "Codex QA", state: { providerId: "codex.cli" } },
-    { id: "claude", workspaceId: "qa", type: "agent", title: "Claude QA", state: { providerId: "claude.cli" } },
+    { id: "codex", workspaceId: "qa", type: "agent", title: "Codex QA", state: { providerId: "codex.cli", modelSettings: { "codex.cli": { model: "gpt-6-luna", effort: "low" } } } },
+    { id: "claude", workspaceId: "qa", type: "agent", title: "Claude QA", state: { providerId: "claude.cli", modelSettings: { "claude.cli": { model: "haiku", effort: "low" } } } },
   ] }], activeWorkspaceId: "qa", personas: [], selectedPersonaByWorkspace: {}, appendedInstructions: [],
 }));
 let app = await electron.launch({ args: ["."], env: qaEnvironment({ WORKBENCH_USER_DATA_DIR: directory }) });

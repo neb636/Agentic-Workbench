@@ -503,7 +503,7 @@ test("model and effort are launch arguments of a new conversation, never of a re
   assert.deepEqual(granted[0].slice(2), ["--add-dir", "/attachments/c2"]);
   folders.terminateAll();
   // The catalogue reaches the renderer through discovery.
-  assert.deepEqual(manager.discover()[0].models.map((model) => model.id), ["opus", "sonnet", "haiku"]);
+  assert.deepEqual(manager.discover()[0].models.map((model) => model.id), ["opus", "fable", "sonnet", "haiku"]);
   manager.terminateAll();
 });
 

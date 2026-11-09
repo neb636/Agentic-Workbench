@@ -11,6 +11,7 @@ export const IPC = {
   ptyExit: "pty:exit",
   agentCreate: "agent:create",
   agentProviders: "agent:providers",
+  agentProvidersChanged: "agent:providers-changed",
   agentAttach: "agent:attach",
   agentInput: "agent:input",
   agentResize: "agent:resize",
