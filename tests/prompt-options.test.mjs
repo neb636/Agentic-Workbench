@@ -111,3 +111,14 @@ test("legacy appended instructions migrate to workspace toggles", () => {
   assert.equal("appendedInstructions" in state, false);
   assert.deepEqual(state.layout, { leftCollapsed: false, rightCollapsed: false });
 });
+
+test("a workspace keeps a valid icon and loses only a bad one", () => {
+  const workspace = (icon) => ({ workspaces: [{ id: "w", name: "W", path: "/w", icon, views: [] }] });
+  const icon = "data:image/png;base64,iVBORw0KGgo=";
+  assert.equal(persistedStateSchema.parse(workspace(icon)).workspaces[0].icon, icon);
+  for (const bad of ["https://example.com/a.png", "data:image/svg+xml;base64,PHN2Zz4=", `data:image/png;base64,${"A".repeat(70 * 1024)}`, 7]) {
+    const [parsed] = persistedStateSchema.parse(workspace(bad)).workspaces;
+    assert.equal(parsed.id, "w");
+    assert.equal(parsed.icon, undefined);
+  }
+});

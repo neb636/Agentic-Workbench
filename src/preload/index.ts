@@ -21,6 +21,7 @@ const api: WorkbenchApi = {
   },
   workspace: {
     chooseDirectory: () => ipcRenderer.invoke(IPC.workspaceChooseDirectory) as Promise<string | null>,
+    chooseIcon: () => ipcRenderer.invoke(IPC.workspaceChooseIcon) as Promise<string | null>,
   },
   app: {
     textMenu: () => ipcRenderer.send(IPC.appTextMenu),

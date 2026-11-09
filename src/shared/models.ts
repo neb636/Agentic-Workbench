@@ -15,6 +15,8 @@ export interface Workspace {
   id: string;
   name: string;
   path: string;
+  /** A PNG data URL shown instead of the folder icon. */
+  icon?: string;
   views: WorkbenchView[];
   activeViewId?: string;
 }
@@ -314,6 +316,8 @@ export interface WorkbenchApi {
   };
   workspace: {
     chooseDirectory: () => Promise<string | null>;
+    /** Asks for a picture and returns it as a small PNG data URL; null if none was chosen or it couldn't be read. */
+    chooseIcon: () => Promise<string | null>;
   };
   app: {
     textMenu: () => void;

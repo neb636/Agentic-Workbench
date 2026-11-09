@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell, Menu, type WebContents } from "electron";
+import { app, dialog, ipcMain, nativeImage, shell, Menu, type WebContents } from "electron";
 import { promises as fs } from "node:fs";
 import { FileOperations } from "./file-operations";
 import { basename, join } from "node:path";
@@ -74,6 +74,21 @@ class FileWatchOwners {
     for (const root of [...(this.owners.get(owner)?.keys() ?? [])]) this.unwatch(owner, root);
     this.owners.delete(owner);
   }
+}
+
+/** Twice the sidebar tile, and small enough to live in the persisted state. */
+const WORKSPACE_ICON_SIDE = 64;
+
+/** A square PNG data URL cropped from the middle of a PNG or JPEG; null for what nativeImage can't decode. */
+function workspaceIcon(bytes: Buffer): string | null {
+  const image = nativeImage.createFromBuffer(bytes);
+  if (image.isEmpty()) return null;
+  const { width, height } = image.getSize();
+  const side = Math.min(width, height);
+  return image
+    .crop({ x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2), width: side, height: side })
+    .resize({ width: WORKSPACE_ICON_SIDE, height: WORKSPACE_ICON_SIDE, quality: "best" })
+    .toDataURL();
 }
 
 function listen(channel: string, handler: (event: Electron.IpcMainEvent, input: unknown) => void): void {
@@ -154,6 +169,19 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     const chosen = result.canceled ? null : result.filePaths[0] ?? null;
     if (chosen) workspace.roots.add(chosen);
     return chosen;
+  });
+  handle(IPC.workspaceChooseIcon, async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Choose workspace icon",
+      properties: ["openFile"],
+      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      buttonLabel: "Choose",
+    });
+    const chosen = result.canceled ? undefined : result.filePaths[0];
+    if (!chosen) return null;
+    const icon = workspaceIcon(await fs.readFile(chosen).catch(() => Buffer.alloc(0)));
+    if (!icon) await dialog.showMessageBox({ type: "warning", message: "That image couldn't be read.", detail: "Choose a PNG or JPEG file." });
+    return icon;
   });
   handle(IPC.appMetrics, () => ({
     memoryBytes: app.getAppMetrics().reduce((total, metric) => total + metric.memory.workingSetSize * 1024, 0),

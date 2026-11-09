@@ -14,7 +14,7 @@ After application restart, Start launches a new CLI; Resume launches the selecte
 
 The shell is three resizable, collapsible cards over the app canvas plus a status bar, all built on accessible primitives:
 
-- Left sidebar: workspaces as a tree, with views whose definition sets `listInSidebar` nested beneath each one. Rows show `{status} · {provider}` from the generic view-status store. The `sidebar.workspace.meta` and `sidebar.footer` widget slots supply extra row detail and navigation.
+- Left sidebar: workspaces as a tree, with views whose definition sets `listInSidebar` nested beneath each one. Rows show `{status} · {provider}` from the generic view-status store. The `sidebar.workspace.meta` and `sidebar.footer` widget slots supply extra row detail and navigation. A workspace can replace its folder icon with a picture; main crops it to a 64px PNG data URL that persists on the Workspace.
 - Center: a tab strip over the active view. Tabs that do not fit move into a "+N more" menu, and the active tab always stays visible.
 - Right sidebar: panels from `PanelRegistry` (Active views, Files, Source control), switched from an activity bar. A panel may declare a `badge` component (Source control shows its change count).
 - Status bar: the `statusbar.start` and `statusbar.end` widget slots.

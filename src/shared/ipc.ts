@@ -3,6 +3,7 @@ export const IPC = {
   persistenceSave: "persistence:save",
   persistenceSaveNow: "persistence:save-now",
   workspaceChooseDirectory: "workspace:choose-directory",
+  workspaceChooseIcon: "workspace:choose-icon",
   ptyCreate: "pty:create",
   ptyInput: "pty:input",
   ptyResize: "pty:resize",
