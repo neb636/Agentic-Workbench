@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { DiffBase, SearchOptions, SearchResult, SourceControlStatus, WorktreeResult } from "../../shared/models";
+import type { BaseBranches, DiffBase, SearchOptions, SearchResult, SourceControlStatus, WorktreeResult } from "../../shared/models";
 import { worktreeContainer } from "../workspace-files";
 
 export type ProviderStatus = Omit<SourceControlStatus, "providerId" | "providerLabel" | "root">;
@@ -12,8 +12,11 @@ export interface SourceControlProvider {
   status: (root: string) => Promise<ProviderStatus>;
   /** Records every working change in one commit. */
   commit: (root: string, message: string) => Promise<{ commitId: string }>;
-  createWorktree: (root: string, branch: string, target: string) => Promise<WorktreeResult>;
+  /** Starts from `base` (a ref from `baseBranches`), or the current commit without one. */
+  createWorktree: (root: string, branch: string, target: string, base?: string) => Promise<WorktreeResult>;
   branches: (root: string) => Promise<string[]>;
+  /** Every branch a worktree can start from and which is the default; `refresh` first updates from the remote, best effort. */
+  baseBranches: (root: string, refresh?: boolean) => Promise<BaseBranches>;
   /** Switches the checkout to a branch; refuses while there are uncommitted changes. */
   checkout: (root: string, branch: string) => Promise<void>;
   /** A file's text at the last commit or where this branch left the default branch; null when it didn't exist there. */
@@ -51,6 +54,7 @@ export class SourceControlService {
   }
 
   async branches(root: string): Promise<string[]> { return (await this.require(root)).branches(root); }
+  async baseBranches(root: string, refresh?: boolean): Promise<BaseBranches> { return (await this.require(root)).baseBranches(root, refresh); }
   async checkout(root: string, branch: string): Promise<void> { return (await this.require(root)).checkout(root, branch); }
 
   async fileAt(root: string, file: string, base: DiffBase): Promise<string | null> {
@@ -76,10 +80,10 @@ export class SourceControlService {
     return provider.search(root, query, options);
   }
 
-  async createWorktree(root: string, branch: string): Promise<WorktreeResult> {
+  async createWorktree(root: string, branch: string, base?: string): Promise<WorktreeResult> {
     const provider = await this.require(root);
     const target = path.join(worktreeContainer(root), branch.replace(/[^A-Za-z0-9._-]+/g, "-"));
-    return provider.createWorktree(root, branch, target);
+    return provider.createWorktree(root, branch, target, base);
   }
 
   private async require(root: string): Promise<SourceControlProvider> {

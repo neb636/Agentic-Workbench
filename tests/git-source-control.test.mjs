@@ -7,7 +7,7 @@ import test from "node:test";
 import gitModule from "../dist-electron/main/providers/git-source-control-provider.js";
 import serviceModule from "../dist-electron/main/source-control/source-control-provider.js";
 
-const { GitSourceControlProvider, isValidBranchName, parseGrep, parsePorcelainV2 } = gitModule;
+const { GitSourceControlProvider, isValidBranchName, parseBaseBranches, parseGrep, parsePorcelainV2 } = gitModule;
 const { SourceControlService } = serviceModule;
 
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" });
@@ -73,6 +73,86 @@ test("creates worktrees beside the workspace and rejects invalid branches", asyn
   assert.equal(git(created.path, "branch", "--show-current").trim(), "wb/first-task");
   await assert.rejects(service.createWorktree(root, "bad name"), /not a valid branch/);
   await assert.rejects(service.createWorktree(root, "wb/first-task"), /already exists/);
+});
+
+test("parses base branches, dropping a remote's HEAD pointer", () => {
+  const output = ["refs/remotes/origin/HEAD\0" + "200\0", "refs/remotes/origin/feature/x\0" + "200\0", "refs/heads/feature/HEAD\0" + "150\0", "refs/heads/main\0" + "100\0*", ""].join("\n");
+  assert.deepEqual(parseBaseBranches(output), [
+    { ref: "refs/remotes/origin/feature/x", name: "origin/feature/x", kind: "remote", updatedAt: 200, current: false },
+    { ref: "refs/heads/feature/HEAD", name: "feature/HEAD", kind: "local", updatedAt: 150, current: false },
+    { ref: "refs/heads/main", name: "main", kind: "local", updatedAt: 100, current: true },
+  ]);
+});
+
+async function clone() {
+  const { parent, root: upstream } = await repository();
+  git(upstream, "branch", "feature/remote#1");
+  const root = join(parent, "clone");
+  execFileSync("git", ["clone", "--quiet", upstream, root]);
+  git(root, "config", "user.email", "qa@example.com");
+  git(root, "config", "user.name", "QA");
+  return { parent, upstream, root, service: new SourceControlService([new GitSourceControlProvider()]) };
+}
+
+test("the default base is origin's default branch, over a local branch or the current one", async () => {
+  const { root, service } = await clone();
+  git(root, "switch", "--quiet", "-c", "local-work");
+  const { branches, defaultRef } = await service.baseBranches(root);
+  assert.equal(defaultRef, "refs/remotes/origin/main");
+  assert.deepEqual(branches.map((branch) => branch.name).sort(), ["local-work", "main", "origin/feature/remote#1", "origin/main"]);
+  assert.equal(branches.find((branch) => branch.name === "local-work").current, true);
+});
+
+test("without origin the default base falls back to the local default, then the current branch", async () => {
+  const { root } = await repository();
+  const service = new SourceControlService([new GitSourceControlProvider()]);
+  assert.equal((await service.baseBranches(root)).defaultRef, "refs/heads/main");
+  git(root, "branch", "-m", "main", "trunk");
+  assert.equal((await service.baseBranches(root)).defaultRef, "refs/heads/trunk");
+});
+
+test("a worktree from a remote base starts at its latest commit and does not track it", async () => {
+  const { parent, upstream, root, service } = await clone();
+  await writeFile(join(upstream, "tracked.txt"), "newer\n");
+  git(upstream, "commit", "--quiet", "-am", "newer");
+  const created = await service.createWorktree(root, "wb/from-origin", "refs/remotes/origin/main");
+  assert.equal(created.path, join(parent, "clone-worktrees", "wb-from-origin"));
+  assert.equal(git(created.path, "rev-parse", "HEAD"), git(upstream, "rev-parse", "HEAD"));
+  assert.equal((await service.status(created.path)).upstream, undefined);
+});
+
+test("refreshing base branches picks up what was pushed to origin", async () => {
+  const { upstream, root, service } = await clone();
+  git(upstream, "branch", "pushed-later");
+  assert.equal((await service.baseBranches(root)).branches.some((branch) => branch.name === "origin/pushed-later"), false);
+  assert.equal((await service.baseBranches(root, true)).branches.some((branch) => branch.name === "origin/pushed-later"), true);
+});
+
+test("a worktree can start from a branch whose name git allows but new branches here do not", async () => {
+  const { root, service } = await clone();
+  const created = await service.createWorktree(root, "wb/from-hash", "refs/remotes/origin/feature/remote#1");
+  assert.equal(git(created.path, "rev-parse", "HEAD"), git(root, "rev-parse", "origin/feature/remote#1"));
+});
+
+test("a worktree base can be local, and an unreachable origin does not block creating one", async () => {
+  const { root, service } = await clone();
+  git(root, "remote", "set-url", "origin", join(root, "gone"));
+  await writeFile(join(root, "tracked.txt"), "local\n");
+  git(root, "switch", "--quiet", "-c", "local-base");
+  git(root, "commit", "--quiet", "-am", "local");
+  git(root, "switch", "--quiet", "main");
+  const local = await service.createWorktree(root, "wb/from-local", "refs/heads/local-base");
+  assert.equal(git(local.path, "rev-parse", "HEAD"), git(root, "rev-parse", "local-base"));
+  const offline = await service.createWorktree(root, "wb/offline", "refs/remotes/origin/main");
+  assert.equal(git(offline.path, "rev-parse", "HEAD"), git(root, "rev-parse", "origin/main"));
+  assert.equal((await service.baseBranches(root, true)).defaultRef, "refs/remotes/origin/main");
+});
+
+test("rejects a worktree base that is not an existing branch", async () => {
+  const { root, service } = await clone();
+  await assert.rejects(service.createWorktree(root, "wb/a", "--orphan"), /Choose a branch/);
+  await assert.rejects(service.createWorktree(root, "wb/b", "HEAD~1"), /Choose a branch/);
+  await assert.rejects(service.createWorktree(root, "wb/c", "refs/heads/gone"), /"gone" no longer exists/);
 });
 
 test("checks out a selected branch and refuses to carry uncommitted changes across", async () => {

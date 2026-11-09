@@ -138,7 +138,8 @@ export interface AgentViewState {
   intent?: AgentPromptRequest["intent"];
   composerRevision?: number;
   promptSelections?: PromptSelections;
-  runIn?: { kind: "checkout" } | { kind: "worktree"; branch: string };
+  /** A worktree without a `base` starts from the repository's default branch, resolved when it is created. */
+  runIn?: { kind: "checkout" } | { kind: "worktree"; branch: string; base?: Pick<BaseBranch, "ref" | "name"> };
   /** Where the CLI runs once launched; the workspace path unless a worktree was created. */
   cwd?: string;
   /** The title is replaced by the first sent prompt. */
@@ -230,6 +231,24 @@ export interface SourceControlStatus {
   truncated: boolean;
 }
 
+/** A branch a new worktree can start from. `ref` is opaque to the renderer; `name` is for display. */
+export interface BaseBranch {
+  ref: string;
+  name: string;
+  kind: "remote" | "local";
+  /** Unix seconds of the branch's latest commit. */
+  updatedAt: number;
+  /** Checked out in the workspace itself. */
+  current: boolean;
+}
+
+export interface BaseBranches {
+  /** Most recently updated first. */
+  branches: BaseBranch[];
+  /** Absent when the repository has no usable default (for example, no commits yet). */
+  defaultRef?: string;
+}
+
 export interface WorktreeResult {
   path: string;
   branch: string;
@@ -302,8 +321,11 @@ export interface WorkbenchApi {
     detect: (root: string) => Promise<boolean>;
     status: (root: string) => Promise<SourceControlStatus | null>;
     commit: (root: string, message: string) => Promise<{ commitId: string }>;
-    createWorktree: (root: string, branch: string) => Promise<WorktreeResult>;
+    /** Starts from `base` (a `BaseBranch.ref`), or the current commit without one. */
+    createWorktree: (root: string, branch: string, base?: string) => Promise<WorktreeResult>;
     branches: (root: string) => Promise<string[]>;
+    /** With `refresh`, first updates from the remote (best effort). */
+    baseBranches: (root: string, refresh?: boolean) => Promise<BaseBranches>;
     checkout: (root: string, branch: string) => Promise<void>;
     /** A file's text at the last commit or where this branch left the default branch (null when it didn't exist there). */
     fileAt: (root: string, path: string, base: DiffBase) => Promise<string | null>;

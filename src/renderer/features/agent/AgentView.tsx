@@ -53,7 +53,7 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
     setBusy(true); setError(""); patch({ providerId: provider.id });
     // A new conversation launches with the composer's model and effort; a resumed one keeps its own.
     const settings = resume ? undefined : modelSettings(provider.id, state.modelSettings?.[provider.id]) ?? undefined;
-    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }), resume, settings }); }
+    try { await startAgentRuntime(view.id, provider, { workspacePath: await prepareSessionFolder({ workspaceId: workspace.id, viewId: view.id }, resume), resume, settings }); }
     catch (e) { if (alive.current) setError(errorMessage(e)); }
     finally { if (alive.current) setBusy(false); }
   };

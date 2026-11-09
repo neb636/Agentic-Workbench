@@ -38,6 +38,7 @@ export const IPC = {
   sourceControlCommit: "source-control:commit",
   sourceControlCreateWorktree: "source-control:create-worktree",
   sourceControlBranches: "source-control:branches",
+  sourceControlBaseBranches: "source-control:base-branches",
   sourceControlCheckout: "source-control:checkout",
   sourceControlFileAt: "source-control:file-at",
   sourceControlIgnored: "source-control:ignored",
