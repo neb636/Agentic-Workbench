@@ -65,6 +65,18 @@ test("thumbnails shrink pictures, fall back to the original, and skip everything
   assert.equal(await attachments.thumbnail("v", "00000000-0000-4000-8000-000000000000"), null);
 });
 
+test("the preview gets the original picture, however large, and nothing else", async () => {
+  const { attachments } = await fixture(() => "data:image/png;base64,small");
+  const picture = await attachments.save("v", "a.png", bytes("png"));
+  assert.equal(await attachments.image("v", picture.id), `data:image/png;base64,${Buffer.from("png").toString("base64")}`);
+  const huge = await attachments.save("v", "b.webp", new Uint8Array(3 * 1024 * 1024));
+  assert.equal((await attachments.image("v", huge.id)).startsWith("data:image/webp;base64,"), true);
+  const text = await attachments.save("v", "c.txt", bytes("x"));
+  assert.equal(await attachments.image("v", text.id), null);
+  assert.equal(await attachments.image("v", "00000000-0000-4000-8000-000000000000"), null);
+  await assert.rejects(attachments.image("..", "a"), /view id/);
+});
+
 test("only the folders of existing views are kept", async () => {
   const { base, attachments } = await fixture();
   await attachments.save("keep", "a.txt", bytes("a"));

@@ -1,4 +1,4 @@
-/* global ClipboardEvent, DataTransfer, DragEvent, File */
+/* global ClipboardEvent, DataTransfer, DragEvent, File, window */
 import { _electron as electron } from "playwright";
 import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
@@ -155,7 +155,7 @@ try {
   await row.click({ clickCount: 3 });
   await page.getByRole("button", { name: "Add to prompt" }).click();
   await prompt().fill("Second prompt");
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   const preview = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
   assert.match(preview, /^Terminal selection 1:\n> ERROR: Connection refused/);
   assert.match(preview, /Second prompt\n\nWhen the change is ready/);
@@ -191,15 +191,15 @@ try {
   assert.equal(restarted.effort, "high");
 
   // Attachments: the picker, a drop and a pasted screenshot all become tiles; the prompt carries their stored paths.
-  const picture = async (name, from, to) => {
-    const data = await page.evaluate(([start, end]) => {
-      const canvas = Object.assign(document.createElement("canvas"), { width: 480, height: 320 });
+  const picture = async (name, from, to, width = 480, height = 320) => {
+    const data = await page.evaluate(([start, end, w, h]) => {
+      const canvas = Object.assign(document.createElement("canvas"), { width: w, height: h });
       const context = canvas.getContext("2d");
-      const fill = context.createLinearGradient(0, 0, 480, 320);
+      const fill = context.createLinearGradient(0, 0, w, h);
       fill.addColorStop(0, start); fill.addColorStop(1, end);
-      context.fillStyle = fill; context.fillRect(0, 0, 480, 320);
+      context.fillStyle = fill; context.fillRect(0, 0, w, h);
       return canvas.toDataURL("image/png").split(",")[1];
-    }, [from, to]);
+    }, [from, to, width, height]);
     const file = join(directory, name);
     await writeFile(file, Buffer.from(data, "base64"));
     return file;
@@ -232,8 +232,46 @@ try {
   await page.getByRole("button", { name: "Remove dropped.txt" }).click();
   await page.getByRole("button", { name: "Remove image.png" }).click();
   assert.equal(await tiles.count(), 2);
+  // Clicking a thumbnail previews the original: full resolution, fitted to the window, dismissed by Escape, the scrim or the button.
+  const trigger = page.getByRole("button", { name: "Preview reference one.png" });
+  const previewDialog = page.getByRole("dialog", { name: "Preview of reference one.png" });
+  assert.equal(await tiles.nth(1).getByRole("button", { name: /^Preview/ }).count(), 0);
+  await trigger.hover();
+  await page.waitForTimeout(200);
+  await shot("attachment-hover");
+  await trigger.click();
+  await previewDialog.locator("img.image-preview-picture").waitFor();
+  assert.deepEqual(await previewDialog.locator("img").evaluate((image) => [image.naturalWidth, image.naturalHeight]), [480, 320]);
+  assert.match(await previewDialog.locator("figcaption").innerText(), /reference one\.png\s+480 × 320/);
+  await page.waitForTimeout(300);
+  await shot("attachment-preview");
+  await page.keyboard.press("Escape");
+  await previewDialog.waitFor({ state: "detached" });
+  assert.equal(await trigger.evaluate((button) => button === document.activeElement), true);
+  await trigger.click();
+  await previewDialog.waitFor();
+  await page.mouse.click(30, 200);
+  await previewDialog.waitFor({ state: "detached" });
+  const poster = await picture("poster.png", "#1d2671", "#f7971e", 2400, 1500);
+  await page.locator(".composer-box input[type=file]").setInputFiles([poster]);
+  await tiles.nth(2).locator("img").waitFor();
+  await page.getByRole("button", { name: "Preview poster.png" }).click();
+  const posterDialog = page.getByRole("dialog", { name: "Preview of poster.png" });
+  const posterImage = posterDialog.locator("img.image-preview-picture");
+  await posterImage.waitFor();
+  assert.equal(await posterImage.evaluate((image) => image.naturalWidth), 2400);
+  const box = await posterImage.boundingBox();
+  const viewport = await page.evaluate(() => [window.innerWidth, window.innerHeight]);
+  assert(box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport[0] && box.y + box.height <= viewport[1]);
+  await page.waitForTimeout(300);
+  await shot("attachment-preview-large");
+  await posterDialog.getByRole("button", { name: "Close preview" }).click();
+  await posterDialog.waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Remove poster.png" }).click();
+  assert.equal(await tiles.count(), 2);
+
   await prompt().fill("Build this from the references");
-  await page.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   const attachedPreview = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
   assert.match(attachedPreview, /^Attached files \(read them from these paths\):\n- .*\/attachments\/.*\/reference one\.png\n- .*\/requirements\.md\n\nBuild this/);
   await page.keyboard.press("Escape");

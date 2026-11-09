@@ -34,6 +34,7 @@ const api: WorkbenchApi = {
   attachments: {
     save: (viewId, name, bytes) => ipcRenderer.invoke(IPC.attachmentsSave, { viewId, name, bytes }),
     thumbnail: (viewId, id) => ipcRenderer.invoke(IPC.attachmentsThumbnail, { viewId, id }),
+    image: (viewId, id) => ipcRenderer.invoke(IPC.attachmentsImage, { viewId, id }),
   },
   files: {
     onProgress: (listener) => {

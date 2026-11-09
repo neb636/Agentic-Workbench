@@ -326,6 +326,8 @@ export interface WorkbenchApi {
     save: (viewId: string, name: string, bytes: Uint8Array) => Promise<PromptAttachment>;
     /** A small picture of a stored image as a data URL; null when there is nothing to show. */
     thumbnail: (viewId: string, id: string) => Promise<string | null>;
+    /** A stored image at full size as a data URL; null when there is nothing to show. */
+    image: (viewId: string, id: string) => Promise<string | null>;
   };
   files: {
     onProgress: (listener: (progress: FileOperationProgress) => void) => () => void;

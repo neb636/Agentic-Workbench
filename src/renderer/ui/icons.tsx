@@ -35,6 +35,7 @@ export const UserIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="1
 export const ListChecksIcon = ({ size }: IconProps) => <Icon size={size}><path d="m3.5 6.5 1.5 1.5 3-3M3.5 13.5l1.5 1.5 3-3M11 7h9.5M11 14h9.5M11 19.5h9.5" /></Icon>;
 export const HistoryIcon = ({ size }: IconProps) => <Icon size={size}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5" /><path d="M3.5 4v4.5H8M12 8v4.5l3 2" /></Icon>;
 export const QuoteIcon = ({ size }: IconProps) => <Icon size={size}><path d="M5 18v-5.5C5 9 6.5 7 9.5 6M14 18v-5.5C14 9 15.5 7 18.5 6" /><path d="M5 12.5h4.5V18H5zM14 12.5h4.5V18H14z" /></Icon>;
+export const ExpandIcon = ({ size }: IconProps) => <Icon size={size}><path d="M14.5 4H20v5.5M9.5 20H4v-5.5M20 4l-6.5 6.5M4 20l6.5-6.5" /></Icon>;
 export const EyeIcon = ({ size }: IconProps) => <Icon size={size}><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></Icon>;
 export const RefreshIcon = ({ size }: IconProps) => <Icon size={size}><path d="M20 11a8 8 0 0 0-14.3-4.3L4 9M4 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20 15M20 20v-5h-5" /></Icon>;
 export const StopIcon = ({ size }: IconProps) => <Icon size={size}><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" /></Icon>;

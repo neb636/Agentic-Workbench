@@ -23,6 +23,7 @@ export const IPC = {
   menuCommand: "app:menu-command",
   attachmentsSave: "attachments:save",
   attachmentsThumbnail: "attachments:thumbnail",
+  attachmentsImage: "attachments:image",
   filesProgress: "files:progress",
   filesOperate: "files:operate",
   filesLocate: "files:locate",
