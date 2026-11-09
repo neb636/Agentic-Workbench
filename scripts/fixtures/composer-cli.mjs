@@ -2,6 +2,17 @@
 import { appendFileSync, existsSync } from "node:fs";
 import { setTimeout } from "node:timers";
 
+// One-shot mode as the internal AI service runs it: prompt on stdin, answer on stdout, no terminal.
+if (process.argv[2] === "exec" || process.argv[2] === "-p") {
+  let input = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) input += chunk;
+  appendFileSync(process.env.COMPOSER_QA_ONE_SHOTS, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), prompt: input }) + "\n");
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  process.stdout.write("```\nAdd QA notes\n```\n");
+  process.exit(0);
+}
+
 process.stdin.setRawMode(true);
 process.stdin.setEncoding("utf8");
 const screen = (text) => process.stdout.write(`\x1b[2J\x1b[H\x1b[?2004h${text}`);

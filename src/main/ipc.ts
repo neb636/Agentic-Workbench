@@ -22,6 +22,7 @@ import {
   fileRenameSchema,
   fileSearchSchema,
   fileWriteSchema,
+  generateCommitMessageSchema,
   persistedStateSchema,
   ptyCreateOptionsSchema,
   ptyInputSchema,
@@ -31,6 +32,7 @@ import {
 } from "../shared/schemas";
 import type { FilesChangedEvent } from "../shared/models";
 import { AgentSessionManager } from "./agent-session-manager";
+import type { CommitMessages } from "./internal-ai/commit-message";
 import { loadState, saveState, saveStateNow } from "./persistence";
 import type { PromptAttachments } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
@@ -41,6 +43,7 @@ export interface WorkspaceServices {
   roots: WorkspaceRoots;
   files: WorkspaceFiles;
   sourceControl: SourceControlService;
+  commitMessages: CommitMessages;
 }
 
 /** File watches are owned by the window that asked for them and end with it. */
@@ -246,6 +249,10 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   });
   handle(IPC.sourceControlIgnored, async (_event, input: unknown) =>
     workspace.sourceControl.ignored(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.sourceControlGenerateCommitMessage, async (_event, input: unknown) => {
+    const { root, providerId } = generateCommitMessageSchema.parse(input);
+    return workspace.commitMessages.generate(await allowedRoot(root), providerId);
+  });
   handle(IPC.ptyCreate, async (event, input: unknown) => {
     const options = ptyCreateOptionsSchema.parse(input);
     options.cwd = await workspace.roots.directory(options.cwd);

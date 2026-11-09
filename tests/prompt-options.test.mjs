@@ -111,3 +111,8 @@ test("legacy appended instructions migrate to workspace toggles", () => {
   assert.equal("appendedInstructions" in state, false);
   assert.deepEqual(state.layout, { leftCollapsed: false, rightCollapsed: false });
 });
+
+test("the Default CLI choice survives the persisted state schema", () => {
+  assert.equal(persistedStateSchema.parse({ defaultAgentProviderId: "some.cli" }).defaultAgentProviderId, "some.cli");
+  assert.equal(persistedStateSchema.parse({}).defaultAgentProviderId, undefined);
+});

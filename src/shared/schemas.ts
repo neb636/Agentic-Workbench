@@ -80,6 +80,7 @@ export const persistedStateSchema = z.object({
   personas: z.array(personaSchema).default([]),
   instructionOptions: z.array(storedPromptOptionSchema).default([]),
   layout: layoutStateSchema.default({ leftCollapsed: false, rightCollapsed: false }),
+  defaultAgentProviderId: z.string().optional(),
 });
 
 const legacyInstructionSchema = z.object({ id: z.string(), workspaceId: z.string(), content: z.string(), enabled: z.boolean() });
@@ -151,6 +152,7 @@ export const fileLocationSchema = z.object({ root: z.string().min(1), path: z.st
 export const fileFindSchema = z.object({ root: z.string().min(1), query: z.string().max(256) });
 export const workspaceRootSchema = z.object({ root: z.string().min(1) });
 export const commitSchema = z.object({ root: z.string().min(1), message: z.string().trim().min(1).max(10_000) });
+export const generateCommitMessageSchema = z.object({ root: z.string().min(1), providerId: z.string().min(1).max(100).optional() });
 export const createWorktreeSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200), base: z.string().min(1).max(500).optional() });
 export const baseBranchesSchema = z.object({ root: z.string().min(1), refresh: z.boolean().optional() });
 export const checkoutSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200) });

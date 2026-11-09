@@ -68,6 +68,10 @@
 .branch-row small { color: var(--wb-text-secondary); font-size: 11px; }
 .commit-area { display: grid; gap: 8px; }
 .commit-area textarea { min-height: 60px; }
+.commit-area .commit-input { position: relative; }
+.commit-area .commit-input textarea { padding-right: 34px; }
+.commit-generate { position: absolute; top: 4px; right: 4px; }
+.commit-generate.is-generating { animation: wb-pulse 1.4s ease-in-out infinite; }
 .commit-button { width: 100%; }
 .change-letter { flex: none; width: 14px; font: 600 11px var(--wb-font-mono); text-align: center; }
 .change-letter.kind-modified { color: var(--wb-status-warning); }

@@ -146,8 +146,9 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
 /* Form controls */
-.persona-form, .instruction-form { display: grid; gap: 12px; align-content: start; }
-.persona-form label, .instruction-form label, .choice-editor legend {
+.persona-form, .instruction-form, .general-settings { display: grid; gap: 12px; align-content: start; }
+.settings-help { display: block; margin-top: 6px; color: var(--wb-text-secondary); font-size: 11.5px; }
+.persona-form label, .instruction-form label, .general-settings label, .choice-editor legend {
   display: block;
   margin-bottom: 5px;
   color: var(--wb-text-secondary);

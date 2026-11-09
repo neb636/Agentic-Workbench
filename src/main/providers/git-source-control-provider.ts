@@ -1,9 +1,10 @@
-import { execFile, type ChildProcess } from "node:child_process";
-import { mkdir } from "node:fs/promises";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { cp, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import type { BaseBranch, BaseBranches, DiffBase, SearchMatch, SearchOptions, SearchResult, SourceControlChange } from "../../shared/models";
 import { executablePath } from "../executables";
-import type { ProviderStatus, SourceControlProvider } from "../source-control/source-control-provider";
+import type { PendingChanges, ProviderStatus, SourceControlProvider } from "../source-control/source-control-provider";
 
 const OUTPUT_LIMIT = 8 * 1024 * 1024;
 const CHANGE_LIMIT = 5_000;
@@ -11,6 +12,13 @@ const SEARCH_MATCHES = 500;
 const SEARCH_MS = 2_000;
 // A slow or unreachable remote must not hold up starting a session.
 const FETCH_MS = 10_000;
+// Enough to describe a change, without one large file crowding out the rest or spending the user's tokens.
+const PENDING_READ_LIMIT = 4 * 1024 * 1024;
+const PENDING_SUMMARY_CHARS = 16_000;
+const PENDING_FILE_CHARS = 8_000;
+const PENDING_TOTAL_CHARS = 48_000;
+// Named in the summary, but their contents aren't sent to a model.
+const SECRET_PATHSPECS = ["**/.env*", "**/*.pem", "**/*.key"].map((pattern) => `:(top,exclude,glob)${pattern}`);
 const GIT_ENV = { GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
 // Mirrors git-check-ref-format rules closely enough to reject anything git would; git re-checks below.
 const BRANCH_PATTERN = /^(?!-)(?!.*(?:\.\.|\/\/|@\{|\\|\.lock(?:\/|$)|\/\.|\/$|\.$))[A-Za-z0-9._\-/]+$/;
@@ -22,6 +30,19 @@ function letterKind(code: string): SourceControlChange["kind"] {
     case "R": return "renamed";
     default: return "modified";
   }
+}
+
+/** Caps each file's section of a unified diff, then the whole. Lines inside a section always start with a diff marker. */
+export function capDiff(diff: string, fileChars: number, totalChars: number): { diff: string; truncated: boolean } {
+  let truncated = false;
+  let result = "";
+  for (const section of diff.split(/^(?=diff --git )/m)) {
+    const capped = section.length > fileChars ? `${section.slice(0, fileChars)}\n[rest of this file's changes omitted]\n` : section;
+    if (capped !== section) truncated = true;
+    if (result.length + capped.length > totalChars) { truncated = true; break; }
+    result += capped;
+  }
+  return { diff: result, truncated };
 }
 
 /** Parses `git status --porcelain=v2 --branch -z` output. */
@@ -171,6 +192,38 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return this.git(root, ["show", `${ref}:./${file}`]).catch(() => null);
   }
 
+  /**
+   * Stages everything into a throwaway index and object store, exactly as `commit` would stage it for real, so
+   * untracked files, renames and a repository with no commits yet all come out right and the repository stays untouched.
+   */
+  async pendingChanges(root: string): Promise<PendingChanges> {
+    const gitPath = async (name: string) => path.resolve(root, (await this.git(root, ["rev-parse", "--git-path", name])).trim());
+    const [index, objects] = await Promise.all([gitPath("index"), gitPath("objects")]);
+    const scratch = await mkdtemp(path.join(tmpdir(), "workbench-pending-"));
+    try {
+      const scratchIndex = path.join(scratch, "index");
+      const scratchObjects = path.join(scratch, "objects");
+      await mkdir(scratchObjects);
+      // A repository nothing was ever added to has no index yet. The copy keeps the index's time because git compares
+      // against it to know which files to re-read: a newer time hides a same-size edit made just after the last `add`.
+      await cp(index, scratchIndex, { preserveTimestamps: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== "ENOENT") throw error; });
+      const env = {
+        GIT_INDEX_FILE: scratchIndex,
+        GIT_OBJECT_DIRECTORY: scratchObjects,
+        GIT_ALTERNATE_OBJECT_DIRECTORIES: `"${objects.replace(/["\\]/g, "\\$&")}"`,
+      };
+      await this.git(root, ["add", "--all"], 0, env);
+      const diffArgs = ["-c", "core.quotePath=false", "diff", "--cached", "-M", "--no-ext-diff", "--no-textconv", "--no-color"];
+      const fullSummary = (await this.git(root, [...diffArgs, "--stat=120"], 0, env)).trim();
+      const read = await this.gitLimited(root, [...diffArgs, "--", ":(top)", ...SECRET_PATHSPECS], env, PENDING_READ_LIMIT);
+      const capped = capDiff(read.output, PENDING_FILE_CHARS, PENDING_TOTAL_CHARS);
+      const summary = fullSummary.slice(0, PENDING_SUMMARY_CHARS);
+      return { summary, diff: capped.diff, truncated: read.limited || capped.truncated || summary !== fullSummary };
+    } finally {
+      await rm(scratch, { recursive: true, force: true });
+    }
+  }
+
   /** What git ignores, folded to the top folder (build output, node_modules), to dim in the file tree. */
   async ignored(root: string): Promise<string[]> {
     const output = await this.git(root, ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z"]);
@@ -214,13 +267,38 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return [...new Set([remoteHead, "origin/main", "main", "origin/master", "master"].filter(Boolean))];
   }
 
-  private git(cwd: string, args: string[], timeout = 0): Promise<string> {
+  private git(cwd: string, args: string[], timeout = 0, env: NodeJS.ProcessEnv = {}): Promise<string> {
     const executable = this.executable();
     if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
     return new Promise((resolve, reject) => {
-      execFile(executable, args, { cwd, timeout, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV } }, (error, stdout, stderr) => {
+      execFile(executable, args, { cwd, timeout, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV, ...env } }, (error, stdout, stderr) => {
         if (error) reject(new Error(String(stderr || error.message).trim()));
         else resolve(stdout);
+      });
+    });
+  }
+
+  /** For output that can be any size: keeps the first `limit` bytes and stops git, where `git` would fail. */
+  private gitLimited(cwd: string, args: string[], env: NodeJS.ProcessEnv, limit: number): Promise<{ output: string; limited: boolean }> {
+    const executable = this.executable();
+    if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
+    return new Promise((resolve, reject) => {
+      const child = spawn(executable, args, { cwd, env: { ...process.env, ...GIT_ENV, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      let limited = false;
+      let stderr = "";
+      child.on("error", reject);
+      child.stderr.on("data", (chunk: Buffer) => { stderr = (stderr + chunk.toString("utf8")).slice(-4096); });
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (limited) return;
+        chunks.push(chunk);
+        bytes += chunk.length;
+        if (bytes >= limit) { limited = true; child.kill(); }
+      });
+      child.on("close", (code) => {
+        if (code !== 0 && !limited) reject(new Error(stderr.trim() || `git exited with code ${code}`));
+        else resolve({ output: Buffer.concat(chunks).subarray(0, limit).toString("utf8"), limited });
       });
     });
   }

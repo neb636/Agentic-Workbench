@@ -27,6 +27,7 @@ interface WorkbenchStore extends PersistedState {
   upsertInstructionOption: (option: StoredPromptOption) => void;
   deleteInstructionOption: (optionId: string) => void;
   updateLayout: (patch: Partial<LayoutState>) => void;
+  setDefaultAgentProvider: (providerId: string) => void;
 }
 
 const initialState: PersistedState = {
@@ -158,6 +159,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
   deleteInstructionOption: (optionId) =>
     set((state) => ({ instructionOptions: state.instructionOptions.filter((item) => item.option.id !== optionId) })),
   updateLayout: (patch) => set((state) => ({ layout: { ...state.layout, ...patch } })),
+  setDefaultAgentProvider: (providerId) => set({ defaultAgentProviderId: providerId }),
 }));
 
 function persistedSnapshot(state: WorkbenchStore): PersistedState {
@@ -167,6 +169,7 @@ function persistedSnapshot(state: WorkbenchStore): PersistedState {
     personas: state.personas,
     instructionOptions: state.instructionOptions,
     layout: state.layout,
+    defaultAgentProviderId: state.defaultAgentProviderId,
   };
 }
 
