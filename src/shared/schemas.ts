@@ -155,8 +155,18 @@ export const createWorktreeSchema = z.object({ root: z.string().min(1), branch: 
 export const baseBranchesSchema = z.object({ root: z.string().min(1), refresh: z.boolean().optional() });
 export const checkoutSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200) });
 export const fileWriteSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), content: z.string().max(2 * 1024 * 1024), expectedHash: z.string().max(64).nullable() });
-export const fileSearchSchema = z.object({ root: z.string().min(1), query: z.string().min(1).max(256), caseSensitive: z.boolean().optional(), regex: z.boolean().optional() });
+export const fileSearchSchema = z.object({ root: z.string().min(1), query: z.string().min(1).max(256), caseSensitive: z.boolean().optional(), regex: z.boolean().optional(), directory: z.string().max(4096).optional() });
 export const fileExistsSchema = z.object({ root: z.string().min(1), paths: z.array(z.string().min(1).max(1024)).max(200) });
 export const fileCreateSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), kind: z.enum(["file", "directory"]) });
 export const fileRenameSchema = z.object({ root: z.string().min(1), from: z.string().min(1).max(4096), to: z.string().min(1).max(4096) });
 export const fileAtSchema = z.object({ root: z.string().min(1), path: z.string().min(1).max(4096), base: z.enum(["head", "default"]) });
+
+const operationLocation = fileLocationSchema;
+export const fileOperationSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("create"), target: operationLocation, entryKind: z.enum(["file", "directory"]) }),
+  z.object({ kind: z.literal("rename"), source: operationLocation, target: operationLocation }),
+  z.object({ kind: z.literal("transfer"), sources: z.array(operationLocation).min(1).max(5000), destination: operationLocation, move: z.boolean(), collision: z.enum(["error", "keep-both", "skip"]) }),
+  z.object({ kind: z.literal("duplicate"), sources: z.array(operationLocation).min(1).max(5000) }),
+  z.object({ kind: z.literal("trash"), sources: z.array(operationLocation).min(1).max(5000) }),
+  z.object({ kind: z.enum(["undo", "redo", "status"]) }),
+]);

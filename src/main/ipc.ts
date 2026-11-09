@@ -1,5 +1,7 @@
-import { app, dialog, ipcMain, shell, type WebContents } from "electron";
-import { basename } from "node:path";
+import { app, dialog, ipcMain, shell, Menu, type WebContents } from "electron";
+import { promises as fs } from "node:fs";
+import { FileOperations } from "./file-operations";
+import { basename, join } from "node:path";
 import { IPC } from "../shared/ipc";
 import {
   agentPromptSchema,
@@ -11,6 +13,7 @@ import {
   commitSchema,
   baseBranchesSchema,
   createWorktreeSchema,
+  fileOperationSchema,
   fileAtSchema,
   fileCreateSchema,
   fileExistsSchema,
@@ -91,6 +94,33 @@ function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, 
 }
 
 export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices, attachments: PromptAttachments): void {
+  listen(IPC.appTextMenu, () => Menu.buildFromTemplate([{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { type: "separator" }, { role: "selectAll" }]).popup());
+  const histories = new Map<WebContents, FileOperations>();
+  const cache = join(app.getPath("userData"), "file-history");
+  const ready = fs.rm(cache, { recursive: true, force: true });
+  handle(IPC.filesOperate, async (event, input) => {
+    await ready;
+    let history = histories.get(event.sender);
+    if (!history) {
+      history = new FileOperations(workspace.roots, workspace.files, join(cache, String(event.sender.id)), 50, 256 * 1024 * 1024, (progress) => { if (!event.sender.isDestroyed()) event.sender.send(IPC.filesProgress, progress); });
+      histories.set(event.sender, history);
+      const owned = history;
+      event.sender.once("destroyed", () => { histories.delete(event.sender); void owned.dispose(); });
+    }
+    const result = await history.run(fileOperationSchema.parse(input));
+    for (const root of new Set(result.effects.flatMap((e) => [e.source?.root, e.target?.root]).filter((r): r is string => Boolean(r)))) {
+      if (!event.sender.isDestroyed()) event.sender.send(IPC.filesChanged, { root, paths: [""] });
+    }
+    return result;
+  });
+  handle(IPC.filesLocate, (_event, input) => {
+    const { root, path } = fileLocationSchema.parse(input); return workspace.files.absolutePath(root, path);
+  });
+  handle(IPC.filesOpenExternal, async (_event, input) => {
+    const { root, path } = fileLocationSchema.parse(input);
+    const error = await shell.openPath(await workspace.files.locate(root, path));
+    if (error) throw new Error(error);
+  });
   const watches = new FileWatchOwners(workspace.files);
   const allowedRoot = async (root: string) => { await workspace.roots.resolve(root); return root; };
   handle(IPC.persistenceLoad, async () => {
@@ -153,8 +183,11 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     return workspace.files.write(root, path, content, expectedHash);
   });
   handle(IPC.filesSearch, async (_event, input: unknown) => {
-    const { root, query, caseSensitive, regex } = fileSearchSchema.parse(input);
-    return workspace.sourceControl.search(await allowedRoot(root), query, { caseSensitive, regex });
+    const { root, query, ...options } = fileSearchSchema.parse(input);
+    await allowedRoot(root);
+    if (options.directory) await workspace.files.locate(root, options.directory);
+    const provider = await workspace.sourceControl.providerFor(root);
+    return provider?.search ? provider.search(root, query, options) : workspace.files.search(root, query, options);
   });
   handle(IPC.filesImage, (_event, input: unknown) => {
     const { root, path } = fileLocationSchema.parse(input);
@@ -213,9 +246,12 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   });
   handle(IPC.sourceControlIgnored, async (_event, input: unknown) =>
     workspace.sourceControl.ignored(await allowedRoot(workspaceRootSchema.parse(input).root)));
-  handle(IPC.ptyCreate, (event, input: unknown) =>
-    ptyManager.create(ptyCreateOptionsSchema.parse(input), event.sender),
-  );
+  handle(IPC.ptyCreate, async (event, input: unknown) => {
+    const options = ptyCreateOptionsSchema.parse(input);
+    options.cwd = await workspace.roots.directory(options.cwd);
+    if (!(await fs.stat(options.cwd)).isDirectory()) throw new Error("Terminal working directory must be a folder.");
+    return ptyManager.create(options, event.sender);
+  });
   listen(IPC.ptyInput, (event, input: unknown) => {
     const parsed = ptyInputSchema.parse(input);
     ptyManager.input(parsed.sessionId, parsed.data, event.sender);

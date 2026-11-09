@@ -29,12 +29,13 @@ export function contentHash(bytes: Buffer): string {
 /** True for a changed path (relative, portable) that the file and source-control views care about. */
 export function isWatchedChange(changed: string): boolean {
   if (!changed) return true;
+  if (changed.split("/").some((part) => part.startsWith(".workbench-transfer-"))) return false;
   if (changed === ".DS_Store" || changed.endsWith("/.DS_Store")) return false;
   if (changed === ".git" || changed.startsWith(".git/")) return GIT_SIGNALS.test(changed);
   return !changed.split("/").some((segment) => QUIET_FOLDERS.has(segment));
 }
 
-function isInside(target: string, base: string): boolean {
+export function isInside(target: string, base: string): boolean {
   const relative = path.relative(base, target);
   return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
@@ -68,25 +69,37 @@ export class WorkspaceRoots {
     return [...this.roots].some((allowed) => requested === allowed || isInside(requested, worktreeContainer(allowed)));
   }
 
+  async directory(requested: string): Promise<string> {
+    const absolute = await fs.realpath(path.resolve(requested));
+    for (const root of this.roots) {
+      const base = await fs.realpath(root).catch(() => undefined);
+      if (!base) continue;
+      if (absolute === base || isInside(absolute, base)) return absolute;
+      const container = await fs.realpath(worktreeContainer(root)).catch(() => undefined);
+      if (container && isInside(absolute, container)) return absolute;
+    }
+    throw new Error("Terminal folder is outside a workspace.");
+  }
+
   async resolve(root: string): Promise<string> {
     if (!this.isAllowed(root)) throw new Error("That folder is not part of a workspace.");
     return fs.realpath(path.resolve(root));
   }
 }
 
-async function resolveInside(base: string, relative: string): Promise<string> {
+export async function resolveInside(base: string, relative: string): Promise<string> {
   if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
   const target = await fs.realpath(path.resolve(base, relative || "."));
   if (target !== base && !isInside(target, base)) throw new Error("Path is outside the workspace.");
   return target;
 }
 
-function isGitPath(base: string, absolute: string): boolean {
+export function isGitPath(base: string, absolute: string): boolean {
   return toPortable(path.relative(base, absolute)).split("/")[0] === ".git";
 }
 
 /** A path that may not exist yet (a new file, a rename target): its folder must exist inside the base. */
-async function resolveNew(base: string, relative: string): Promise<string> {
+export async function resolveNew(base: string, relative: string): Promise<string> {
   if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
   const target = path.resolve(base, relative);
   const name = path.basename(target);
@@ -99,7 +112,7 @@ async function resolveNew(base: string, relative: string): Promise<string> {
 }
 
 /** An existing entry itself (a symlink stays the link, not its target): its folder must be inside the base. */
-async function resolveEntry(base: string, relative: string): Promise<string> {
+export async function resolveEntry(base: string, relative: string): Promise<string> {
   if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
   const target = path.resolve(base, relative || ".");
   if (target === base) return base;
@@ -132,7 +145,7 @@ export class WorkspaceFiles {
   async list(root: string, relative: string): Promise<FileEntry[]> {
     const base = await this.roots.resolve(root);
     const directory = await resolveInside(base, relative);
-    const entries = (await fs.readdir(directory, { withFileTypes: true })).filter((entry) => !HIDDEN.has(entry.name)).slice(0, LIST_LIMIT);
+    const entries = (await fs.readdir(directory, { withFileTypes: true })).filter((entry) => !HIDDEN.has(entry.name) && !entry.name.startsWith(".workbench-transfer-")).slice(0, LIST_LIMIT);
     const listed = await Promise.all(entries.map(async (entry): Promise<FileEntry | undefined> => {
       const absolute = path.join(directory, entry.name);
       try {
@@ -257,9 +270,50 @@ export class WorkspaceFiles {
     this.indexes.delete(base);
   }
 
+  /** A validated display path, including a deleted entry whose ancestor still exists. */
+  async absolutePath(root: string, relative: string): Promise<string> {
+    const base = await this.roots.resolve(root);
+    if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
+    const target = path.resolve(base, relative);
+    if (target !== base && !isInside(target, base)) throw new Error("Path is outside the workspace.");
+    let ancestor = target;
+    while (true) {
+      try { await resolveInside(base, path.relative(base, ancestor)); break; }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        ancestor = path.dirname(ancestor);
+      }
+    }
+    return target;
+  }
+
   /** The absolute path of something inside the root (to reveal it in the system file manager). */
   async locate(root: string, relative: string): Promise<string> {
     return resolveInside(await this.roots.resolve(root), relative);
+  }
+
+  invalidate(): void { this.indexes.clear(); }
+
+  async search(root: string, query: string, options: import("../shared/models").SearchOptions): Promise<import("../shared/models").SearchResult> {
+    const base = await this.roots.resolve(root);
+    const directory = options.directory ?? "";
+    await resolveInside(base, directory);
+    const expression = options.regex ? new RegExp(query, options.caseSensitive ? "" : "i") : undefined;
+    const needle = options.caseSensitive ? query : query.toLowerCase();
+    const matches: import("../shared/models").SearchMatch[] = [];
+    const start = Date.now();
+    for (const file of await this.index(base)) {
+      if (directory && !file.startsWith(`${directory}/`)) continue;
+      if (Date.now() - start > 2000 || matches.length >= 500) return { matches, limited: true };
+      const content = await this.read(root, file).catch(() => undefined);
+      if (!content || content.binary || content.truncated) continue;
+      const lines = content.content.split(/\r?\n/);
+      for (let i = 0; i < lines.length; i++) {
+        if (expression ? expression.test(lines[i]) : (options.caseSensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) matches.push({ path: file, line: i + 1, text: lines[i] });
+        if (matches.length >= 500) return { matches, limited: true };
+      }
+    }
+    return { matches, limited: false };
   }
 
   async find(root: string, query: string, limit = 200): Promise<string[]> {
@@ -314,7 +368,7 @@ export class WorkspaceFiles {
       let entries;
       try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { continue; }
       for (const entry of entries) {
-        if (SKIP_WHEN_SEARCHING.has(entry.name) || entry.name === ".DS_Store") continue;
+        if (entry.name.startsWith(".workbench-transfer-") || SKIP_WHEN_SEARCHING.has(entry.name) || entry.name === ".DS_Store") continue;
         const absolute = path.join(directory, entry.name);
         if (entry.isDirectory()) queue.push(absolute);
         else if (entry.isFile()) files.push(toPortable(path.relative(base, absolute)));

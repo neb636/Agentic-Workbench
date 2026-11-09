@@ -1,0 +1,184 @@
+import { execFileSync } from "node:child_process";
+import { _electron as electron } from "playwright";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import assert from "node:assert/strict";
+import { qaEnvironment, assertQaWindowVisibility } from "./qa-environment.mjs";
+const directory = await mkdtemp(join(tmpdir(), "wb-menus-"));
+const root = join(directory, "workspace"), other = join(directory, "other");
+await mkdir(join(root, "src"), { recursive: true }); await mkdir(other);
+execFileSync("git", ["init", "--quiet", other]);
+await writeFile(join(other, "gone.txt"), "old content");
+execFileSync("git", ["-C", other, "add", "."]);
+execFileSync("git", ["-C", other, "-c", "user.name=QA", "-c", "user.email=qa@example.com", "commit", "--quiet", "-m", "fixture"]);
+await rm(join(other, "gone.txt"));
+await writeFile(join(root, "alpha.txt"), "hello alpha\n");
+await writeFile(join(root, "beta.txt"), "hello beta\n");
+await writeFile(join(root, "src/inside.txt"), "header\nhello scoped\n");
+const file = (id, path) => ({ id, workspaceId: "qa", type: "file", title: path, state: { root, path } });
+await writeFile(join(directory, "workbench-state.json"), JSON.stringify({ workspaces: [{ id: "qa", name: "Menus QA", path: root, activeViewId: "alpha", views: [file("alpha", "alpha.txt"), file("beta", "beta.txt"), { id: "agent", workspaceId: "qa", type: "agent", title: "Idle agent", state: {} }] }, { id: "other", name: "Other", path: other, views: [] }], activeWorkspaceId: "qa", layout: { rightPanel: "files", rightCollapsed: false, leftCollapsed: false }, personas: [], instructionOptions: [] }));
+const app = await electron.launch({ args: ["."], env: qaEnvironment({ WORKBENCH_USER_DATA_DIR: directory, WORKBENCH_CODEX_PATH: join(directory, "missing-cli"), WORKBENCH_CLAUDE_PATH: join(directory, "missing-cli") }) });
+let page;
+try {
+  page = await app.firstWindow(); await assertQaWindowVisibility(app);
+  const errors = []; page.on("pageerror", (e) => errors.push(String(e)));
+  await page.locator('.file-tree-row[data-path="alpha.txt"]').waitFor();
+  const row = (path) => page.locator(`.file-tree-row[data-path="${path}"]`);
+  const action = (name) => page.getByRole("menuitem", { name, exact: true });
+  await row("beta.txt").click({ button: "right" });
+  await action("Duplicate").waitFor();
+  assert.equal(await page.getByRole("tab", { selected: true }).getAttribute("aria-label"), "alpha.txt");
+  await page.screenshot({ path: join(directory, "file-menu.png") });
+  await action("Duplicate").click();
+  await row("beta copy.txt").waitFor();
+  assert.equal(await readFile(join(root, "beta copy.txt"), "utf8"), "hello beta\n");
+  await row("beta.txt").click({ button: "right" });
+  await page.getByRole("menuitem", { name: /^Undo Duplicate/ }).click();
+  await row("beta copy.txt").waitFor({ state: "detached" });
+  await row("beta.txt").click({ button: "right" });
+  await page.getByRole("menuitem", { name: /^Redo Duplicate/ }).click();
+  await row("beta copy.txt").waitFor();
+  // Overflow and pointer menus share actions; single-click previews survive multi-selection support.
+  await row("beta.txt").getByRole("button", { name: "beta.txt actions" }).click();
+  await action("Duplicate").waitFor(); await page.keyboard.press("Escape");
+  await row("beta.txt").click();
+  assert.equal(await page.getByRole("tab", { selected: true }).getAttribute("aria-label"), "beta.txt");
+  // Keyboard menu and focus restoration.
+  await row("alpha.txt").click();
+  await row("alpha.txt").locator("xpath=ancestor::*[@role='row'][1]").focus();
+  await page.keyboard.press("Shift+F10");
+  await action("Rename…").waitFor();
+  await page.keyboard.press("Escape");
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "row");
+  // Modifier selection does not activate beta, and bulk context targets both files.
+  await row("beta.txt").click({ modifiers: ["Meta"] });
+  assert.equal(await page.getByRole("tab", { selected: true }).getAttribute("aria-label"), "alpha.txt");
+  await row("beta.txt").click({ button: "right" });
+  await action("Move 2 Items to Trash…").waitFor();
+  await action("Copy").click();
+  await row("src").click({ button: "right" }); await action("Paste").click();
+  await row("src").dblclick();
+  await row("src/alpha.txt").waitFor(); await row("src/beta.txt").waitFor();
+  // Scoped plain-folder search.
+  await row("src").click({ button: "right" }); await action("Find in Folder…").click();
+  await page.getByRole("searchbox", { name: "Search inside files" }).fill("hello");
+  await page.getByText("3 matches in 3 files", { exact: true }).waitFor();
+  assert.equal(await page.locator(".search-file").count(), 3);
+  await page.getByRole("grid", { name: "Matches in src/inside.txt" }).getByRole("row").click({ button: "right" });
+  await action("Open").click();
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Ln 2, Col 1"));
+  await page.getByRole("tab", { name: "alpha.txt", exact: true }).click();
+  await page.getByRole("searchbox").fill("");
+  // Rename an open clean view, preserving tab identity and path.
+  await row("alpha.txt").click({ button: "right" }); await action("Rename…").click();
+  const name = page.getByRole("textbox", { name: "Rename alpha.txt" });
+  await name.fill("renamed.txt"); await name.press("Enter");
+  await page.getByRole("tab", { name: "renamed.txt", exact: true }).waitFor();
+  // Editor selection survives context menu; Undo is editor-local.
+  await page.locator(".cm-content").click(); await page.keyboard.press("Meta+End"); await page.keyboard.type("edited");
+  await page.locator(".cm-content").click({ button: "right" }); await action("Undo").click();
+  await page.waitForFunction(() => !document.querySelector(".cm-content")?.textContent.includes("edited"));
+  await page.waitForFunction(() => document.activeElement?.classList.contains("cm-content"));
+  // Dirty mutation cancellation.
+  await page.locator(".cm-content").click(); await page.keyboard.type("unsaved");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await row("renamed.txt").click({ button: "right" }); await action("Duplicate").click();
+  await page.getByText("Canceled", { exact: true }).waitFor();
+  assert.equal(await row("renamed copy.txt").count(), 0);
+  // Confirmed dirty saves are completed before duplication.
+  page.once("dialog", (dialog) => dialog.accept());
+  await row("renamed.txt").click({ button: "right" }); await action("Duplicate").click();
+  await row("renamed copy.txt").waitFor();
+  assert.match(await readFile(join(root, "renamed copy.txt"), "utf8"), /unsaved/);
+  // Tab and workspace menus must not activate the target.
+  await page.getByRole("tab", { name: "beta.txt", exact: true }).click({ button: "right" });
+  await action("Close to the Right").waitFor(); await page.keyboard.press("Escape");
+  assert.equal(await page.getByRole("tab", { selected: true }).getAttribute("aria-label"), "renamed.txt");
+  await page.locator(".workspace-row").filter({ hasText: "Other" }).click({ button: "right" });
+  await action("Copy Path").waitFor(); await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "renamed.txt", exact: true }).focus(); await page.keyboard.press("Shift+F10");
+  await action("Close Others").waitFor(); await page.keyboard.press("Escape");
+  await page.getByRole("radio", { name: "Active views", exact: true }).click();
+  await page.locator(".views-panel").getByRole("row", { name: /beta.txt/ }).click({ button: "right" });
+  await action("Close to the Right").waitFor(); await page.keyboard.press("Escape");
+  await page.getByRole("radio", { name: "Files", exact: true }).click();
+  // Folder terminal cwd uses provider creation, no typed cd command.
+  await row("src").click({ button: "right" }); await action("Open in Terminal").click();
+  await page.locator(".terminal-host .xterm-helper-textarea").waitFor();
+  await page.locator(".terminal-host").click({ button: "right" });
+  await action("Paste").waitFor(); await action("Clear Display").waitFor(); await page.keyboard.press("Escape");
+  await page.waitForTimeout(300);
+  const saved = JSON.parse(await readFile(join(directory, "workbench-state.json"), "utf8"));
+  assert.equal(saved.workspaces[0].views.find((v) => v.type === "terminal").state.cwd, await realpath(join(root, "src")));
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(960, 640));
+  await page.locator(".terminal-host").click({ button: "right", position: { x: 20, y: 20 } });
+  await action("Paste").waitFor();
+  const bounds = await page.getByRole("menu").boundingBox(); assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 960 && bounds.y + bounds.height <= 640);
+  await page.screenshot({ path: join(directory, "terminal-menu-small.png") });
+  await page.keyboard.press("Escape");
+  // Cross-workspace clipboard and existing-name collision choices.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1440, 920));
+  await row("beta.txt").click({ button: "right" }); await action("Cut").click();
+  await page.locator(".workspace-row").filter({ hasText: "Other" }).click();
+  await page.locator(".files-panel h2").filter({ hasText: "Other" }).waitFor();
+  await page.locator(".file-tree-scroll").click({ button: "right", position: { x: 20, y: 60 } }); await action("Paste").click();
+  await row("beta.txt").waitFor();
+  assert.equal(await readFile(join(other, "beta.txt"), "utf8"), "hello beta\n");
+  await assert.rejects(readFile(join(root, "beta.txt")));
+  await row("beta.txt").click({ button: "right" }); await action("Copy").click();
+  await row("beta.txt").click({ button: "right" }); await action("Paste").click();
+  await page.getByRole("button", { name: "Keep Both", exact: true }).click();
+  await row("beta copy.txt").waitFor();
+  // Deleted source-control rows keep copy-path actions without enabling file opens.
+  await page.getByRole("radio", { name: "Source control", exact: true }).click();
+  await page.locator(".change-list").getByRole("row", { name: /gone.txt/ }).click({ button: "right" });
+  assert.equal(await action("Open Changes").getAttribute("aria-disabled"), "true");
+  assert.notEqual(await action("Copy Path").getAttribute("aria-disabled"), "true");
+  await page.keyboard.press("Escape");
+  await writeFile(join(other, "readonly.txt"), "readonly\n".repeat(240_000));
+  await page.getByRole("radio", { name: "Files", exact: true }).click();
+  await row("readonly.txt").click();
+  await page.getByText("Read-only (over 2 MB)", { exact: true }).waitFor();
+  await page.locator(".cm-content").click({ button: "right" });
+  assert.equal(await action("Paste").getAttribute("aria-disabled"), "true");
+  assert.equal(await action("Save").getAttribute("aria-disabled"), "true");
+  await page.keyboard.press("Escape");
+  // Saved text must survive retargeting the same view ID, including later saves and folder moves.
+  await row("beta.txt").click();
+  const savedBeforeRename = "saved before rename\n";
+  await page.locator(".cm-content").click(); await page.keyboard.press("Meta+a"); await page.keyboard.type(savedBeforeRename);
+  await page.keyboard.press("Meta+s");
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Saved"));
+  assert.equal(await readFile(join(other, "beta.txt"), "utf8"), savedBeforeRename);
+  await row("beta.txt").click({ button: "right" }); await action("Rename…").click();
+  await page.getByRole("textbox", { name: "Rename beta.txt", exact: true }).fill("reviewed.txt");
+  await page.getByRole("textbox", { name: "Rename beta.txt", exact: true }).press("Enter");
+  await page.getByRole("tab", { name: "reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((size) => document.querySelector(".code-footer")?.textContent.includes(`${size} B`), savedBeforeRename.length);
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedBeforeRename.trim());
+  assert.equal(await page.locator(".view-tab.is-dirty, .view-tab .dirty-dot").count(), 0);
+  await page.locator(".cm-content").click(); await page.keyboard.press("Meta+End"); await page.keyboard.type("after rename");
+  await page.keyboard.press("Meta+s");
+  await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("Saved"));
+  const savedAfterRename = savedBeforeRename + "after rename";
+  assert.equal(await readFile(join(other, "reviewed.txt"), "utf8"), savedAfterRename);
+  await mkdir(join(other, "moved"));
+  await row("reviewed.txt").click({ button: "right" }); await action("Cut").click();
+  await row("moved").click({ button: "right" }); await action("Paste").click();
+  await page.getByRole("region", { name: "File moved/reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((text) => document.querySelector(".cm-content")?.textContent.includes(text), "after rename");
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedAfterRename.trim());
+  await row("moved").click({ button: "right" }); await action("Rename…").click();
+  await page.getByRole("textbox", { name: "Rename moved", exact: true }).fill("relocated");
+  await page.getByRole("textbox", { name: "Rename moved", exact: true }).press("Enter");
+  await page.getByRole("region", { name: "File relocated/reviewed.txt", exact: true }).waitFor();
+  await page.waitForFunction((text) => document.querySelector(".cm-content")?.textContent.includes(text), "after rename");
+  assert.equal((await page.locator(".cm-content").innerText()).trim(), savedAfterRename.trim());
+  assert.equal(await readFile(join(other, "relocated/reviewed.txt"), "utf8"), savedAfterRename);
+  assert.deepEqual(errors, []);
+  console.log(`Context menu QA passed. Artifacts: ${directory}`);
+} catch (error) {
+  if (page) { await page.screenshot({ path: join(directory, "failure.png") }); console.log(await page.locator("body").innerText()); }
+  console.error(`Artifacts: ${directory}`); throw error;
+} finally { await app.close(); }

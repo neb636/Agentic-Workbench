@@ -246,3 +246,17 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .persona-list-item small, .empty-copy { color: var(--wb-text-secondary); font-size: 11px; }
 .settings-tabs .segmented { margin-bottom: 16px; }
 .agent-error { color: var(--wb-status-error); line-height: 17px; }
+
+.context-menu-anchor { position: fixed; width: 1px; height: 1px; pointer-events: none; }
+.context-menu-separator { height: 1px; background: var(--wb-border); margin: 5px 0; }
+.wb-popover [role="menuitem"][data-disabled] { opacity: .45; }
+.context-menu-error { position: fixed; bottom: 32px; right: 20px; z-index: 1000; padding: 12px; background: var(--wb-bg-raised); color: var(--wb-text-primary); border: 1px solid var(--wb-border); }
+.file-tree-item[data-selected] > [role="gridcell"] > .file-tree-row { background: var(--wb-bg-selected); }
+.file-tree-item.is-cut { opacity: .5; }
+
+
+.wb-context-popover { max-height: min(var(--available-height, 90dvh), calc(100dvh - 16px)); }
+
+[data-context-target] { outline: 1px solid var(--wb-accent); outline-offset: -1px; }
+
+.context-menu-shortcut { margin-inline-start: auto; padding-inline-start: 20px; color: var(--wb-text-secondary); font: inherit; font-size: 11px; }

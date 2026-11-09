@@ -23,7 +23,7 @@ export interface ViewDefinition {
   listInSidebar?: boolean;
   /** The tab's title is in italics (a preview tab, replaced by the next one). */
   isPreview?: (view: WorkbenchView) => boolean;
-  /** Extra items for the tab's context menu, after Close and Close others. */
+  /** Extra view actions shared by tabs, sidebar rows, and Active views, after the close group. */
   tabMenu?: (view: WorkbenchView) => { id: string; label: string; run: () => void }[];
   /** The person clicked this view's tab or list row, or the app reopened on it; showing it some other way doesn't count. */
   onActivate?: (view: WorkbenchView) => void;
