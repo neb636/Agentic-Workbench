@@ -82,6 +82,8 @@ try {
   const prompt = () => page.getByRole("textbox", { name: "Prompt", exact: true });
   const waitFeedback = (value) => page.waitForFunction((text) => document.querySelector(".composer-feedback")?.textContent.includes(text), value)
     .catch(async (error) => { throw new Error(`Waiting for "${value}", the composer says "${await page.locator(".composer-feedback").first().textContent().catch(() => "?")}": ${error.message}`); });
+  // A delivered prompt says nothing in the composer (the CLI's output shows it); the draft clearing is the signal.
+  const waitSent = () => page.waitForFunction(() => document.querySelector('textarea[aria-label="Prompt"]')?.value === "");
   const sidebar = page.getByRole("treegrid", { name: "Workspaces" });
 
   // Shell: three panes, nested sessions, and the launcher for a session that has not started.
@@ -126,6 +128,11 @@ try {
   await shot("instructions-menu");
   await page.keyboard.press("Escape");
 
+  // No model is preselected, and Send stays disabled until one is chosen.
+  await prompt().fill("Explain this failure.");
+  assert.equal(await page.getByRole("button", { name: "Send prompt", exact: true }).isDisabled(), true);
+  assert.match(await page.getByRole("button", { name: /Model/ }).innerText(), /Select model/);
+  assert.equal(await page.getByRole("button", { name: /Effort/ }).count(), 0);
   // Model and effort are launch arguments of the new conversation.
   await page.getByRole("button", { name: /Model/ }).click();
   await page.getByRole("option", { name: "gpt-6-astra", exact: true }).click();
@@ -135,7 +142,7 @@ try {
   // First send creates the worktree, starts the CLI, waits for its input, and delivers the composed prompt.
   await prompt().fill("Explain this failure.");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
-  await waitFeedback("Prompt handed");
+  await waitSent();
   const [first] = await prompts();
   assert.equal(first.prompt, ["Be concise.", "Explain this failure.", OPEN_PR, WRITE_TESTS, "Focus the new tests on error handling.", "Explain the tradeoffs."].join("\n\n"));
   assert.equal(first.cwd, join(directory, "repo-worktrees", "wb-qa-task"));
@@ -184,7 +191,7 @@ try {
   await page.getByRole("button", { name: "Restart with gpt-6-luna high" }).click();
   await prompt().fill("After the restart");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
-  await waitFeedback("Prompt handed");
+  await waitSent();
   const restarted = (await prompts()).at(-1);
   assert.match(restarted.prompt, /After the restart/);
   assert.equal(restarted.model, "gpt-6-luna");
@@ -262,13 +269,18 @@ try {
     await page.locator(".mode-select button").click();
     await page.getByRole("option", { name: /^Plan/ }).click();
   };
+  const chooseModel = async () => {
+    await page.getByRole("button", { name: /Model/ }).click();
+    await page.getByRole("option", { name: "gpt-6-luna", exact: true }).click();
+  };
   await page.getByRole("tab", { name: "Plan first" }).click();
   await page.getByRole("heading", { name: "Start a new session" }).waitFor();
   await choosePlan();
+  await chooseModel();
   await prompt().fill("Plan the first step");
   await shot("plan-before-start");
   await page.getByRole("button", { name: "Send for planning", exact: true }).click();
-  await waitFeedback("Planning request handed");
+  await waitSent();
   const planned = (await prompts()).at(-1);
   assert.match(planned.prompt, /Plan the first step/);
   assert.equal(planned.plan, true);
@@ -277,7 +289,7 @@ try {
   // The composer returns to Code after a send, and sending with Code leaves Plan mode.
   await prompt().fill("Now build it");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector(".composer-feedback")?.textContent.includes("Prompt handed"));
+  await waitSent();
   assert.equal((await prompts()).at(-1).plan, false);
 
   // A first Plan prompt waits out startup work instead of being refused.
@@ -285,13 +297,14 @@ try {
   await page.getByRole("button", { name: "Start session", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
   await choosePlan();
+  await chooseModel();
   await prompt().fill("Plan after startup work");
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Control+b");
   await page.waitForFunction(() => /working/i.test(document.querySelector(".session-pill")?.textContent ?? ""));
   await page.getByRole("button", { name: "Send for planning", exact: true }).click();
   await waitFeedback("Waiting for the CLI to be ready");
-  await waitFeedback("Planning request handed");
+  await waitSent();
   assert.equal((await prompts()).at(-1).plan, true);
   await page.getByRole("tab", { name: "Explain this failure." }).click();
 
@@ -431,7 +444,7 @@ try {
   await arrowToSaved();
   await prompt().fill("Sent while waiting to resume");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
-  await waitFeedback("Prompt handed");
+  await waitSent();
   assertResumed(await settledLaunches(launchesBefore + 1));
   assert.match((await prompts()).at(-1).prompt, /Sent while waiting to resume/);
   assert.equal(await page.locator(".attachment-tile").count(), 0);

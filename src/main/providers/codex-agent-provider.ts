@@ -9,7 +9,7 @@ export class CodexAgentProvider implements AgentProviderAdapter {
   readonly label = "Codex";
   readonly executable = process.env.WORKBENCH_CODEX_PATH ?? "codex";
   readonly interrupt = "\u001b";
-  // Model names change with Codex releases; "CLI default" in the composer always works.
+  // Model names change with Codex releases; update this list when they do. The composer has no default: a model is chosen per conversation.
   readonly models: AgentModelChoice[] = ["gpt-6.1-sol", "gpt-6-astra", "gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna"].map((id) => ({
     id, label: id, efforts: id === "gpt-6-luna" ? EFFORTS.slice(0, -1) : EFFORTS,
   }));

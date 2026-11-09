@@ -78,7 +78,9 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const unused = Boolean(agent && isUnusedConversation(agent));
   // A CLI that's still starting takes the prompt too: it's held until the CLI is ready.
   const starting = Boolean(session && !status?.canSubmit && status?.lifecycle !== "exited" && status?.lifecycle !== "failed");
-  const canSend = !runtime.attaching && hasDraft && !busy && (!wantsPlan || planning)
+  // No model is preselected: a new conversation waits for one. A resumed conversation keeps the model it was started with.
+  const needsModel = choices.length > 0 && !settings && !(agent && agent.settings === undefined);
+  const canSend = !runtime.attaching && hasDraft && !busy && !needsModel && (!wantsPlan || planning)
     && (session ? starting || Boolean(status?.canSubmit) : canLaunch);
   const historyEntry = runtime.history.find((entry) => entry.id === historyId) ?? runtime.history[0];
   const assembly = () => services.commands.execute<PromptPreview>("agent.composer.preview", target);
@@ -120,11 +122,12 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
     : runtime.sending ? (wantsPlan ? "Switching to Plan mode if needed, then delivering…" : "Delivering prompt…")
       : runtime.result?.outcome === "uncertain" ? `Delivery uncertain. ${runtime.result.message}`
         : runtime.result?.outcome === "not-sent" ? `Not sent. ${runtime.result.message}`
+          : needsModel && hasDraft ? "Choose a model to send."
           : !session ? ""
             : pending !== undefined ? (unused ? `Sending restarts the CLI with ${restartLabel}.` : `This conversation runs ${modelLabel(providerId, agent?.settings ?? null)}. Restart to use ${restartLabel}.`)
               : starting ? "The CLI is starting: send now and it goes as soon as it’s ready." : !status?.canSubmit ? status?.reason
                 : wantsPlan && status.activity !== "ready" ? "Plan mode switches once the CLI is ready."
-                  : runtime.result?.message || status?.reason);
+                  : (runtime.result?.outcome === "submitted" ? "" : runtime.result?.message) || status?.reason);
   const needsHandoff = session && (!status?.canSubmit || runtime.result?.outcome === "uncertain" || runtime.result?.outcome === "not-sent");
 
   return <div className="composer-dock">
@@ -216,14 +219,13 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
             return <Widget key={widget.id} workspaceId={workspaceId} viewId={viewId} />;
           })}
           {choices.length > 0 && <>
-            <Select aria-label="Model" selectedKey={settings?.model ?? "default"} isDisabled={busy}
+            <Select aria-label="Model" placeholder="Select model" selectedKey={settings?.model ?? null} isDisabled={busy}
               onSelectionChange={(key) => {
                 const model = choices.find((choice) => choice.id === key);
-                setSettings(model ? { model: model.id, effort: model.efforts.includes(settings?.effort ?? "medium") ? settings?.effort ?? "medium" : model.efforts[0] } : undefined);
+                if (model) setSettings({ model: model.id, effort: model.efforts.includes(settings?.effort ?? "medium") ? settings?.effort ?? "medium" : model.efforts[0] });
               }}>
               <AriaButton className="composer-chip"><SelectValue /><ChevronDownIcon size={12} /></AriaButton>
               <Popover className="wb-popover" placement="top end"><ListBox>
-                <ListBoxItem id="default" textValue="CLI default"><div><span>CLI default</span><small>Whatever the CLI is configured to use</small></div></ListBoxItem>
                 {choices.map((model) => <ListBoxItem key={model.id} id={model.id}>{model.label}</ListBoxItem>)}
               </ListBox></Popover>
             </Select>
