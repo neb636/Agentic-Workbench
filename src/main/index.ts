@@ -60,6 +60,7 @@ function addMenuItems(): void {
 }
 
 function createWindow(): BrowserWindow {
+  const qaHidden = process.env.WORKBENCH_QA_HIDDEN === "1";
   const window = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -68,11 +69,13 @@ function createWindow(): BrowserWindow {
     backgroundColor: "#f8f7f7",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 22, y: 22 },
+    show: !qaHidden,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      backgroundThrottling: !qaHidden,
     },
   });
 
@@ -98,6 +101,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
+  if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments);
   addMenuItems();
   createWindow();
