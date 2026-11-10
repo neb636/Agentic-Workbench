@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import type { WorkbenchView, Workspace } from "../../shared/models";
 import { Registry } from "./registry";
 import type { ViewStatus } from "./view-status";
+import type { DestructiveConfirmation } from "../ui/confirm";
 
 export interface ViewComponentProps {
   view: WorkbenchView;
@@ -30,6 +31,8 @@ export interface ViewDefinition {
   onActivate?: (view: WorkbenchView) => void;
   /** Status shown when no live status has been published for the view. */
   idleStatus?: (view: WorkbenchView) => ViewStatus | undefined;
+  /** Closing this view loses something worth asking about (a running agent, a conversation); undefined closes it without asking. */
+  confirmClose?: (view: WorkbenchView) => DestructiveConfirmation | undefined;
 }
 
 export class ViewRegistry extends Registry<ViewDefinition> {}

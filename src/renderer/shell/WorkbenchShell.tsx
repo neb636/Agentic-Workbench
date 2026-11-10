@@ -3,6 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from
 import { services } from "../core/services";
 import { openPanel } from "../features/explorer/explorer-store";
 import { QuickOpen } from "../features/files/QuickOpen";
+import { ConfirmDialogHost } from "../ui/ConfirmDialog";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { AgentIcon, FolderIcon, PlusIcon, TerminalIcon } from "../ui/icons";
 import { Button } from "../ui/controls";
@@ -101,5 +102,6 @@ export function WorkbenchShell() {
     </PanelGroup>
     <StatusBar />
     <QuickOpen />
+    <ConfirmDialogHost />
   </div>;
 }

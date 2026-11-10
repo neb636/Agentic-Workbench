@@ -39,6 +39,16 @@
   --wb-status-error: #fe5938;
   --wb-status-idle: #a8a8a8;
 
+  /* Destructive actions */
+  --wb-danger: #ef4b2b;
+  --wb-danger-hover: #dc3d1e;
+  --wb-danger-text: #ffffff;
+  --wb-danger-ring: #ef4b2b52;
+  --wb-danger-soft: #fff4f1;
+  --wb-danger-soft-edge: #f9d6cd;
+  --wb-danger-strong-text: #3a1a12;
+  --wb-shadow-danger: inset 0 1px 0 #ffffff33, 0 1px 2px #b4321a40, 0 0 0 1px #d8401f;
+
   /* Harness marks: each vendor's own colors, the same on every surface */
   --wb-mark-claude: #d97757;
   --wb-mark-claude-eyes: #2b1a14;

@@ -147,6 +147,85 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
 
+/* Destructive confirmation: what goes, what is lost, then Cancel or the red action */
+.wb-modal.confirm-modal { width: min(500px, 92vw); border-radius: var(--wb-radius-3xl); }
+.confirm-overlay[data-entering] { animation: wb-fade-in 140ms ease-out; }
+.confirm-overlay[data-exiting] { animation: wb-fade-in 100ms ease-in reverse; }
+.confirm-modal[data-entering] { animation: wb-pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes wb-fade-in { from { opacity: 0; } }
+@keyframes wb-pop-in { from { opacity: 0; transform: translateY(6px) scale(0.97); } }
+.confirm-dialog { display: grid; gap: 16px; padding: 22px; }
+.confirm-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.confirm-header [slot="title"] { margin-bottom: 4px; font-size: 16px; }
+.confirm-header p { margin: 0; }
+.confirm-close { margin: -4px -6px 0 0; color: var(--wb-text-muted); }
+.confirm-warning {
+  position: relative;
+  padding: 14px 16px 14px 28px;
+  border: 1px solid var(--wb-danger-soft-edge);
+  border-radius: var(--wb-radius-lg);
+  background: var(--wb-danger-soft);
+}
+.confirm-warning::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 14px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--wb-danger);
+}
+.wb-dialog .confirm-warning p { margin: 0; color: var(--wb-text-secondary); line-height: 20px; }
+.confirm-warning strong { color: var(--wb-danger-strong-text); font-weight: 600; }
+.confirm-subject {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-lg);
+  background: var(--wb-bg-raised);
+  box-shadow: var(--wb-shadow-card);
+}
+.confirm-subject-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: var(--wb-radius-md);
+  background: var(--wb-bg-field);
+  color: var(--wb-text-secondary);
+  box-shadow: var(--wb-shadow-inset);
+}
+.confirm-subject-icon img { width: 100%; height: 100%; object-fit: cover; }
+.confirm-subject-copy { display: grid; gap: 2px; min-width: 0; }
+.confirm-subject-copy strong { overflow: hidden; font-size: 13.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.confirm-subject-copy small { color: var(--wb-text-secondary); font-size: 12px; }
+.confirm-subject-meta {
+  overflow: hidden;
+  color: var(--wb-text-muted);
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Long paths keep their end (the folder name) visible. */
+  direction: rtl;
+  text-align: left;
+}
+.confirm-actions { margin-top: 4px; }
+.confirm-cancel { border-color: transparent; background: transparent; box-shadow: none; }
+.danger-button {
+  border: 0;
+  background: var(--wb-danger);
+  color: var(--wb-danger-text);
+  box-shadow: var(--wb-shadow-danger);
+}
+.danger-button[data-hovered] { background: var(--wb-danger-hover); }
+.danger-button[data-focus-visible] { box-shadow: var(--wb-shadow-danger), 0 0 0 3px var(--wb-danger-ring); }
+
 /* Form controls */
 .persona-form, .instruction-form, .general-settings { display: grid; gap: 12px; align-content: start; }
 .settings-help { display: block; margin-top: 6px; color: var(--wb-text-secondary); font-size: 11.5px; }
