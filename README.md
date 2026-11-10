@@ -20,7 +20,6 @@ Executable discovery checks PATH and common local installation directories. Over
 ## Checks
 
 ```sh
-npm test
 npm run lint
 npm run build
 node scripts/qa-electron.mjs
