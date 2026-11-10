@@ -73,16 +73,31 @@ export interface PtyCreateOptions {
   cwd: string;
   cols: number;
   rows: number;
+  /** The view the terminal belongs to, so the resource manager can show where it is. */
+  viewId?: string;
 }
 
+/** `sequence` orders output against an attach snapshot: a window skips what the snapshot already shows. */
 export interface PtyDataEvent {
   sessionId: string;
+  sequence: number;
   data: string;
 }
 
 export interface PtyExitEvent {
   sessionId: string;
+  sequence: number;
   exitCode: number;
+}
+
+export interface PtySnapshot {
+  sessionId: string;
+  sequence: number;
+  screen: string;
+  cols: number;
+  rows: number;
+  /** Set once the shell has exited. */
+  exitCode?: number;
 }
 
 export interface AgentSessionStatus {
@@ -279,8 +294,37 @@ export interface WorktreeResult {
   branch: string;
 }
 
-export interface AppMetrics {
+/** `cpu` is percent of one core; memory is resident bytes. */
+export interface ResourceUsage {
+  cpu: number;
   memoryBytes: number;
+}
+
+export interface SessionResource extends ResourceUsage {
+  sessionId: string;
+  kind: "terminal" | "agent";
+  /** The view that owns it; absent, or not among the open views, for a session nothing shows. */
+  viewId?: string;
+  /** What runs in it, such as the agent provider's label. */
+  label: string;
+  pid: number;
+  cwd: string;
+  exited: boolean;
+  /** Recent memory samples, oldest first. */
+  history: number[];
+}
+
+export interface ResourceSnapshot {
+  app: ResourceUsage & { main: ResourceUsage; renderer: ResourceUsage; other: ResourceUsage; history: number[] };
+  sessions: SessionResource[];
+  total: ResourceUsage;
+  collectedAt: number;
+}
+
+/** What the status bar shows without opening the resource manager. */
+export interface ResourceSummary {
+  memoryBytes: number;
+  sessions: number;
 }
 
 export interface AgentSessionCreateOptions {
@@ -325,7 +369,6 @@ export interface WorkbenchApi {
   };
   app: {
     textMenu: () => void;
-    metrics: () => Promise<AppMetrics>;
     /** Returns unsubscribe. */
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
   };
@@ -380,11 +423,19 @@ export interface WorkbenchApi {
   };
   pty: {
     create: (options: PtyCreateOptions) => Promise<string>;
+    attach: (sessionId: string) => Promise<PtySnapshot>;
     input: (sessionId: string, data: string) => void;
     resize: (sessionId: string, cols: number, rows: number) => void;
     terminate: (sessionId: string) => void;
     onData: (listener: (event: PtyDataEvent) => void) => () => void;
     onExit: (listener: (event: PtyExitEvent) => void) => () => void;
+  };
+  resources: {
+    /** Samples every session's process tree and the app's own processes. Costs a process listing: poll only while shown. */
+    snapshot: () => Promise<ResourceSnapshot>;
+    summary: () => Promise<ResourceSummary>;
+    /** Ends a session this window owns, with every process it started. */
+    end: (sessionId: string) => Promise<void>;
   };
   agent: {
     providers: () => Promise<AgentProviderInfo[]>;

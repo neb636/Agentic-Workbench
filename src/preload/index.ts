@@ -26,7 +26,6 @@ const api: WorkbenchApi = {
   },
   app: {
     textMenu: () => ipcRenderer.send(IPC.appTextMenu),
-    metrics: () => ipcRenderer.invoke(IPC.appMetrics),
     onMenuCommand: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
       ipcRenderer.on(IPC.menuCommand, wrapped);
@@ -78,8 +77,14 @@ const api: WorkbenchApi = {
     ignored: (root) => ipcRenderer.invoke(IPC.sourceControlIgnored, { root }),
     generateCommitMessage: (root, providerId) => ipcRenderer.invoke(IPC.sourceControlGenerateCommitMessage, { root, providerId }),
   },
+  resources: {
+    snapshot: () => ipcRenderer.invoke(IPC.resourcesSnapshot),
+    summary: () => ipcRenderer.invoke(IPC.resourcesSummary),
+    end: (sessionId) => ipcRenderer.invoke(IPC.resourcesEnd, { sessionId }),
+  },
   pty: {
     create: (options: PtyCreateOptions) => ipcRenderer.invoke(IPC.ptyCreate, options) as Promise<string>,
+    attach: (sessionId) => ipcRenderer.invoke(IPC.ptyAttach, { sessionId }),
     input: (sessionId, data) => ipcRenderer.send(IPC.ptyInput, { sessionId, data }),
     resize: (sessionId, cols, rows) => ipcRenderer.send(IPC.ptyResize, { sessionId, cols, rows }),
     terminate: (sessionId) => ipcRenderer.send(IPC.ptyTerminate, { sessionId }),

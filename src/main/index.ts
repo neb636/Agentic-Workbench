@@ -10,6 +10,7 @@ import { CodexAgentProvider } from "./providers/codex-agent-provider";
 import { GitSourceControlProvider } from "./providers/git-source-control-provider";
 import { PromptAttachments, THUMBNAIL_SIDE } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
+import { ResourceMonitor } from "./resource-monitor";
 import { adoptLoginShellPath } from "./shell-environment";
 import { IPC } from "../shared/ipc";
 import type { MenuCommand } from "../shared/models";
@@ -34,6 +35,7 @@ const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
 const agentModels = new AgentModelCatalogue(agentProviders);
 const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels);
 const internalAi = new InternalAiService(agentProviders, () => path.join(app.getPath("userData"), "internal-ai"));
+const resources = new ResourceMonitor([ptyManager, agentSessionManager]);
 const roots = new WorkspaceRoots();
 const sourceControl = new SourceControlService([new GitSourceControlProvider()]);
 const workspaceServices = {
@@ -92,9 +94,16 @@ function createWindow(): BrowserWindow {
     const allowed = process.env.VITE_DEV_SERVER_URL;
     if (!allowed || new URL(url).origin !== new URL(allowed).origin) event.preventDefault();
   });
-  window.webContents.on("destroyed", () => {
+  // Sessions belong to the page that started them. A reload or a crashed renderer loses every view that showed them,
+  // and the webContents outlives both, so they end then too: nothing could reach or close them afterwards.
+  const endSessions = () => {
     ptyManager.terminateForOwner(window.webContents);
     agentSessionManager.terminateForOwner(window.webContents);
+  };
+  window.webContents.on("destroyed", endSessions);
+  window.webContents.on("render-process-gone", endSessions);
+  window.webContents.on("did-start-navigation", (details) => {
+    if (details.isMainFrame && !details.isSameDocument) endSessions();
   });
 
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -107,7 +116,7 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(() => {
   if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
-  registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments);
+  registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments, resources);
   addMenuItems();
   createWindow();
   agentModels.start(() => {
@@ -123,9 +132,14 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+/** At quit, sessions get a short grace to exit on their hang-up (a CLI saving its conversation) before being killed. */
+const QUIT_GRACE_MS = 1500;
+let quitting = false;
+app.on("before-quit", (event) => {
+  if (quitting) return;
+  quitting = true;
+  event.preventDefault();
   agentModels.stop();
   internalAi.terminateAll();
-  agentSessionManager.terminateAll();
-  ptyManager.terminateAll();
+  void Promise.allSettled([agentSessionManager.terminateAll(QUIT_GRACE_MS), ptyManager.terminateAll(QUIT_GRACE_MS)]).then(() => app.quit());
 });
