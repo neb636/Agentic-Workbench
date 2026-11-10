@@ -38,6 +38,8 @@ export function spawnTerminal(command: string, args: string[], cwd: string, cols
 
 export class PtyManager {
   private readonly sessions = new Map<string, ManagedPty>();
+  /** Sessions already closed whose processes are still being ended; quitting waits for them too. */
+  private readonly ending = new Set<Promise<void>>();
 
   create(options: PtyCreateOptions, owner: WebContents): string {
     const shell = process.platform === "win32"
@@ -56,9 +58,12 @@ export class PtyManager {
       // The window's terminal answers protocol queries while it is attached; the headless one only keeps the screen.
       processInstance.onData((data) => {
         if (session.disposed) return;
-        terminal.write(data);
-        session.pendingData += data;
-        session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);
+        // Queued for the window only once parsed: an attach snapshot's sequence must cover only what its screen shows.
+        terminal.write(data, () => {
+          if (session.disposed) return;
+          session.pendingData += data;
+          session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);
+        });
       }),
       processInstance.onExit(({ exitCode }) => {
         if (session.disposed) return;
@@ -101,15 +106,19 @@ export class PtyManager {
     session.listeners.forEach((listener) => listener.dispose());
     session.terminal.dispose();
     if (session.exitCode !== undefined) return Promise.resolve();
-    return endProcessTree(session.process.pid, () => session.process.kill(), graceMs);
+    const ended = endProcessTree(session.process.pid, () => session.process.kill(), graceMs).finally(() => this.ending.delete(ended));
+    this.ending.add(ended);
+    return ended;
   }
 
   terminateForOwner(owner: WebContents): void {
     for (const session of [...this.sessions.values()]) if (session.owner === owner) void this.terminate(session.id);
   }
 
+  /** Ends every session, and resolves once those already ending are gone too. */
   terminateAll(graceMs?: number): Promise<void> {
-    return Promise.all([...this.sessions.keys()].map((id) => this.terminate(id, undefined, graceMs))).then(() => undefined);
+    for (const id of [...this.sessions.keys()]) void this.terminate(id, undefined, graceMs);
+    return Promise.allSettled([...this.ending]).then(() => undefined);
   }
 
   has(sessionId: string, owner: WebContents): boolean {

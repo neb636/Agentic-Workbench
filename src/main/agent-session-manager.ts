@@ -70,6 +70,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class AgentSessionManager {
   private readonly sessions = new Map<string, Session>();
+  /** Sessions already closed whose processes are still being ended; quitting waits for them too. */
+  private readonly ending = new Set<Promise<void>>();
   constructor(
     private readonly providers: AgentProviderAdapter[],
     private readonly spawn = spawnTerminal,
@@ -262,11 +264,15 @@ export class AgentSessionManager {
     s.listeners.forEach((listener) => listener.dispose());
     s.terminal.dispose();
     if (s.status.lifecycle === "exited" || s.status.lifecycle === "failed") return Promise.resolve();
-    return endProcessTree(s.process.pid, () => s.process.kill(), graceMs);
+    const ended = endProcessTree(s.process.pid, () => s.process.kill(), graceMs).finally(() => this.ending.delete(ended));
+    this.ending.add(ended);
+    return ended;
   }
   terminateForOwner(owner: WebContents): void { for (const s of [...this.sessions.values()]) if (s.owner === owner) void this.terminate(s.id); }
+  /** Ends every session, and resolves once those already ending are gone too. */
   terminateAll(graceMs?: number): Promise<void> {
-    return Promise.all([...this.sessions.keys()].map((id) => this.terminate(id, undefined, graceMs))).then(() => undefined);
+    for (const id of [...this.sessions.keys()]) void this.terminate(id, undefined, graceMs);
+    return Promise.allSettled([...this.ending]).then(() => undefined);
   }
   has(id: string, owner: WebContents): boolean { return this.sessions.get(id)?.owner === owner; }
   list(): ListedSession[] {
