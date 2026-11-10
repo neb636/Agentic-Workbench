@@ -11,7 +11,7 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), the three instruction
 // layers (everywhere, shared in .workbench/instructions.json, only me in this repo) and their manager, composed
-// prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
+// prompt order, title from the first prompt, recall, attachments (picker, drop, paste,
 // limit, restart, cleanup), resuming after a restart (the tab the app opens on resumes, others wait for a click; draft and attachments stay),
 // uncertain delivery handoff, an uncertain delivery the CLI takes late, Plan chosen before the CLI starts,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
@@ -87,6 +87,7 @@ try {
   };
   const prompts = async () => (await readFile(log, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
   const launches = async () => (await readFile(launchLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line));
+  const expect_ = async (check) => { for (let i = 0; i < 100; i++) { if (await check()) return; await page.waitForTimeout(100); } throw new Error("Timed out waiting for the CLI to receive the prompt"); };
   const prompt = () => page.getByRole("textbox", { name: "Prompt", exact: true });
   const waitFeedback = (value) => page.waitForFunction((text) => document.querySelector(".composer-feedback")?.textContent.includes(text), value)
     .catch(async (error) => { throw new Error(`Waiting for "${value}", the composer says "${await page.locator(".composer-feedback").first().textContent().catch(() => "?")}": ${error.message}`); });
@@ -177,24 +178,12 @@ try {
   assert.match(await sidebar.getByRole("row", { name: /Explain this failure\./ }).innerText(), /Ready · Codex/);
   await shot("session");
 
-  // Composer tools: quote terminal output, preview placement, recall a previous prompt.
-  const row = page.locator(".xterm-rows > div").filter({ hasText: "ERROR: Connection refused" });
-  await row.click({ clickCount: 3 });
-  await page.getByRole("button", { name: "Add to prompt" }).click();
-  await prompt().fill("Second prompt");
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const preview = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
-  assert.match(preview, /^Terminal selection 1:\n> ERROR: Connection refused/);
-  assert.match(preview, /Second prompt\n\nWhen the change is ready/);
-  assert(preview.endsWith("Explain the tradeoffs."));
-  await shot("preview");
-  await page.keyboard.press("Escape");
+  // Composer tools: recall a previous prompt.
   await page.getByRole("button", { name: "Activity" }).click();
   await page.getByRole("button", { name: "Use as draft" }).click();
   assert.equal(await prompt().inputValue(), "Explain this failure.");
 
   // Uncertain delivery keeps the draft and offers the terminal handoff.
-  await page.getByRole("button", { name: "Remove terminal selection 1" }).click().catch(() => undefined);
   await prompt().fill("UNCERTAIN");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Needs input"));
@@ -307,10 +296,6 @@ try {
   assert.equal(await tiles.count(), 2);
 
   await prompt().fill("Build this from the references");
-  await page.getByRole("button", { name: "Preview", exact: true }).click();
-  const attachedPreview = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
-  assert.match(attachedPreview, /^Attached files \(read them from these paths\):\n- .*\/attachments\/.*\/reference one\.png\n- .*\/requirements\.md\n\nBuild this/);
-  await page.keyboard.press("Escape");
   await shot("attachments");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await page.waitForFunction(() => !document.querySelector(".attachment-tile"));
@@ -419,10 +404,16 @@ try {
   assert.equal(git("log", "-1", "--format=%s").trim(), "QA commit");
 
   // Instructions come in three layers: everywhere (the person's own), shared in the repo (checked in), and only me here.
+  // The composed prompt is read from what the CLI received; the draft is put back so the next check starts from it.
   const previewText = async () => {
-    await page.getByRole("button", { name: "Preview", exact: true }).click();
-    const text = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
-    await page.keyboard.press("Escape");
+    const draft = await prompt().inputValue();
+    if (!draft) await prompt().fill("Composed prompt check");
+    const before = (await prompts()).length;
+    await page.getByRole("button", { name: /^Send (prompt|for planning)$/ }).click();
+    await page.waitForFunction(() => !document.querySelector(".composer-feedback")?.textContent.includes("Delivering"));
+    await expect_(async () => (await prompts()).length > before);
+    const text = (await prompts()).at(-1).prompt;
+    await prompt().fill(draft);
     return text;
   };
   const openInstructions = () => page.getByRole("button", { name: /^Instructions/ }).click();
@@ -527,6 +518,9 @@ try {
   await shot("instructions-invalid-file");
   await manager.getByRole("button", { name: "Done", exact: true }).click();
   assert(!(await previewText()).includes(SHARED_TEXT));
+  // Reading the composed prompt sent it, which cleared the attachments; one goes back for the restart below.
+  await page.locator(".composer-box input[type=file]").setInputFiles([firstPicture]);
+  await page.locator('.attachment-tile img[alt="reference one.png"]').waitFor();
   // Active views panel and the tab overflow menu.
   await page.getByRole("radio", { name: "Active views" }).click();
   await page.getByRole("grid", { name: "Agent session" }).getByRole("row").first().waitFor();

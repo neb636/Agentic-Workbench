@@ -8,10 +8,9 @@ import { pathsInLine } from "../../../shared/terminal-paths";
 
 export interface TerminalSurfaceHandle { focus: () => void; }
 
-export function TerminalSurface({ controller, ref, onSelectionChange, root, onOpenPath }: {
+export function TerminalSurface({ controller, ref, root, onOpenPath }: {
   controller: AgentSessionController | TerminalSessionController;
   ref?: Ref<TerminalSurfaceHandle>;
-  onSelectionChange?: (text: string) => void;
   /** The folder the session runs in: paths in the output that are its files become links (`onOpenPath` opens them). */
   root?: string;
   onOpenPath?: (path: string, line?: number) => void;
@@ -22,8 +21,6 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
   useEffect(() => { openPath.current = onOpenPath; }, [onOpenPath]);
   const hostRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
-  const selectionCallback = useRef(onSelectionChange);
-  useEffect(() => { selectionCallback.current = onSelectionChange; }, [onSelectionChange]);
   useImperativeHandle(ref, () => ({ focus: () => terminalRef.current?.focus() }), []);
   useEffect(() => {
     setExited(false);
@@ -41,7 +38,6 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
     });
     const fit = new FitAddon(); terminal.loadAddon(fit); terminal.open(host);
     terminalRef.current = terminal;
-    const selection = terminal.onSelectionChange(() => selectionCallback.current?.(terminal.getSelection()));
     // Paths in the output open that file (at that line) when clicked; only real files under the root are links.
     const known = new Map<string, boolean>();
     const links = root ? terminal.registerLinkProvider({
@@ -103,7 +99,7 @@ export function TerminalSurface({ controller, ref, onSelectionChange, root, onOp
     const observer = new ResizeObserver(resize); observer.observe(host);
     return () => {
       active = false; observer.disconnect(); detach?.(); offExit?.(); offStatus?.(); input.dispose(); scroll.dispose();
-      selection.dispose(); links?.dispose(); terminalRef.current = null;
+      links?.dispose(); terminalRef.current = null;
       host.removeEventListener("wheel", wheel); host.removeEventListener("pointerdown", pointer); terminal.dispose();
     };
   }, [controller, root]);

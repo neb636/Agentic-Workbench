@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptAttachment, PromptQuotation } from "../../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentViewState, PromptAttachment } from "../../../shared/models";
 import { resumeRequest, savedConversation } from "../../../shared/agent-conversations";
 import { attachmentsPrompt, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
 import { resetSelections, resolveOptions, type PromptSelections } from "../../../shared/prompt-options";
@@ -17,7 +17,6 @@ export interface PromptHistoryEntry {
   id: string;
   createdAt: number;
   draft: string;
-  quotations: PromptQuotation[];
   attachments: PromptAttachment[];
   preview: PromptPreview;
   outcome: AgentDeliveryResult["outcome"] | "saved";
@@ -44,7 +43,7 @@ function stateFor({ workspaceId, viewId }: ComposerTarget): AgentViewState | und
 function patchView(target: ComposerTarget, patch: Partial<AgentViewState>): void {
   useWorkbenchStore.getState().updateViewState(target.workspaceId, target.viewId, patch);
 }
-export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "quotations" | "attachments" | "intent" | "modelSettings">): void {
+export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState, "draft" | "attachments" | "intent" | "modelSettings">): void {
   patchView(target, { ...patch, composerRevision: (stateFor(target)?.composerRevision ?? 0) + 1 });
 }
 export function setPromptSelections(target: ComposerTarget, promptSelections: PromptSelections): void {
@@ -63,13 +62,13 @@ export function clearComposerResult(viewId: string): void {
 export function clearComposerRuntime(viewId: string): void {
   useComposerState.setState((state) => { const views = { ...state.views }; delete views[viewId]; return { views }; });
 }
-function previewFor(target: ComposerTarget): PromptPreview {
+export function composedPrompt(target: ComposerTarget): PromptPreview {
   const state = stateFor(target);
   return { ...services.promptAssembler.assemble(state?.draft ?? "", services.promptContributors.collect(target)), intent: state?.intent ?? "default" };
 }
 function entryFor(target: ComposerTarget, outcome: PromptHistoryEntry["outcome"], message: string): PromptHistoryEntry {
   const state = stateFor(target);
-  return { id: createId("prompt"), createdAt: Date.now(), draft: state?.draft ?? "", quotations: [...(state?.quotations ?? [])], attachments: [...(state?.attachments ?? [])], preview: previewFor(target), outcome, message };
+  return { id: createId("prompt"), createdAt: Date.now(), draft: state?.draft ?? "", attachments: [...(state?.attachments ?? [])], preview: composedPrompt(target), outcome, message };
 }
 function remember(viewId: string, entry: PromptHistoryEntry): boolean {
   if (JSON.stringify(entry).length > 2_000_000) return false;
@@ -185,7 +184,7 @@ function finishSubmitted(target: ComposerTarget, draft: string, revision: number
     patchView(target, { autoTitle: false });
   }
   if ((stateFor(target)?.composerRevision ?? 0) === revision) {
-    patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
+    patchComposer(target, { draft: "", attachments: [], intent: "default" });
   }
 }
 
@@ -225,34 +224,21 @@ export function registerComposerContributions(): void {
       content: resolved.text, enabled: true, placement: menu.placement,
     })));
   } });
-  services.promptContributors.register({ id: "terminal-quotations", contributions: (target) =>
-    (stateFor(target)?.quotations ?? []).map((quote, index) => ({ id: quote.id, kind: "context", source: `Terminal selection ${index + 1}`,
-      enabled: true, content: `Terminal selection ${index + 1}:\n${quote.content.split("\n").map((line) => `> ${line}`).join("\n")}` })),
-  });
   services.promptContributors.register({ id: "attachments", contributions: (target) => {
     const attachments = stateFor(target)?.attachments ?? [];
     return attachments.length ? [{ id: "attachments", kind: "attachment", enabled: true, content: attachmentsPrompt(attachments),
       source: attachments.length === 1 ? attachments[0].name : `${attachments.length} attachments` }] : [];
   } });
-  services.commands.register<ComposerTarget, PromptPreview>("agent.composer.preview", previewFor);
   services.commands.register<ComposerTarget & { files: File[] }>("agent.composer.attach", ({ files, ...target }) => attachFiles(target, files));
-  services.commands.register<ComposerTarget & { text: string }>("agent.composer.quote", (target) => {
-    if (!exists(target) || !target.text.trim()) return;
-    // A quotation is text, never a terminal control sequence.
-    // eslint-disable-next-line no-control-regex
-    const content = target.text.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
-    const quotations = [...(stateFor(target)?.quotations ?? []), { id: createId("quote"), content }];
-    patchComposer(target, { quotations });
-  });
   services.commands.register<ComposerTarget & { entryId: string }>("agent.composer.recall", (target) => {
     const entry = useComposerState.getState().views[target.viewId]?.history.find((item) => item.id === target.entryId);
     if (!entry || !exists(target)) return;
     const current = stateFor(target);
-    if ((current?.draft?.trim() || current?.quotations?.length || current?.attachments?.length) && !remember(target.viewId, entryFor(target, "saved", "Draft saved before recall."))) {
+    if ((current?.draft?.trim() || current?.attachments?.length) && !remember(target.viewId, entryFor(target, "saved", "Draft saved before recall."))) {
       throw new Error("The current draft is too large for recent history. Copy it before replacing it.");
     }
     patchComposer(target, {
-      draft: entry.draft, quotations: entry.quotations, attachments: entry.attachments, intent: entry.preview.intent,
+      draft: entry.draft, attachments: entry.attachments, intent: entry.preview.intent,
     });
   });
   services.commands.register<ComposerTarget>("agent.composer.send", async (target) => {
@@ -283,7 +269,7 @@ export function registerComposerContributions(): void {
     if (!state?.draft?.trim()) return;
     const entry = entryFor(target, "not-sent", "");
     if (entry.preview.content.length > 500_000) {
-      notSent(target.viewId, "The composed prompt exceeds 500,000 characters. Shorten the prompt or remove quoted context.");
+      notSent(target.viewId, "The composed prompt exceeds 500,000 characters. Shorten the prompt or remove attachments.");
       return;
     }
     if (/^\s*[/!]/.test(entry.draft)) {
@@ -362,6 +348,6 @@ export function registerComposerContributions(): void {
     closeAgentRuntime(target.viewId);
     clearComposerRuntime(target.viewId);
     patchView(target, { promptSelections: {}, conversation: null, modelSettings: {} });
-    patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
+    patchComposer(target, { draft: "", attachments: [], intent: "default" });
   });
 }

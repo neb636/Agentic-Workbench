@@ -25,21 +25,19 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   const [providers, setProviders] = useState<AgentProviderInfo[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [selection, setSelection] = useState("");
   const terminalRef = useRef<TerminalSurfaceHandle>(null);
   const layoutRef = useRef<HTMLElement>(null);
   const [composerMinimum, setComposerMinimum] = useState(40);
-  const hasQuotations = Boolean(state.quotations?.length);
   const hasAttachments = Boolean(state.attachments?.length);
   const live = Boolean(runtime);
   useEffect(() => {
     const element = layoutRef.current;
     if (!element) return;
-    const measure = () => setComposerMinimum(Math.min(75, Math.max(20, ((live ? 210 : 176) + (hasQuotations ? 48 : 0) + (hasAttachments ? 92 : 0)) / element.clientHeight * 100)));
+    const measure = () => setComposerMinimum(Math.min(75, Math.max(20, ((live ? 210 : 176) + (hasAttachments ? 92 : 0)) / element.clientHeight * 100)));
     const observer = new ResizeObserver(measure);
     observer.observe(element); measure();
     return () => observer.disconnect();
-  }, [live, hasQuotations, hasAttachments, state.composerCollapsed]);
+  }, [live, hasAttachments, state.composerCollapsed]);
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
@@ -64,13 +62,12 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   const session: ComposerSession | undefined = runtime && {
     status: runtime.status,
     display: agentRuntimeStatus(runtime),
-    selection,
     interrupt: () => runtime.controller.interrupt(),
     focusTerminal: () => terminalRef.current?.focus(),
   };
   const conversation = savedConversation(state);
   const top = runtime
-    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef} onSelectionChange={setSelection}
+    ? <div className="terminal-card"><TerminalSurface controller={runtime.controller} ref={terminalRef}
       root={state.cwd ?? workspace.path} onOpenPath={(path, line) => void services.commands.execute("file.open", { workspaceId: workspace.id, root: state.cwd ?? workspace.path, path, line, preview: true })} /></div>
     : conversation ? <SessionResume workspaceId={workspace.id} viewId={view.id} location={state.cwd ?? workspace.path}
         provider={providers.find((p) => p.id === conversation.providerId)} />
