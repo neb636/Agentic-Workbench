@@ -122,6 +122,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
     : runtime.sending ? (wantsPlan ? "Switching to Plan mode if needed, then delivering…" : "Delivering prompt…")
       : runtime.result?.outcome === "uncertain" ? `Delivery uncertain. ${runtime.result.message}`
         : runtime.result?.outcome === "not-sent" ? `Not sent. ${runtime.result.message}`
+          : status?.queuedPrompt ? status.reason
           : !session ? (needsModel ? "Choose a model to start." : "")
             : pending !== undefined ? (unused ? `Sending restarts the CLI with ${restartLabel}.` : `This conversation runs ${modelLabel(providerId, agent?.settings ?? null)}. Restart to use ${restartLabel}.`)
               : starting ? "The CLI is starting: send now and it goes as soon as it’s ready." : !status?.canSubmit ? status?.reason

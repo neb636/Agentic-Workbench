@@ -9,7 +9,9 @@
 // mark:<name> (a named checkpoint the tests can replay up to). Each step prints the bottom of the screen.
 // The fixture holds the raw output chunks (with step marks), the terminal size and the CLI's version, never the
 // environment. Re-record when a CLI update changes its screens, then run `npm test`.
-// Never send a real prompt with this: it would spend tokens and write in the checkout.
+// --model and --effort launch the CLI with that model. Send a real prompt only when a screen can't be seen otherwise
+// (such as a prompt queued mid-turn), and then only as AGENTS.md allows: the cheapest model at low effort, a short
+// prompt that needs no tools, and never past a billing, login or trust prompt.
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -25,13 +27,17 @@ const args = process.argv.slice(2);
 const cli = args[0];
 const option = (name, fallback) => { const i = args.indexOf(`--${name}`); return i > 0 ? args[i + 1] : fallback; };
 if (!["codex", "claude"].includes(cli)) {
-  console.error("Usage: node scripts/cli-probe.mjs <codex|claude> [--cwd dir] [--steps \"...\"] [--out file] [--cols 120] [--rows 40]");
+  console.error("Usage: node scripts/cli-probe.mjs <codex|claude> [--cwd dir] [--steps \"...\"] [--out file] [--cols 120] [--rows 40] [--model id] [--effort level]");
   process.exit(1);
 }
 const cwd = path.resolve(option("cwd", process.cwd()).replace(/^~/, process.env.HOME ?? "~"));
 const cols = Number(option("cols", 120)), rows = Number(option("rows", 40));
 const steps = (option("steps", "wait:8000")).split(/\s+(?=(?:wait|type|paste|key|mouse|mark)\b)/).filter(Boolean);
 const out = option("out");
+const model = option("model"), effort = option("effort");
+// The same launch arguments the adapters build (modelArgs).
+const launchArgs = !model ? [] : cli === "claude" ? ["--model", model, ...(effort ? ["--effort", effort] : [])]
+  : ["--model", model, ...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : [])];
 const executable = execFileSync("/bin/sh", ["-lc", `command -v ${cli}`], { encoding: "utf8" }).trim();
 const version = execFileSync(executable, ["--version"], { encoding: "utf8" }).trim();
 const keys = { enter: "\r", esc: "\x1b", "shift-tab": "\x1b[Z", tab: "\t", "ctrl-c": "\x03", backspace: "\x7f" };
@@ -39,7 +45,7 @@ const keys = { enter: "\r", esc: "\x1b", "shift-tab": "\x1b[Z", tab: "\t", "ctrl
 const terminal = new Terminal({ cols, rows, scrollback: 2000, allowProposedApi: true });
 // A probe run from inside an agent session must not inherit that session's markers.
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(CLAUDECODE|CLAUDE_CODE_|CODEX_)/.test(key)));
-const child = pty.spawn(executable, [], { name: "xterm-256color", cwd, cols, rows, env: { ...env, TERM: "xterm-256color", COLORTERM: "truecolor" } });
+const child = pty.spawn(executable, launchArgs, { name: "xterm-256color", cwd, cols, rows, env: { ...env, TERM: "xterm-256color", COLORTERM: "truecolor" } });
 const started = Date.now();
 const chunks = [];
 terminal.onData((data) => child.write(data));

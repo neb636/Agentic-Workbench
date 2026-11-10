@@ -30,6 +30,8 @@ interface ComposerRuntime {
   /** Files still being stored; the prompt can't go until they are. */
   attaching: number;
   result?: AgentDeliveryResult;
+  /** An uncertain delivery whose Enter went: main may still see the CLI take it (`confirmedDeliveries` rises). */
+  unconfirmed?: { entryId: string; revision: number; controller: AgentRuntime["controller"]; confirmedBefore: number };
   resumeError?: string;
 }
 const emptyRuntime: ComposerRuntime = { history: [], sending: false, launching: false, attaching: 0 };
@@ -175,8 +177,44 @@ function titleFromPrompt(draft: string): string {
   return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line;
 }
 
+/** After the CLI takes a prompt: menus reset, the view is titled, and the composer clears unless edited meanwhile. */
+function finishSubmitted(target: ComposerTarget, draft: string, revision: number): void {
+  resetMenusAfterSend(target);
+  if (stateFor(target)?.autoTitle && draft.trim()) {
+    useWorkbenchStore.getState().renameView(target.workspaceId, target.viewId, titleFromPrompt(draft));
+    patchView(target, { autoTitle: false });
+  }
+  if ((stateFor(target)?.composerRevision ?? 0) === revision) {
+    patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
+  }
+}
+
+/** An uncertain delivery the CLI took after all (seen by main, never guessed here) becomes a submitted one. */
+function confirmLate(target: ComposerTarget): void {
+  const composer = useComposerState.getState().views[target.viewId];
+  const pending = composer?.unconfirmed;
+  const runtime = useAgentRuntimes.getState().sessions[target.viewId];
+  if (!pending || runtime?.controller !== pending.controller || (runtime.status?.confirmedDeliveries ?? 0) <= pending.confirmedBefore) return;
+  const message = "The CLI took the prompt after all.";
+  const history = composer.history.map((item) => item.id === pending.entryId ? { ...item, outcome: "submitted" as const, message } : item);
+  const entry = history.find((item) => item.id === pending.entryId);
+  updateRuntime(target.viewId, { unconfirmed: undefined, history, result: { outcome: "submitted", stage: "enter", message } });
+  if (exists(target)) finishSubmitted(target, entry?.draft ?? "", pending.revision);
+}
+function confirmLateDeliveries(): void {
+  useAgentRuntimes.subscribe((state, previous) => {
+    if (state.sessions === previous.sessions) return;
+    for (const [viewId, composer] of Object.entries(useComposerState.getState().views)) {
+      if (!composer.unconfirmed) continue;
+      const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.views.some((v) => v.id === viewId));
+      if (workspace) confirmLate({ workspaceId: workspace.id, viewId });
+    }
+  });
+}
+
 export function registerComposerContributions(): void {
   rememberConversations();
+  confirmLateDeliveries();
   window.workbench.agent.onProvidersChanged(rememberAgentModels);
   services.promptContributors.register({ id: "prompt-menus", contributions: (target) => {
     const selections = stateFor(target)?.promptSelections ?? {};
@@ -253,23 +291,20 @@ export function registerComposerContributions(): void {
       return;
     }
     const revision = state.composerRevision ?? 0;
-    updateRuntime(target.viewId, { sending: true, result: undefined });
+    updateRuntime(target.viewId, { sending: true, result: undefined, unconfirmed: undefined });
+    const confirmedBefore = useAgentRuntimes.getState().sessions[target.viewId]?.status?.confirmedDeliveries ?? 0;
     let result: AgentDeliveryResult;
     try { result = await runtime.controller.sendPrompt({ prompt: entry.preview.content, intent: entry.preview.intent }); }
     catch { result = { outcome: "uncertain", stage: "unknown", message: "Delivery could not be confirmed. Inspect the terminal before retrying." }; }
     if (!exists(target)) return;
     remember(target.viewId, { ...entry, outcome: result.outcome, message: result.message });
-    updateRuntime(target.viewId, { sending: false, result });
+    const unconfirmed = result.outcome === "uncertain" && result.stage === "enter" ? { entryId: entry.id, revision, controller: runtime.controller, confirmedBefore } : undefined;
+    updateRuntime(target.viewId, { sending: false, result, unconfirmed });
     if (result.outcome !== "not-sent") markAgentPrompted(target.viewId);
+    // The CLI may already have taken it while the result was on its way.
+    if (unconfirmed) confirmLate(target);
     if (result.outcome !== "submitted") return;
-    resetMenusAfterSend(target);
-    if (stateFor(target)?.autoTitle && entry.draft.trim()) {
-      useWorkbenchStore.getState().renameView(target.workspaceId, target.viewId, titleFromPrompt(entry.draft));
-      patchView(target, { autoTitle: false });
-    }
-    if ((stateFor(target)?.composerRevision ?? 0) === revision) {
-      patchComposer(target, { draft: "", quotations: [], attachments: [], intent: "default" });
-    }
+    finishSubmitted(target, entry.draft, revision);
   });
   // The CLI starts when the first prompt is sent: prepare its folder, launch it, wait for its input, then deliver.
   // `providerId` is the harness shown as selected, which may be a default that was never saved to the view.

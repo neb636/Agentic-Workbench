@@ -342,6 +342,71 @@ test("a draft held while Codex finishes startup is confirmed once it submits", a
   } finally { s.manager.terminateAll(); }
 });
 
+test("Claude's queue placeholder is an empty input, and the held prompt reads as queued", () => {
+  const claude = new ClaudeAgentProvider(); const codex = new CodexAgentProvider();
+  const queued = claude.detect(screen("❯ Press up to edit queued messages", ["❯ follow up", "  ctrl+enter to send now", "", "✢ Polishing… (49s)"]));
+  assert.equal(queued.inputState, "empty");
+  assert.equal(queued.canSubmit, true);
+  assert.equal(queued.queuedPrompt, true);
+  assert.match(queued.reason, /Press Up/);
+  // Typed by the person, the same words are a draft.
+  assert.equal(claude.detect({ ...screen("❯ Press up to edit queued messages"), inputWasEdited: true }).inputState, "draft");
+  // A draft typed under a queued prompt: still queued, and the draft blocks a send.
+  const typing = claude.detect(screen("❯ more", ["❯ follow up", "  ctrl+enter to send now", "", "✢ Polishing… (49s)"], 6));
+  assert.equal(typing.inputState, "draft");
+  assert.equal(typing.queuedPrompt, true);
+  assert.equal(claude.detect(screen("❯ ")).queuedPrompt, undefined);
+  assert.equal(codex.detect(screen("› Press up to edit queued messages")).inputState, "draft");
+});
+
+test("a Claude prompt sent mid-turn is submitted as soon as the CLI queues it", async () => {
+  const s = setup(new ClaudeAgentProvider());
+  const turn = "\x1b[2J\x1b[H\x1b[?2004h✢ Polishing… (49s · thinking)\r\n\r\n";
+  try {
+    // Settled first: work before that is startup, which holds a first prompt.
+    s.output("\x1b[?2004h❯ \r\x1b[2C"); await sleep(350);
+    s.output(`${turn}❯ \r\x1b[2C`);
+    s.processes[0].write = (data) => {
+      s.writes.push(data);
+      if (data === "\x1b[201~") s.output(`${turn}❯ follow up`);
+      if (data === "\r") s.output(`\x1b[2J\x1b[H\x1b[?2004h❯ follow up\r\n  ctrl+enter to send now\r\n\r\n✢ Polishing… (50s · thinking)\r\n\r\n❯ Press up to edit queued messages\r\x1b[2C`);
+    };
+    const started = Date.now();
+    const result = await s.manager.sendPrompt(s.id, request("follow up"), s.owner);
+    assert.equal(result.outcome, "submitted", result.message);
+    assert.match(result.message, /queued/);
+    assert(Date.now() - started < 2000, "confirmed without waiting out the turn");
+    const { status } = await s.manager.attach(s.id, s.owner);
+    assert.equal(status.queuedPrompt, true);
+    // The CLI takes it: no longer queued.
+    s.output(`\x1b[2J\x1b[H\x1b[?2004h❯ follow up\r\n\r\n✢ Polishing… (51s · thinking)\r\n\r\n❯ \r\x1b[2C`);
+    assert.equal((await s.manager.attach(s.id, s.owner)).status.queuedPrompt, undefined);
+  } finally { s.manager.terminateAll(); }
+});
+
+test("an Enter that could not be confirmed is confirmed later when the input empties, unless the person typed", async () => {
+  for (const typed of [false, true]) {
+    const s = setup(new ClaudeAgentProvider());
+    try {
+      s.output("\x1b[?2004h❯ \r\x1b[2C"); await sleep(350);
+      s.processes[0].write = (data) => {
+        s.writes.push(data);
+        if (data === "\x1b[201~") s.output("\r\x1b[2K❯ task");
+        // A screen the rules don't know: the input still shows text.
+        if (data === "\r") s.output("\r\x1b[2K❯ Some new hint the CLI draws");
+      };
+      const result = await s.manager.sendPrompt(s.id, request("task"), s.owner);
+      assert.equal(result.outcome, "uncertain");
+      assert.equal(result.stage, "enter");
+      s.processes[0].write = (data) => s.writes.push(data);
+      if (typed) s.manager.input(s.id, "\x15", s.owner);
+      s.output("\r\x1b[2K❯ \r\x1b[2C");
+      const { status } = await s.manager.attach(s.id, s.owner);
+      assert.equal(status.confirmedDeliveries, typed ? 0 : 1);
+    } finally { s.manager.terminateAll(); }
+  }
+});
+
 
 
 /** A small stand-in CLI that draws its prompt with a real footer and changes mode the way each CLI does. */
@@ -549,6 +614,22 @@ test("recorded Claude Code 2.1: ready with its placeholder, Shift+Tab cycles thr
     assert.equal(status.canSubmit, true, `${mark}: ${status.reason}`);
   });
   assert.deepEqual(modes, { ready: "auto mode on", mouse: "auto mode on", cycle1: "manual mode on", cycle2: "accept edits on", plan: "plan", cycle4: "auto mode on" });
+});
+
+test("recorded Claude Code 2.1.321: a prompt sent mid-turn is queued, then taken", async () => {
+  const seen = {};
+  await replay("claude-queued.json", ClaudeAgentProvider, async (mark, status) => {
+    seen[mark] = `${status.activity}/${status.inputState}${status.queuedPrompt ? "/queued" : ""}`;
+  });
+  assert.deepEqual(seen, { ready: "ready/empty", working: "working/empty", "second-pasted": "working/draft", queued: "working/empty/queued", end: "ready/empty" });
+});
+
+test("recorded Codex 0.167: Enter mid-turn steers the running turn, so nothing is queued", async () => {
+  const seen = {};
+  await replay("codex-queued.json", CodexAgentProvider, async (mark, status) => {
+    seen[mark] = `${status.inputState}${status.queuedPrompt ? "/queued" : ""}`;
+  });
+  assert.deepEqual(seen, { ready: "empty", working: "empty", "second-pasted": "draft", queued: "empty", end: "empty" });
 });
 
 test("a planning follow-up while the CLI is still working in Plan mode is refused before any paste", async () => {
