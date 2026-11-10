@@ -138,6 +138,7 @@ export const ptyCreateOptionsSchema = z.object({
   cwd: z.string().min(1),
   cols: z.number().int().min(2).max(1000),
   rows: z.number().int().min(1).max(1000),
+  viewId: z.string().min(1).max(200).optional(),
 });
 
 export const ptyInputSchema = z.object({

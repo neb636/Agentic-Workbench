@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { Registry } from "./registry";
-import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentResume, AgentSessionStatus, AgentSessionSnapshot } from "../../shared/models";
+import type { AgentDeliveryResult, AgentModelSettings, AgentPromptRequest, AgentResume, AgentSessionStatus, AgentSessionSnapshot, PtySnapshot } from "../../shared/models";
 
 export interface SessionCreateContext {
   workspacePath: string;
@@ -12,19 +12,25 @@ export interface SessionCreateContext {
   settings?: AgentModelSettings;
 }
 
+/** `dispose` lets go of the session in this window; `terminate` ends it. */
 export interface SessionController {
   id: string;
   dispose: () => void;
+  terminate: () => void;
 }
 
 export interface TerminalSessionController extends SessionController {
-  input?: (data: string) => void;
-  resize?: (cols: number, rows: number) => void;
-  onData?: (listener: (data: string) => void) => () => void;
-  onExit?: (listener: (exitCode: number) => void) => () => void;
+  kind: "terminal";
+  input: (data: string) => void;
+  resize: (cols: number, rows: number) => void;
+  /** Shows the screen as it is, then the output after it; returns detach. */
+  attach: (snapshot: (snapshot: PtySnapshot) => void, data: (data: string) => void, error: (message: string) => void) => () => void;
+  /** Called at once if the shell already exited. */
+  onExit: (listener: (exitCode: number) => void) => () => void;
 }
 
 export interface AgentSessionController extends SessionController {
+  kind: "agent";
   /** Set when the CLI runs a conversation with a known id. */
   conversationId?: string;
   input: (data: string) => void;
@@ -33,7 +39,6 @@ export interface AgentSessionController extends SessionController {
   sendPrompt: (request: AgentPromptRequest) => Promise<AgentDeliveryResult>;
   interrupt: () => void;
   onStatus: (listener: (status: AgentSessionStatus) => void) => () => void;
-  terminate: () => void;
 }
 
 interface SessionProviderBase {

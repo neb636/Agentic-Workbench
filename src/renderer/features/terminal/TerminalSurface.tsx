@@ -71,34 +71,33 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     });
     const resize = () => {
       if (active && attached && host.clientWidth && host.clientHeight) {
-        fit.fit(); controller.resize?.(terminal.cols, terminal.rows);
+        fit.fit(); controller.resize(terminal.cols, terminal.rows);
         if (followOutput) terminal.scrollToBottom();
       }
     };
-    let detach: (() => void) | undefined;
     let offExit: (() => void) | undefined;
     let offStatus: (() => void) | undefined;
-    if ("attach" in controller) {
+    if (controller.kind === "agent") {
       offStatus = controller.onStatus((status) => setExited(status.lifecycle === "exited" || status.lifecycle === "failed" || status.inputState === "unavailable"));
       for (const identifier of [{ final: "c" }, { prefix: ">", final: "c" }, { final: "n" }, { prefix: "?", final: "n" }, { final: "t" }]) {
         terminal.parser.registerCsiHandler(identifier, () => true);
       }
       // Colour queries too (Codex asks for the foreground and background): answering them here sent a second reply.
       for (const ident of [10, 11, 12]) terminal.parser.registerOscHandler(ident, (data) => data.split(";").includes("?"));
-      // The headless terminal answers protocol queries; this surface only forwards user input.
-      detach = controller.attach((snapshot) => {
-        terminal.resize(snapshot.cols, snapshot.rows);
-        terminal.write(snapshot.screen, () => { attached = true; resize(); terminal.scrollToBottom(); });
-      }, write, (message) => write(`\r\n${message}\r\n`));
-    } else {
-      attached = true; resize();
-      detach = controller.onData?.(write);
-      offExit = controller.onExit?.((code) => { setExited(true); write(`\r\nProcess exited with code ${code}\r\n`); });
+      // The headless terminal answers an agent's protocol queries; this surface only forwards user input.
     }
-    const input = terminal.onData((data) => { if (attached) { followOutput = true; controller.input?.(data); } });
+    const detach = controller.attach((snapshot) => {
+      terminal.resize(snapshot.cols, snapshot.rows);
+      terminal.write(snapshot.screen, () => {
+        attached = true; resize(); terminal.scrollToBottom();
+        // After the screen, so an exit seen again on a later attach is noted below it, once.
+        if (controller.kind === "terminal" && active) offExit = controller.onExit((code) => { setExited(true); write(`\r\nProcess exited with code ${code}\r\n`); });
+      });
+    }, write, (message) => write(`\r\n${message}\r\n`));
+    const input = terminal.onData((data) => { if (attached) { followOutput = true; controller.input(data); } });
     const observer = new ResizeObserver(resize); observer.observe(host);
     return () => {
-      active = false; observer.disconnect(); detach?.(); offExit?.(); offStatus?.(); input.dispose(); scroll.dispose();
+      active = false; observer.disconnect(); detach(); offExit?.(); offStatus?.(); input.dispose(); scroll.dispose();
       links?.dispose(); terminalRef.current = null;
       host.removeEventListener("wheel", wheel); host.removeEventListener("pointerdown", pointer); terminal.dispose();
     };
@@ -107,10 +106,10 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     const terminal = terminalRef.current;
     return [
       { id: "copy", label: "Copy Selection", disabled: !terminal?.hasSelection(), run: () => navigator.clipboard.writeText(terminal?.getSelection() ?? "") },
-      { id: "paste", label: "Paste", disabled: !controller.input || exited, run: async () => { const text = await navigator.clipboard.readText(); terminal?.paste(text); terminal?.focus(); } },
+      { id: "paste", label: "Paste", disabled: exited, run: async () => { const text = await navigator.clipboard.readText(); terminal?.paste(text); terminal?.focus(); } },
       { id: "select-all", label: "Select All", run: () => terminal?.selectAll() },
       { id: "bottom", label: "Scroll to Bottom", run: () => terminal?.scrollToBottom() },
-      ...(!("attach" in controller) ? [{ id: "clear", label: "Clear Display", run: () => terminal?.clear() }] : []),
+      ...(controller.kind === "terminal" ? [{ id: "clear", label: "Clear Display", run: () => terminal?.clear() }] : []),
     ];
   })} />{menu.overlay}</>;
 }

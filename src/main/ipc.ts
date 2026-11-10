@@ -36,6 +36,7 @@ import type { CommitMessages } from "./internal-ai/commit-message";
 import { loadState, saveState, saveStateNow } from "./persistence";
 import type { PromptAttachments } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
+import type { ResourceMonitor } from "./resource-monitor";
 import type { SourceControlService } from "./source-control/source-control-provider";
 import type { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
 
@@ -111,7 +112,7 @@ function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, 
   });
 }
 
-export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices, attachments: PromptAttachments): void {
+export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices, attachments: PromptAttachments, resources: ResourceMonitor): void {
   listen(IPC.appTextMenu, () => Menu.buildFromTemplate([{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { type: "separator" }, { role: "selectAll" }]).popup());
   const histories = new Map<WebContents, FileOperations>();
   const cache = join(app.getPath("userData"), "file-history");
@@ -186,9 +187,9 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     if (!icon) await dialog.showMessageBox({ type: "warning", message: "That image couldn't be read.", detail: "Choose a PNG or JPEG file." });
     return icon;
   });
-  handle(IPC.appMetrics, () => ({
-    memoryBytes: app.getAppMetrics().reduce((total, metric) => total + metric.memory.workingSetSize * 1024, 0),
-  }));
+  handle(IPC.resourcesSnapshot, (event) => resources.snapshot(event.sender));
+  handle(IPC.resourcesSummary, (event) => resources.summary(event.sender));
+  handle(IPC.resourcesEnd, (event, input: unknown) => resources.end(event.sender, agentSessionActionSchema.parse(input).sessionId));
   handle(IPC.attachmentsSave, (_event, input: unknown) => {
     const { viewId, name, bytes } = attachmentSaveSchema.parse(input);
     return attachments.save(viewId, name, bytes);
@@ -291,6 +292,7 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     if (!(await fs.stat(options.cwd)).isDirectory()) throw new Error("Terminal working directory must be a folder.");
     return ptyManager.create(options, event.sender);
   });
+  handle(IPC.ptyAttach, (event, input: unknown) => ptyManager.attach(ptyTerminateSchema.parse(input).sessionId, event.sender));
   listen(IPC.ptyInput, (event, input: unknown) => {
     const parsed = ptyInputSchema.parse(input);
     ptyManager.input(parsed.sessionId, parsed.data, event.sender);
@@ -300,7 +302,7 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     ptyManager.resize(parsed.sessionId, parsed.cols, parsed.rows, event.sender);
   });
   listen(IPC.ptyTerminate, (event, input: unknown) => {
-    ptyManager.terminate(ptyTerminateSchema.parse(input).sessionId, event.sender);
+    void ptyManager.terminate(ptyTerminateSchema.parse(input).sessionId, event.sender);
   });
   handle(IPC.agentCreate, (event, input: unknown) =>
     agentSessionManager.create(agentSessionCreateOptionsSchema.parse(input), event.sender),
@@ -323,7 +325,7 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     agentSessionManager.interrupt(agentSessionActionSchema.parse(input).sessionId, event.sender);
   });
   listen(IPC.agentTerminate, (event, input: unknown) => {
-    agentSessionManager.terminate(agentSessionActionSchema.parse(input).sessionId, event.sender);
+    void agentSessionManager.terminate(agentSessionActionSchema.parse(input).sessionId, event.sender);
   });
 }
 

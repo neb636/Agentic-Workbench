@@ -2,18 +2,20 @@ import { randomUUID } from "node:crypto";
 import type { WebContents } from "electron";
 import { Terminal } from "@xterm/headless";
 import { SerializeAddon } from "@xterm/addon-serialize";
-import type { IPty } from "node-pty";
+import type { IDisposable, IPty } from "node-pty";
 import type { AgentDeliveryResult, AgentPromptRequest, AgentProviderInfo, AgentSessionCreateOptions, AgentSessionEvent, AgentSessionSnapshot, AgentSessionStatus } from "../shared/models";
 import { IPC } from "../shared/ipc";
 import type { AgentProviderAdapter, ScreenObservation } from "./agent-provider";
 import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { executablePath } from "./executables";
-import { spawnTerminal } from "./pty-manager";
+import { spawnTerminal, type ListedSession } from "./pty-manager";
+import { endProcessTree } from "./processes";
 import { footer, isProtocolInput } from "./providers/cli-screen";
 
 interface Session {
   id: string;
   viewId: string;
+  cwd: string;
   owner: WebContents;
   provider: AgentProviderAdapter;
   process: IPty;
@@ -47,6 +49,7 @@ interface Session {
   pendingData: string;
   dataTimer?: ReturnType<typeof setTimeout>;
   detectTimer?: ReturnType<typeof setTimeout>;
+  listeners: IDisposable[];
 }
 
 // A CLI's spinner alone writes about ten chunks a second. Sending each one to the window, and reading the whole
@@ -110,7 +113,7 @@ export class AgentSessionManager {
     try { processInstance = this.spawn(executable, args, options.workspacePath, options.cols, options.rows); }
     catch (error) { terminal.dispose(); throw error; }
     const session: Session = {
-      id: randomUUID(), viewId: options.viewId, owner, provider, process: processInstance, terminal, serialize,
+      id: randomUUID(), viewId: options.viewId, cwd: options.workspacePath, owner, listeners: [], provider, process: processInstance, terminal, serialize,
       sequence: 0, interrupted: false, working: false, sending: false, disposed: false, inputWasEdited: false, unconfirmedEnter: false,
       lastOutputAt: Date.now(), settled: false, pendingData: "", createdAt: Date.now(), resized: false, title: "", conversationId,
       status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0, started: 0, confirmedDeliveries: 0 },
@@ -125,19 +128,23 @@ export class AgentSessionManager {
     terminal.onTitleChange((title) => { session.title = title; });
     // Headless parsing owns terminal replies, including when no renderer is attached.
     terminal.onData((data) => { if (!session.disposed && session.status.lifecycle !== "exited") processInstance.write(data); });
-    processInstance.onData((data) => { session.lastOutputAt = Date.now(); terminal.write(data, () => {
+    session.listeners.push(processInstance.onData((data) => {
+      // Output can still arrive after the session closed; its terminal is gone by then.
       if (session.disposed) return;
-      session.pendingData += data;
-      session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);
-      session.detectTimer ??= setTimeout(() => { session.detectTimer = undefined; this.detect(session); }, DETECT_EVERY_MS);
-    }); });
-    processInstance.onExit(({ exitCode }) => {
+      session.lastOutputAt = Date.now();
+      terminal.write(data, () => {
+        if (session.disposed) return;
+        session.pendingData += data;
+        session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);
+        session.detectTimer ??= setTimeout(() => { session.detectTimer = undefined; this.detect(session); }, DETECT_EVERY_MS);
+      });
+    }), processInstance.onExit(({ exitCode }) => {
       if (session.disposed) return;
       this.emitPending(session);
       session.status = { ...session.status, lifecycle: exitCode === 0 ? "exited" : "failed", activity: "unknown", canSubmit: false, inputState: "unavailable",
         reason: `CLI exited with code ${exitCode}.`, rule: "process.exit", observedAt: Date.now(), exitCode };
       this.emit(session, { type: "status", status: session.status });
-    });
+    }));
     return session.id;
   }
 
@@ -243,19 +250,29 @@ export class AgentSessionManager {
     s.unconfirmedEnter = false;
     if (s.status.lifecycle === "alive") s.process.write(s.provider.interrupt);
   }
-  terminate(id: string, owner?: WebContents): void {
+  /** Ends the CLI and everything it started; resolves once they are gone. */
+  terminate(id: string, owner?: WebContents, graceMs?: number): Promise<void> {
     const s = owner ? this.owned(id, owner) : this.sessions.get(id);
-    if (!s) return;
+    if (!s) return Promise.resolve();
     s.disposed = true;
     clearTimeout(s.settleTimer);
     clearTimeout(s.dataTimer);
     clearTimeout(s.detectTimer);
     this.sessions.delete(id);
-    if (s.status.lifecycle !== "exited" && s.status.lifecycle !== "failed") s.process.kill();
+    s.listeners.forEach((listener) => listener.dispose());
     s.terminal.dispose();
+    if (s.status.lifecycle === "exited" || s.status.lifecycle === "failed") return Promise.resolve();
+    return endProcessTree(s.process.pid, () => s.process.kill(), graceMs);
   }
-  terminateForOwner(owner: WebContents): void { for (const s of this.sessions.values()) if (s.owner === owner) this.terminate(s.id); }
-  terminateAll(): void { for (const id of this.sessions.keys()) this.terminate(id); }
+  terminateForOwner(owner: WebContents): void { for (const s of [...this.sessions.values()]) if (s.owner === owner) void this.terminate(s.id); }
+  terminateAll(graceMs?: number): Promise<void> {
+    return Promise.all([...this.sessions.keys()].map((id) => this.terminate(id, undefined, graceMs))).then(() => undefined);
+  }
+  has(id: string, owner: WebContents): boolean { return this.sessions.get(id)?.owner === owner; }
+  list(): ListedSession[] {
+    return [...this.sessions.values()].map((s) => ({ sessionId: s.id, kind: "agent", viewId: s.viewId, label: s.provider.label, pid: s.process.pid,
+      cwd: s.cwd, exited: s.status.lifecycle === "exited" || s.status.lifecycle === "failed", owner: s.owner }));
+  }
 
   /**
    * Into or out of the CLI's Plan mode, checked on the footer after every step. Leaving Plan returns to the mode the

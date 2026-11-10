@@ -1,7 +1,4 @@
-import { useEffect, useState } from "react";
 import { useViewStatuses, type ViewStatus } from "../../core/view-status";
-import { useWorkbenchStore } from "../../state/workbench-store";
-import { MemoryIcon, TerminalIcon } from "../../ui/icons";
 
 const urgency: ViewStatus["tone"][] = ["error", "attention", "working", "ready", "idle"];
 
@@ -21,23 +18,4 @@ export function SessionSummary() {
       {waiting > 0 && <span className="status-muted">· {waiting} need input</span>}
     </span>;
   })}</>;
-}
-
-export function TerminalCount() {
-  const count = useWorkbenchStore((state) => state.workspaces.reduce((total, workspace) => total + workspace.views.filter((view) => view.type === "terminal").length, 0));
-  return <span className="status-item" title="Open terminals"><TerminalIcon size={12} />{count}</span>;
-}
-
-export function MemoryUsage() {
-  const [bytes, setBytes] = useState<number>();
-  useEffect(() => {
-    let active = true;
-    const read = () => void window.workbench.app.metrics().then((metrics) => { if (active) setBytes(metrics.memoryBytes); }).catch(() => undefined);
-    read();
-    const timer = setInterval(read, 10_000);
-    return () => { active = false; clearInterval(timer); };
-  }, []);
-  if (bytes === undefined) return null;
-  const label = bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`;
-  return <span className="status-item" title="Memory used by Agent Workbench"><MemoryIcon size={12} />{label}</span>;
 }

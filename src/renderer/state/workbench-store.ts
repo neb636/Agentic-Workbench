@@ -203,8 +203,12 @@ function persistedSnapshot(state: WorkbenchStore): PersistedState {
 }
 
 let persistenceTimer: ReturnType<typeof setTimeout> | undefined;
-useWorkbenchStore.subscribe((state) => {
+useWorkbenchStore.subscribe((state, previous) => {
   if (!state.isHydrated) return;
+  // Only a change to what is saved schedules a save; the store also holds state that never reaches disk.
+  const next = persistedSnapshot(state);
+  const before = persistedSnapshot(previous);
+  if (previous.isHydrated && (Object.keys(next) as (keyof PersistedState)[]).every((key) => next[key] === before[key])) return;
   clearTimeout(persistenceTimer);
   persistenceTimer = setTimeout(() => {
     persistenceTimer = undefined;

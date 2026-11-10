@@ -7,6 +7,7 @@ import { AgentViewIcon } from "../features/agent/AgentViewIcon";
 import { ClaudeCodeMark, CodexMark } from "../features/agent/harness-marks";
 import { cliAgentProvider } from "../features/agent/cli-agent-provider";
 import { closeAgentRuntime } from "../core/agent-runtimes";
+import { closeTerminalRuntime } from "../core/terminal-runtimes";
 import { fileBuffers, isViewDirty, setViewDirty } from "../core/dirty-views";
 import { TerminalView } from "../features/terminal/TerminalView";
 import { localTerminalProvider } from "../features/terminal/terminal-provider";
@@ -23,7 +24,8 @@ import { FilesPanel } from "../features/files/FilesPanel";
 import { registerFileCommands } from "../features/files/file-commands";
 import { ActiveViewsPanel } from "../features/views/ActiveViewsPanel";
 import { SourceControlBadge, SourceControlPanel, StatusBranch, WorkspaceBranch } from "../features/source-control/SourceControlPanel";
-import { MemoryUsage, SessionSummary, TerminalCount } from "../features/status/StatusItems";
+import { SessionSummary } from "../features/status/StatusItems";
+import { ResourceManager } from "../features/resources/ResourceManager";
 import { SettingsButton } from "../features/settings/SettingsButton";
 import { BranchIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
 
@@ -93,8 +95,7 @@ export function registerFirstPartyContributions(): void {
   services.widgets.register({ id: "workspace-branch", slot: "sidebar.workspace.meta", component: WorkspaceBranch });
   services.widgets.register({ id: "sessions", slot: "statusbar.start", order: 10, component: SessionSummary });
   services.widgets.register({ id: "branch", slot: "statusbar.end", order: 10, component: StatusBranch });
-  services.widgets.register({ id: "terminals", slot: "statusbar.end", order: 20, component: TerminalCount });
-  services.widgets.register({ id: "memory", slot: "statusbar.end", order: 30, component: MemoryUsage });
+  services.widgets.register({ id: "resources", slot: "statusbar.end", order: 20, component: ResourceManager });
 
   services.commands.register<{ workspaceId: string }>("workspace.reveal", ({ workspaceId }) => {
     const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
@@ -159,6 +160,7 @@ export function registerFirstPartyContributions(): void {
     setViewDirty(viewId, false);
     fileBuffers.delete(viewId);
     closeAgentRuntime(viewId);
+    closeTerminalRuntime(viewId);
     clearComposerRuntime(viewId);
     useWorkbenchStore.getState().closeView(workspaceId, viewId);
     return true;
