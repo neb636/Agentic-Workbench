@@ -175,6 +175,8 @@ export class AgentSessionManager {
         await this.switchMode(s, plan);
       }
       stage = "paste";
+      // The paste is an edit: a dim pasted-text marker must read as the draft, not as a placeholder.
+      s.inputWasEdited = true;
       for (const [index, chunk] of submission.paste.entries()) {
         s.process.write(chunk);
         // Pace the body; the bracketed-paste markers need no pause.

@@ -84,6 +84,10 @@ test("screen rules distinguish ready, native drafts, working, decisions and unkn
   assert.equal(claude.detect(screen("❯ ")).canSubmit, true);
   assert.equal(claude.detect(screen('❯ Try "fix lint errors"')).canSubmit, true);
   assert.equal(claude.detect({ ...screen('❯ Try "fix lint errors"'), inputWasEdited: true }).canSubmit, false);
+  // Claude's suggested next prompt is dim like its placeholder, whatever its wording; typed text is never dim.
+  assert.equal(claude.detect(screen("❯ yes, start step 5")).inputState, "empty");
+  assert.equal(claude.detect({ ...screen("❯ yes, start step 5"), cursorCellDim: false }).inputState, "draft");
+  assert.equal(claude.detect({ ...screen("❯ yes, start step 5"), inputWasEdited: true }).inputState, "draft");
   // Codex's placeholder is dim, so stray input (a mouse move) can never turn it into a draft.
   assert.equal(codex.detect({ ...screen("› Ask Codex to do anything"), inputWasEdited: true }).canSubmit, true);
   assert.equal(codex.detect({ ...screen("› ", []), reportedState: "working" }).activity, "working");

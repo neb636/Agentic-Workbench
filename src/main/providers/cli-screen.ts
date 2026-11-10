@@ -75,14 +75,17 @@ export function detectCliScreen(kind: "codex" | "claude") {
       }
     }
     const atStart = screen.cursorX <= (screen.cursorLine.indexOf(kind === "codex" ? "›" : "❯") + 2);
-    // Codex draws its placeholder dim and typed text never is, so the style alone tells them apart. Claude's placeholder
-    // is plain text, so a typed draft that happens to start with "Try" stays a draft. While Claude holds a prompt sent
-    // mid-turn, its empty input reads "Press up to edit queued messages" and the held prompt shows "ctrl+enter to send
-    // now" until the CLI takes it. (Codex steers the running turn with Enter instead, so it shows no queue.)
+    // Both CLIs draw placeholders dim and typed text never is. Codex's dim placeholder is also matched by its wording.
+    // Claude's dim text is its "Try ..." placeholder or a suggested next prompt (any wording, such as "yes, start step 5"),
+    // so for Claude dim text under the cursor is enough, as long as nothing was typed since the input was last empty.
+    // A numbered line is a menu's selected option ("❯ 1. Yes, I trust this folder"), never a suggestion.
+    // While Claude holds a prompt sent mid-turn, its empty input reads "Press up to edit queued messages" and the held
+    // prompt shows "ctrl+enter to send now" until the CLI takes it. (Codex steers the running turn with Enter instead,
+    // so it shows no queue.)
     const claudeQueue = kind === "claude" && !screen.inputWasEdited && match?.[1].trim() === "Press up to edit queued messages";
     const placeholder = match && atStart && (kind === "codex"
       ? screen.cursorCellDim && /^(Ask Codex|Write tests|Explain this|Implement|Find and fix|Improve documentation|Summarize recent|Run \/review)/.test(match[1])
-      : !screen.inputWasEdited && (/^Try\s+["“].+["”]$/.test(match[1]) || claudeQueue));
+      : !screen.inputWasEdited && ((screen.cursorCellDim && !/^\d+\.\s/.test(match[1])) || /^Try\s+["“].+["”]$/.test(match[1]) || claudeQueue));
     queuedPrompt = kind === "claude" && (Boolean(placeholder && claudeQueue) || /(?:^|\n)\s*ctrl\+enter to send now\s*(?:\n|$)/.test(bottom));
     const empty = Boolean(match && !multiline && (!match[1].trim() || placeholder));
     const inputState = !match || !screen.bracketedPaste ? "unavailable" : empty ? "empty" : "draft";
