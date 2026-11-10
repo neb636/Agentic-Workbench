@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import {
   Button as AriaButton,
   Dialog,
@@ -26,6 +26,7 @@ import { modelLabel, modelSettings, needsModelChoice, useAgentModels } from "./a
 import { clearComposerResult, composedPrompt, emptyComposerRuntime, patchComposer, pendingSettings, useComposerState } from "./composer-state";
 import { ComposerAttachments } from "./ComposerAttachments";
 import { PromptMenuBar } from "./prompt-menus/PromptMenuBar";
+import { useComposerFocus } from "./send-selection";
 
 export interface ComposerSession {
   status?: AgentSessionStatus;
@@ -66,6 +67,20 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   const [copiedRevision, setCopiedRevision] = useState<number>();
   const [dropping, setDropping] = useState(false);
   const status = session?.status;
+  // Something was added to this draft from elsewhere (code from a file): continue typing after it.
+  const focusWanted = useComposerFocus((s) => s.viewId === viewId);
+  useEffect(() => {
+    const prompt = promptRef.current;
+    if (!focusWanted || !prompt) return;
+    useComposerFocus.setState({ viewId: undefined });
+    // Not cancelled when the request clears (that re-runs this effect); a composer gone by then is not focused.
+    requestAnimationFrame(() => {
+      if (!prompt.isConnected) return;
+      prompt.focus();
+      prompt.setSelectionRange(prompt.value.length, prompt.value.length);
+      prompt.scrollTop = prompt.scrollHeight;
+    });
+  }, [focusWanted]);
   const wantsPlan = state.intent === "plan";
   const busy = runtime.sending || runtime.launching;
   const hasDraft = Boolean(state.draft?.trim());

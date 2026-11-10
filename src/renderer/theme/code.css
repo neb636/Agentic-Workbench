@@ -63,3 +63,69 @@
 .picture-view { display: flex; flex: 1; align-items: center; justify-content: center; min-height: 0; padding: 16px; overflow: auto;
   background: repeating-conic-gradient(var(--wb-bg-field) 0 25%, var(--wb-bg-raised) 0 50%) 0 0 / 20px 20px; }
 .picture-view img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: var(--wb-shadow-card); }
+
+/* Send to agent: a pill beside selected code, and the list of sessions it opens. */
+.code-editor-frame { position: relative; display: flex; flex: 1; min-width: 0; min-height: 0; }
+.code-editor-frame .code-editor { flex: 1; min-width: 0; }
+.selection-pill {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--wb-accent);
+  color: var(--wb-accent-text);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  outline: none;
+  box-shadow: var(--wb-shadow-popover);
+  cursor: default;
+  animation: wb-pill-in 120ms ease-out;
+}
+.selection-pill[data-hovered], .selection-pill[data-pressed] { background: var(--wb-accent-hover); }
+.selection-pill[data-focus-visible] { box-shadow: 0 0 0 3px var(--wb-focus-ring); }
+.selection-pill kbd {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wb-accent-text) 20%, transparent);
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+}
+@keyframes wb-pill-in { from { opacity: 0; transform: translateY(2px); } }
+.selection-popover { width: 300px; }
+.selection-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 4px;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--wb-border-subtle);
+  color: var(--wb-text-secondary);
+  font-size: 11.5px;
+}
+.selection-popover-file { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.selection-popover-file strong { overflow: hidden; color: var(--wb-text-primary); text-overflow: ellipsis; white-space: nowrap; }
+.selection-popover-lines { flex: none; font-family: var(--wb-font-mono); font-size: 11px; }
+.wb-popover .send-target { gap: 10px; padding: 6px 8px; }
+.send-target-label { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.send-target-mark {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--wb-radius-sm);
+  background: var(--wb-bg-field);
+  color: var(--wb-text-secondary);
+}
+.send-target-mark :where(.status-dot) { position: absolute; right: -2px; bottom: -2px; background: var(--wb-bg-raised); box-shadow: 0 0 0 2px var(--wb-bg-raised); }
+.send-target-mark.is-new { background: var(--wb-accent-soft); color: var(--wb-accent); }

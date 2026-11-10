@@ -4,6 +4,10 @@ import { MoreIcon } from "./icons";
 
 export interface ContextAction {
   id: string; label: string; run: () => void | Promise<unknown>; disabled?: boolean; destructive?: boolean; section?: string; shortcut?: string;
+  /** Shown before the label; menus without room for it ignore it. */
+  icon?: ReactNode;
+  /** A second line under the label. */
+  detail?: string;
 }
 /** Shared pointer/keyboard menu. The caller's row remains the focus owner. */
 export function useContextMenu(label: string) {
@@ -45,7 +49,7 @@ export function useContextMenu(label: string) {
   });
   const renderItems = (actions: ContextAction[]) => actions.flatMap((item, index) => [
     ...(index && item.section !== actions[index - 1].section ? [<Separator key={`separator-${item.id}`} className="context-menu-separator" />] : []),
-    <MenuItem key={item.id} id={item.id} textValue={item.label} isDisabled={item.disabled} className={item.destructive ? "is-destructive" : ""}><span>{item.label}</span>{item.shortcut && <kbd className="context-menu-shortcut" aria-hidden="true">{item.shortcut}</kbd>}</MenuItem>,
+    <MenuItem key={item.id} id={item.id} textValue={item.label} isDisabled={item.disabled} className={item.destructive ? "is-destructive" : ""}>{item.icon && <span className="context-menu-icon">{item.icon}</span>}{item.detail ? <div><span>{item.label}</span><small>{item.detail}</small></div> : <span>{item.label}</span>}{item.shortcut && <kbd className="context-menu-shortcut" aria-hidden="true">{item.shortcut}</kbd>}</MenuItem>,
   ]);
   const overflow = (actions: ContextAction[], name = label): ReactNode => <MenuTrigger>
     <Button className="row-action" aria-label={`${name} actions`}><MoreIcon size={13} /></Button>

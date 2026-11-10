@@ -374,3 +374,4 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .instruction-consequence { color: var(--wb-text-secondary); font-size: 11px; line-height: 15px; }
 .instruction-list-caption { justify-self: end; margin: 2px 8px -2px 0; color: var(--wb-text-muted); font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
 .instruction-list .empty-copy:empty { display: none; }
+.context-menu-icon { display: inline-grid; flex: none; place-items: center; color: var(--wb-text-secondary); }
