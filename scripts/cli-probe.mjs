@@ -6,9 +6,9 @@
 //     --out tests/fixtures/codex-plan.json
 //
 // Steps: wait:<ms>, type:<text>, paste:<text>, key:<enter|esc|shift-tab|tab|ctrl-c|backspace>, mouse (a pointer move),
-// mark:<name> (a named checkpoint the tests can replay up to). Each step prints the bottom of the screen.
+// mark:<name> (a named checkpoint for transcript inspection). Each step prints the bottom of the screen.
 // The fixture holds the raw output chunks (with step marks), the terminal size and the CLI's version, never the
-// environment. Re-record when a CLI update changes its screens, then run `npm test`.
+// environment. Re-record when a CLI update changes its screens, then verify the adapter behavior with focused QA.
 // --model and --effort launch the CLI with that model. Send a real prompt only when a screen can't be seen otherwise
 // (such as a prompt queued mid-turn), and then only as AGENTS.md allows: the cheapest model at low effort, a short
 // prompt that needs no tools, and never past a billing, login or trust prompt.
