@@ -43,3 +43,6 @@ export const ArrowUpIcon = ({ size }: IconProps) => <Icon size={size}><path d="M
 export const NewChatIcon = ({ size }: IconProps) => <Icon size={size}><path d="M20.5 12.5v4a3 3 0 0 1-3 3h-7l-5 3v-3a3 3 0 0 1-2-3v-9a3 3 0 0 1 3-3h6.5" /><path d="M18 3v6M15 6h6" /></Icon>;
 export const MemoryIcon = ({ size }: IconProps) => <Icon size={size}><rect x="3.5" y="7" width="17" height="10" rx="2" /><path d="M7 17v2.5M12 17v2.5M17 17v2.5M7 10.5v3M10.5 10.5v3M14 10.5v3M17.5 10.5v3" /></Icon>;
 export const CommitIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="12" cy="12" r="3.5" /><path d="M3 12h5.5M15.5 12H21" /></Icon>;
+export const GlobeIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="12" cy="12" r="8.5" /><path d="M3.5 12h17M12 3.5c2.4 2.4 3.5 5.2 3.5 8.5s-1.1 6.1-3.5 8.5c-2.4-2.4-3.5-5.2-3.5-8.5s1.1-6.1 3.5-8.5z" /></Icon>;
+export const UsersIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="9" cy="8.5" r="3.2" /><path d="M3 19.5c.7-3.3 3-5 6-5s5.3 1.7 6 5" /><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.8c1.8.6 3 2.2 3.5 4.7" /></Icon>;
+export const LockIcon = ({ size }: IconProps) => <Icon size={size}><rect x="5" y="10.5" width="14" height="10" rx="2.2" /><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" /></Icon>;

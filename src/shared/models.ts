@@ -17,6 +17,8 @@ export interface Workspace {
   path: string;
   /** A PNG data URL shown instead of the folder icon. */
   icon?: string;
+  /** Global or shared instructions the person turned off in this workspace. */
+  disabledInstructionIds?: string[];
   views: WorkbenchView[];
   activeViewId?: string;
 }
@@ -60,6 +62,8 @@ export interface PersistedState {
   activeWorkspaceId?: string;
   personas: Persona[];
   instructionOptions: StoredPromptOption[];
+  /** Default instructions already added once, so a deleted default stays deleted. */
+  seededInstructionIds?: string[];
   layout: LayoutState;
   /** The CLI that runs built-in AI actions. Unset: the first one installed. */
   defaultAgentProviderId?: string;

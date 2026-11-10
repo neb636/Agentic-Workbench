@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { useShallow } from "zustand/react/shallow";
+import { useEffect, useReducer, useState, type ReactNode } from "react";
 import {
   Button as AriaButton,
   Checkbox,
@@ -28,9 +27,8 @@ import {
   type PromptOptionValue,
   type PromptSelections,
 } from "../../../../shared/prompt-options";
-import type { PromptMenuDefinition, PromptMenuOptions } from "../../../core/prompt-menu-registry";
+import type { PromptMenuDefinition, PromptMenuOptions, PromptOptionTag } from "../../../core/prompt-menu-registry";
 import { services } from "../../../core/services";
-import { useWorkbenchStore } from "../../../state/workbench-store";
 import { Button } from "../../../ui/controls";
 import { CheckIcon, ChevronDownIcon } from "../../../ui/icons";
 import { setPromptSelections, type ComposerTarget } from "../composer-state";
@@ -41,15 +39,23 @@ function groupByCategory(options: PromptOptionDefinition[]): [string, PromptOpti
   return [...groups.entries()];
 }
 
-function OptionControl({ option, value, onChange }: {
+function OptionTag({ tag }: { tag?: PromptOptionTag }) {
+  if (!tag) return null;
+  const Icon = tag.icon;
+  return <span className="prompt-option-tag" title={tag.label}><Icon size={11} /><span className="visually-hidden">{tag.label}</span></span>;
+}
+
+function OptionControl({ option, value, onChange, tag }: {
   option: PromptOptionDefinition;
   value: PromptOptionValue;
   onChange: (value: PromptOptionValue) => void;
+  tag?: PromptOptionTag;
 }) {
+  const title: ReactNode = <span className="prompt-option-title"><span>{option.label}</span><OptionTag tag={tag} /></span>;
   switch (option.kind) {
     case "toggle":
       return <Switch className="prompt-option prompt-switch" isSelected={value === true} onChange={onChange}>
-        <span className="prompt-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>
+        <span className="prompt-option-copy">{title}{option.description && <small>{option.description}</small>}</span>
         <span className="switch-track" aria-hidden="true"><span className="switch-thumb" /></span>
       </Switch>;
     case "select": {
@@ -67,7 +73,7 @@ function OptionControl({ option, value, onChange }: {
       }
       if (display === "segmented") {
         return <div className="prompt-option prompt-segmented-option">
-          <span className="prompt-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</span>
+          <span className="prompt-option-copy">{title}{option.description && <small>{option.description}</small>}</span>
           <ToggleButtonGroup aria-label={option.label} className="segmented" selectionMode="single" disallowEmptySelection
             selectedKeys={[String(value)]} onSelectionChange={(keys) => { if (keys.size) onChange(String([...keys][0])); }}>
             {option.choices.map((choice) => <ToggleButton key={choice.id} id={choice.id} className="segment">{choice.label}</ToggleButton>)}
@@ -75,36 +81,37 @@ function OptionControl({ option, value, onChange }: {
         </div>;
       }
       return <Select className="prompt-option prompt-select" selectedKey={String(value)} onSelectionChange={(key) => onChange(String(key))}>
-        <Label className="prompt-option-copy"><span>{option.label}</span></Label>
+        <Label className="prompt-option-copy">{title}</Label>
         <AriaButton className="select-trigger"><SelectValue /><ChevronDownIcon size={13} /></AriaButton>
         <Popover className="wb-popover"><ListBox>{option.choices.map((choice) => <ListBoxItem key={choice.id} id={choice.id}>{choice.label}</ListBoxItem>)}</ListBox></Popover>
       </Select>;
     }
     case "multiSelect":
       return <CheckboxGroup className="prompt-option prompt-checkbox-group" value={Array.isArray(value) ? value : []} onChange={onChange}>
-        <Label className="prompt-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</Label>
+        <Label className="prompt-option-copy">{title}{option.description && <small>{option.description}</small>}</Label>
         <div className="prompt-checkboxes">{option.choices.map((choice) => <Checkbox key={choice.id} value={choice.id} className="wb-checkbox">
           <span className="checkbox-box"><CheckIcon size={11} /></span><span>{choice.label}</span>
         </Checkbox>)}</div>
       </CheckboxGroup>;
     case "text":
       return <TextField className="prompt-option prompt-text-option" value={typeof value === "string" ? value : ""} maxLength={option.maxLength} onChange={onChange}>
-        <Label className="prompt-option-copy"><span>{option.label}</span>{option.description && <small>{option.description}</small>}</Label>
+        <Label className="prompt-option-copy">{title}{option.description && <small>{option.description}</small>}</Label>
         <Input placeholder={option.placeholder} />
       </TextField>;
   }
 }
 
-function MenuOptions({ options, evaluator, onChange }: {
+function MenuOptions({ options, evaluator, onChange, tagOf }: {
   options: PromptOptionDefinition[];
   evaluator: PromptOptionEvaluator;
   onChange: (option: PromptOptionDefinition, value: PromptOptionValue) => void;
+  tagOf: (optionId: string) => PromptOptionTag | undefined;
 }) {
   const visible = options.filter((option) => evaluator.isVisible(option.id));
   if (!visible.length) return <p className="prompt-menu-empty">No options yet. Use Manage to add some.</p>;
   return <>{groupByCategory(visible).map(([category, items]) => <section className="prompt-menu-group" key={category || "default"} aria-label={category || undefined}>
     {category && <h4>{category}</h4>}
-    {items.map((option) => <OptionControl key={option.id} option={option} value={evaluator.value(option)} onChange={(value) => onChange(option, value)} />)}
+    {items.map((option) => <OptionControl key={option.id} option={option} value={evaluator.value(option)} onChange={(value) => onChange(option, value)} tag={tagOf(option.id)} />)}
   </section>)}</>;
 }
 
@@ -114,10 +121,20 @@ function menuSummary(options: PromptOptionDefinition[], selections: PromptSelect
   return options.length === 1 ? resolved[0].summary : String(resolved.length);
 }
 
+/** Re-renders when any menu says its options may have changed. */
+function useMenuUpdates() {
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  // Re-subscribe only when menus are added or removed.
+  const key = services.promptMenus.ordered().map((menu) => menu.id).join("\0");
+  useEffect(() => {
+    const unsubscribes = services.promptMenus.ordered().map((menu) => menu.subscribe?.(refresh));
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe?.());
+  }, [key]);
+}
+
 /** Renders every registered prompt menu as a composer button with an options popover. */
 export function PromptMenuBar({ target, selections }: { target: ComposerTarget; selections: PromptSelections }) {
-  // Menus read personas and stored options from the store; re-render when it changes.
-  useWorkbenchStore(useShallow((state) => [state.personas, state.instructionOptions]));
+  useMenuUpdates();
   const [managing, setManaging] = useState<PromptMenuDefinition>();
   const menus: PromptMenuOptions[] = services.promptMenus.resolve(target);
   const everyOption = menus.flatMap((item) => item.options);
@@ -140,7 +157,7 @@ export function PromptMenuBar({ target, selections }: { target: ComposerTarget; 
                 <div><h3>{menu.label}</h3><p>{menu.description}</p></div>
                 {menu.manage && <Button className="link-button" onPress={() => { close(); setManaging(menu); }}>Manage</Button>}
               </header>
-              <div className="prompt-menu-body"><MenuOptions options={options} evaluator={evaluator} onChange={change} /></div>
+              <div className="prompt-menu-body"><MenuOptions options={options} evaluator={evaluator} onChange={change} tagOf={(id) => menu.optionTag?.(id, target)} /></div>
             </>}
           </Dialog>
         </Popover>
@@ -153,7 +170,7 @@ export function PromptMenuBar({ target, selections }: { target: ComposerTarget; 
             <div><h2>{managing?.manage?.title}</h2><p>{managing?.manage?.description}</p></div>
             <Button onPress={() => setManaging(undefined)}>Done</Button>
           </div>
-          {Manager && <Manager workspaceId={target.workspaceId} />}
+          {Manager && <Manager workspaceId={target.workspaceId} close={() => setManaging(undefined)} />}
         </Dialog>
       </Modal>
     </ModalOverlay>

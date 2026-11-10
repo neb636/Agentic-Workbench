@@ -7,6 +7,7 @@ import type {
   WorkbenchView,
   Workspace,
 } from "../../shared/models";
+import { defaultInstructions } from "../../shared/default-instructions";
 import { createId } from "../core/id";
 
 interface WorkbenchStore extends PersistedState {
@@ -26,7 +27,12 @@ interface WorkbenchStore extends PersistedState {
   upsertPersona: (persona: Persona) => void;
   deletePersona: (personaId: string) => void;
   upsertInstructionOption: (option: StoredPromptOption) => void;
-  deleteInstructionOption: (optionId: string) => void;
+  /** `keepWorkspaceSettings`: the instruction lives on under the same id elsewhere, so keep where it is turned off. */
+  deleteInstructionOption: (optionId: string, options?: { keepWorkspaceSettings?: boolean }) => void;
+  /** Turns a global or shared instruction off (or back on) in one workspace only. */
+  setInstructionDisabled: (workspaceId: string, optionId: string, disabled: boolean) => void;
+  /** Adds back these default instructions, unless one with the same id is already stored. */
+  restoreDefaultInstructions: (ids: string[]) => void;
   updateLayout: (patch: Partial<LayoutState>) => void;
   setDefaultAgentProvider: (providerId: string) => void;
 }
@@ -160,8 +166,26 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
           : [...state.instructionOptions, stored],
       };
     }),
-  deleteInstructionOption: (optionId) =>
-    set((state) => ({ instructionOptions: state.instructionOptions.filter((item) => item.option.id !== optionId) })),
+  deleteInstructionOption: (optionId, options) =>
+    set((state) => ({
+      instructionOptions: state.instructionOptions.filter((item) => item.option.id !== optionId),
+      workspaces: options?.keepWorkspaceSettings ? state.workspaces : state.workspaces.map((workspace) => workspace.disabledInstructionIds?.includes(optionId)
+        ? { ...workspace, disabledInstructionIds: workspace.disabledInstructionIds.filter((id) => id !== optionId) }
+        : workspace),
+    })),
+  setInstructionDisabled: (workspaceId, optionId, disabled) =>
+    set((state) => ({
+      workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => {
+        const rest = (workspace.disabledInstructionIds ?? []).filter((id) => id !== optionId);
+        return { ...workspace, disabledInstructionIds: disabled ? [...rest, optionId] : rest };
+      }),
+    })),
+  restoreDefaultInstructions: (ids) =>
+    set((state) => {
+      const used = new Set(state.instructionOptions.map((item) => item.option.id));
+      const missing = defaultInstructions.filter((option) => ids.includes(option.id) && !used.has(option.id));
+      return { instructionOptions: [...missing.map((option) => ({ scope: "global" as const, option })), ...state.instructionOptions] };
+    }),
   updateLayout: (patch) => set((state) => ({ layout: { ...state.layout, ...patch } })),
   setDefaultAgentProvider: (providerId) => set({ defaultAgentProviderId: providerId }),
 }));
@@ -172,6 +196,7 @@ function persistedSnapshot(state: WorkbenchStore): PersistedState {
     activeWorkspaceId: state.activeWorkspaceId,
     personas: state.personas,
     instructionOptions: state.instructionOptions,
+    seededInstructionIds: state.seededInstructionIds,
     layout: state.layout,
     defaultAgentProviderId: state.defaultAgentProviderId,
   };

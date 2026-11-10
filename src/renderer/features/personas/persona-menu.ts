@@ -13,6 +13,7 @@ export const personaMenu: PromptMenuDefinition = {
   kind: "persona",
   placement: "prepend",
   resetAfterSend: true,
+  subscribe: (listener) => useWorkbenchStore.subscribe((state, previous) => { if (state.personas !== previous.personas) listener(); }),
   options: ({ workspaceId }) => {
     const personas = useWorkbenchStore.getState().personas.filter((p) => p.scope === "global" || p.workspaceId === workspaceId);
     return [select("active-persona", {
