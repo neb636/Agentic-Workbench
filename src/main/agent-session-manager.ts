@@ -26,6 +26,11 @@ interface Session {
   sending: boolean;
   disposed: boolean;
   inputWasEdited: boolean;
+  /**
+   * Enter went with a prompt whose submission wasn't seen before the deadline. If the input editor empties later, with
+   * nothing typed in the terminal meanwhile, the CLI took it; typing or another send drops the claim.
+   */
+  unconfirmedEnter: boolean;
   lastOutputAt: number;
   settled: boolean;
   createdAt: number;
@@ -106,9 +111,9 @@ export class AgentSessionManager {
     catch (error) { terminal.dispose(); throw error; }
     const session: Session = {
       id: randomUUID(), viewId: options.viewId, owner, provider, process: processInstance, terminal, serialize,
-      sequence: 0, interrupted: false, working: false, sending: false, disposed: false, inputWasEdited: false,
+      sequence: 0, interrupted: false, working: false, sending: false, disposed: false, inputWasEdited: false, unconfirmedEnter: false,
       lastOutputAt: Date.now(), settled: false, pendingData: "", createdAt: Date.now(), resized: false, title: "", conversationId,
-      status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0, started: 0 },
+      status: { lifecycle: "starting", activity: "unknown", canSubmit: false, inputState: "unavailable", reason: "Starting CLI…", rule: "startup", observedAt: Date.now(), completed: 0, started: 0, confirmedDeliveries: 0 },
     };
     this.sessions.set(session.id, session);
     const reported = provider.reportedState;
@@ -154,6 +159,7 @@ export class AgentSessionManager {
     }
     let stage: AgentDeliveryResult["stage"] = "none";
     s.sending = true;
+    s.unconfirmedEnter = false;
     try {
       const submission = s.provider.submit(request);
       await this.flush(s);
@@ -196,10 +202,13 @@ export class AgentSessionManager {
         await this.flush(s);
         current = this.sessions.get(id)?.status;
         if (current?.lifecycle === "alive" && current.activity !== "waiting-for-input" && current.inputState === "empty") {
-          return { outcome: "submitted", stage, message: plan ? "Planning request handed to the CLI in its Plan mode." : "Prompt handed to the CLI." };
+          return { outcome: "submitted", stage, message: plan ? "Planning request handed to the CLI in its Plan mode."
+            : current.queuedPrompt ? "Prompt queued by the CLI until it can take it." : "Prompt handed to the CLI." };
         }
         if (current?.lifecycle !== "alive" || current.activity === "waiting-for-input") break;
       } while (Date.now() < (current?.activity === "working" ? heldDeadline : submittedDeadline));
+      // Out of time, not refused: an editor that empties later still means the CLI took it.
+      if (current?.lifecycle === "alive" && current.activity !== "waiting-for-input") s.unconfirmedEnter = true;
       throw new Error("Enter was delivered, but submission could not be confirmed. Inspect the terminal before retrying.");
     } catch (error) {
       // A failed mode switch stops before the prompt is pasted: nothing was sent, though the CLI's mode may have moved.
@@ -210,6 +219,7 @@ export class AgentSessionManager {
   input(id: string, data: string, owner: WebContents): void {
     const s = this.owned(id, owner);
     if (s.sending || s.status.lifecycle === "exited" || s.status.lifecycle === "failed") return;
+    if (!isProtocolInput(data)) s.unconfirmedEnter = false;
     if (data === "\x1b" || data === "\x03") s.interrupted = true;
     // Mouse moves, focus and terminal replies are not typing: counting them made a dim placeholder look like a draft.
     else if (!isProtocolInput(data)) {
@@ -228,6 +238,7 @@ export class AgentSessionManager {
     const s = this.owned(id, owner);
     if (s.sending) return;
     s.interrupted = true;
+    s.unconfirmedEnter = false;
     if (s.status.lifecycle === "alive") s.process.write(s.provider.interrupt);
   }
   terminate(id: string, owner?: WebContents): void {
@@ -354,10 +365,14 @@ export class AgentSessionManager {
       if (!s.interrupted) completed++;
       s.working = false;
     }
-    const next: AgentSessionStatus = { ...detection, lifecycle, completed, started, observedAt: Date.now() };
+    let confirmedDeliveries = s.status.confirmedDeliveries;
+    if (s.unconfirmedEnter && !s.sending && lifecycle === "alive" && detection.inputState === "empty") { s.unconfirmedEnter = false; confirmedDeliveries++; }
+    const next: AgentSessionStatus = { ...detection, lifecycle, completed, started, confirmedDeliveries, observedAt: Date.now() };
     const previous = s.status;
     s.status = next;
-    if (previous.activity !== next.activity || previous.canSubmit !== next.canSubmit || previous.lifecycle !== next.lifecycle || previous.rule !== next.rule || previous.completed !== completed || previous.started !== started) this.emit(s, { type: "status", status: next });
+    if (previous.activity !== next.activity || previous.canSubmit !== next.canSubmit || previous.lifecycle !== next.lifecycle || previous.rule !== next.rule
+      || previous.completed !== completed || previous.started !== started || previous.confirmedDeliveries !== confirmedDeliveries
+      || Boolean(previous.queuedPrompt) !== Boolean(next.queuedPrompt)) this.emit(s, { type: "status", status: next });
   }
   private observe(s: Session): ScreenObservation {
     const buffer = s.terminal.buffer.active;

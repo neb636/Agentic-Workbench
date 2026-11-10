@@ -11,7 +11,7 @@ export interface ScreenObservation {
   /** What the CLI last reported about itself through its own escape sequence, if its adapter reads one. */
   reportedState?: "idle" | "working";
 }
-export type AgentDetection = Pick<AgentSessionStatus, "activity" | "canSubmit" | "inputState" | "reason" | "rule">;
+export type AgentDetection = Pick<AgentSessionStatus, "activity" | "canSubmit" | "inputState" | "reason" | "rule" | "queuedPrompt">;
 
 export interface AgentSubmission {
   /** The bracketed paste as separate writes (markers and small pieces of the body). */

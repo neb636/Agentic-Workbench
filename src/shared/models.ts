@@ -92,6 +92,10 @@ export interface AgentSessionStatus {
   completed: number;
   /** Turns started since the CLI settled, from the composer or typed in the terminal, interrupted or not. */
   started: number;
+  /** The CLI is holding a submitted prompt in its own queue until it can take it. */
+  queuedPrompt?: boolean;
+  /** Prompts whose Enter could not be confirmed in time, seen taken by the CLI afterwards (its input editor emptied). */
+  confirmedDeliveries: number;
   exitCode?: number;
 }
 

@@ -12,7 +12,7 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 // Instructions menus (including a conditional option and a migrated instruction), composed
 // prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
 // limit, restart, cleanup), resuming after a restart (the tab the app opens on resumes, others wait for a click; draft and attachments stay),
-// uncertain delivery handoff, Plan chosen before the CLI starts,
+// uncertain delivery handoff, an uncertain delivery the CLI takes late, Plan chosen before the CLI starts,
 // Files tree and read-only viewer, Source control commit, Active views, tab overflow, and
 // layout persistence across restart. Runs against a deterministic fake CLI; no model calls.
 const directory = await realpath(await mkdtemp(join(tmpdir(), "workbench-composer-qa-")));
@@ -188,6 +188,15 @@ try {
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Control+c");
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
+
+  // A CLI that takes the prompt after the deadline: uncertain at first, then confirmed, with no retry.
+  await prompt().fill("LATE pickup");
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await waitFeedback("Delivery uncertain");
+  await waitFeedback("The CLI took the prompt after all.");
+  assert.equal(await prompt().inputValue(), "");
+  assert.equal((await prompts()).filter((item) => item.prompt.includes("LATE pickup")).length, 1);
+  await shot("late-confirmation");
 
   // Changing the model after a prompt offers a restart that keeps the draft.
   await page.getByRole("button", { name: /Model/ }).click();

@@ -56,8 +56,9 @@ export function detectCliScreen(kind: "codex" | "claude") {
     const lines = [...screen.lines];
     while (lines.length && !lines.at(-1)?.trim()) lines.pop();
     const bottom = lines.slice(-12).join("\n");
+    let queuedPrompt = false;
     const result = (activity: AgentDetection["activity"], canSubmit: boolean, rule: string, reason: string, inputState: AgentDetection["inputState"] = "unavailable"): AgentDetection =>
-      ({ activity, canSubmit, inputState, rule: `${kind}.${rule}`, reason });
+      ({ activity, canSubmit, inputState, rule: `${kind}.${rule}`, reason, ...(queuedPrompt ? { queuedPrompt } : {}) });
     // Codex also reports it itself (see its adapter's reportedState), which survives a redesign of its spinner.
     const working = kind === "codex"
       ? screen.reportedState === "working" || /esc to (?:interrupt|cancel)|• (?:Working|Thinking)|(?:Working|Thinking)\s*[.…]|Waiting for startup/i.test(bottom)
@@ -75,10 +76,14 @@ export function detectCliScreen(kind: "codex" | "claude") {
     }
     const atStart = screen.cursorX <= (screen.cursorLine.indexOf(kind === "codex" ? "›" : "❯") + 2);
     // Codex draws its placeholder dim and typed text never is, so the style alone tells them apart. Claude's placeholder
-    // is plain text, so a typed draft that happens to start with "Try" stays a draft.
+    // is plain text, so a typed draft that happens to start with "Try" stays a draft. While Claude holds a prompt sent
+    // mid-turn, its empty input reads "Press up to edit queued messages" and the held prompt shows "ctrl+enter to send
+    // now" until the CLI takes it. (Codex steers the running turn with Enter instead, so it shows no queue.)
+    const claudeQueue = kind === "claude" && !screen.inputWasEdited && match?.[1].trim() === "Press up to edit queued messages";
     const placeholder = match && atStart && (kind === "codex"
       ? screen.cursorCellDim && /^(Ask Codex|Write tests|Explain this|Implement|Find and fix|Improve documentation|Summarize recent|Run \/review)/.test(match[1])
-      : !screen.inputWasEdited && /^Try\s+["“].+["”]$/.test(match[1]));
+      : !screen.inputWasEdited && (/^Try\s+["“].+["”]$/.test(match[1]) || claudeQueue));
+    queuedPrompt = kind === "claude" && (Boolean(placeholder && claudeQueue) || /(?:^|\n)\s*ctrl\+enter to send now\s*(?:\n|$)/.test(bottom));
     const empty = Boolean(match && !multiline && (!match[1].trim() || placeholder));
     const inputState = !match || !screen.bracketedPaste ? "unavailable" : empty ? "empty" : "draft";
     // Transcript text can mention "sign in" or "select an option"; a decision UI replaces the empty input prompt.
@@ -86,7 +91,8 @@ export function detectCliScreen(kind: "codex" | "claude") {
     if (!empty && /trust (?:this|the)|allow once|allow always|yes, (?:proceed|allow)|do you want to (?:proceed|allow)|would you like to (?:run|proceed)|enter to confirm|enter continue|esc skip|skip until next version|select an option|sign in|log in|choose.*account/i.test(bottom)) {
       return result("waiting-for-input", false, "decision", "Answer the question in the terminal.");
     }
-    if (working) return result("working", inputState === "empty", "working", empty ? "Submit using the CLI’s native queue or steering." : "Clear the native draft or use the terminal input.", inputState);
+    // A held prompt means a turn is running, even in a frame without a spinner (Claude draws none while streaming text).
+    if (working || queuedPrompt) return result("working", inputState === "empty", "working", empty ? "Submit using the CLI’s native queue or steering." : "Clear the native draft or use the terminal input.", inputState);
     if (match) return result("ready", inputState === "empty", empty ? "prompt" : "native-draft", !screen.bracketedPaste ? "Use the terminal; paste mode is not available." : empty ? "Ready for a prompt." : "A draft is already in the terminal. Send or clear it there first.", inputState);
     return result("unknown", false, "unmatched", "Use the terminal until its prompt is recognized.");
   };

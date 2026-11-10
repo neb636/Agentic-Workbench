@@ -67,6 +67,8 @@ process.stdin.on("data", (data) => {
     pending = ""; prompt = "";
     setTimeout(() => {
       if (sent.includes("UNCERTAIN")) screen("Do you want to proceed?\r\n› Yes, proceed");
+      // LATE: a hint the composer's rules don't know stays in the input past the confirmation deadline, then clears.
+      else if (sent.includes("LATE")) { screen("› Holding your message"); setTimeout(ready, 3000); }
       else ready();
     }, 700);
   }

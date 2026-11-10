@@ -1,0 +1,518 @@
+{
+ "cli": "claude",
+ "version": "2.1.321 (Claude Code)",
+ "cols": 120,
+ "rows": 40,
+ "recordedAt": "2026-11-10",
+ "steps": [
+  "wait:6000",
+  "mark:ready",
+  "paste:Without using any tools, write the numbers one to one hundred fifty as English words, one per line.",
+  "wait:700",
+  "key:enter",
+  "wait:2500",
+  "mark:working",
+  "paste:Then reply with only the word done.",
+  "wait:700",
+  "mark:second-pasted",
+  "key:enter",
+  "wait:150",
+  "mark:queued",
+  "wait:1500",
+  "wait:3000",
+  "wait:5000",
+  "wait:8000",
+  "wait:10000",
+  "mark:end"
+ ],
+ "chunks": [
+  {
+   "at": 152,
+   "data": "\u001b7\u001b[r\u001b8\u001b[?25h"
+  },
+  {
+   "at": 202,
+   "data": "\u001b[?25l"
+  },
+  {
+   "at": 202,
+   "data": "\u001b[?2004h\u001b[?2031h\u001b[?1004h\u001b[<u\u001b[>5u\u001b[>4;2m"
+  },
+  {
+   "at": 202,
+   "data": "\u001b]0;✳ Claude Code\u0007"
+  },
+  {
+   "at": 203,
+   "data": "\u001b]9;4;0;\u0007"
+  },
+  {
+   "at": 218,
+   "data": "\u001b[?2026h\u001b[38;2;215;119;87m ▐\u001b[48;2;0;0;0m▛███▛█\u001b[12G\u001b[39m\u001b[49m\u001b[1mClaude\u001b[19GCode\u001b[24G\u001b[22m\u001b[38;2;153;153;153mv2.1.321\u001b[39m\r\r\n\u001b[38;2;215;119;87m▝▜\u001b[48;2;0;0;0m█████\u001b[49m█▀\u001b[12G\u001b[38;2;153;153;153mHaiku\u001b[18G5.5\u001b[22Gwith\u001b[27Glow\u001b[31Geffort\u001b[38G·\u001b[40GClaude\u001b[47GMax\u001b[39m\r\r\n\u001b[38;2;215;119;87m ▝▝\u001b[7G▝▝\u001b[12G\u001b[38;2;153;153;153m~/repos/agent-workbench-worktrees/wb-session-202611092318-1461\u001b[39m\r\r\n\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n❯ \u001b[2mTry\u001b[7G\"edit\u001b[13Gregister-first-party.ts\u001b[37Gto...\"\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────────"
+  },
+  {
+   "at": 307,
+   "data": "───────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l\u001b[>0q\u001b[?u\u001b]7501;?\u0007\u001b[c"
+  },
+  {
+   "at": 6005,
+   "mark": "ready"
+  },
+  {
+   "at": 6007,
+   "data": "\u001b(B\u000f\u001b[?2004h\u001b[<u\u001b[>5u\u001b[>4;2m"
+  },
+  {
+   "at": 6027,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[3AWithout using any tools, write the numbers\u001b[46Gone\u001b[50Gto\u001b[53Gone\u001b[57Ghundred\u001b[65Gfifty\u001b[71Gas\u001b[74GEnglish\u001b[82Gwords,\u001b[89Gone\u001b[93Gper\u001b[97Gline.\r\u001b[38C\u001b[2B               \r\r\n\u001b[101C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 6752,
+   "data": "\u001b]0;◐ Claude Code\u0007"
+  },
+  {
+   "at": 6756,
+   "data": "\u001b]9;4;3;\u0007"
+  },
+  {
+   "at": 6759,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[101D\u001b[3B\r\u001b[4A\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ \u001b[38;2;255;255;255mWithout using any tools, write the numbers one to one hundred fifty as English words, one per line.\u001b[39m                   \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m✳\u001b[39m \u001b[38;2;215;119;87mConcocting… \u001b[38;2;153;153;153m(running UserPromptSubmit hooks… 0/2 · 0s)\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\r\r\n\u001b[38;2;136;136;136m──────────────────────────────────────────────────────────────────────"
+  },
+  {
+   "at": 6772,
+   "data": "──────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 6797,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[14C\u001b[6A\u001b[K\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 6813,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 6903,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 7064,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✽\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 7408,
+   "data": "\u001b]0;◐ English number words list\u0007"
+  },
+  {
+   "at": 7463,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 7583,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 7702,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✳\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 7715,
+   "data": "\u001b]0;◑ English number words list\u0007"
+  },
+  {
+   "at": 7918,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✢\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8029,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m·\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8479,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✢\u001b[13G\u001b[38;2;235;159;127m…\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8604,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[6A\u001b[38;2;215;119;87mJitterbug\u001b[13Ging… \u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8621,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✳\u001b[18G\u001b[38;2;153;153;153m(1s · thinking with low effort)\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8675,
+   "data": "\u001b]0;◐ English number words list\u0007"
+  },
+  {
+   "at": 8709,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8811,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[18C\u001b[6A\u001b[38;2;153;153;153m2\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 8929,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[24G\u001b[38;2;157;157;157mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9036,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✽\u001b[16G\u001b[38;2;235;159;127m…\u001b[24G\u001b[38;2;161;161;161mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9151,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[23C\u001b[6A\u001b[38;2;165;165;165mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9213,
+   "mark": "working"
+  },
+  {
+   "at": 9230,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[3AThen\u001b[8Greply\u001b[14Gwith\u001b[19Gonly\u001b[24Gthe\u001b[28Gword\u001b[33Gdone.\r\u001b[38C\u001b[2B               \r\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9268,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[14C\u001b[6A\u001b[38;2;235;159;127mg\u001b[24G\u001b[38;2;173;173;173mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9372,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[23C\u001b[6A\u001b[38;2;177;177;177mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9486,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[14G\u001b[38;2;235;159;127mn\u001b[24G\u001b[38;2;181;181;181mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9617,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[13G\u001b[38;2;235;159;127mi\u001b[16G\u001b[38;2;215;119;87m…\u001b[24G\u001b[38;2;185;185;185mthinking with low effort\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9636,
+   "data": "\u001b]0;◑ English number words list\u0007"
+  },
+  {
+   "at": 9706,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✳\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9828,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✢\u001b[12G\u001b[38;2;235;159;127mg\u001b[15G\u001b[38;2;215;119;87mg\u001b[19G\u001b[38;2;153;153;153m3\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[37C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9915,
+   "mark": "second-pasted"
+  },
+  {
+   "at": 9943,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[37D\u001b[3B\r\u001b[6A\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2B\u001b[49m\u001b[38;2;215;119;87m✢\u001b[39m \u001b[38;2;215;119;87mJitterbug\u001b[38;2;235;159;127mgin\u001b[38;2;215;119;87mg… \u001b[38;2;153;153;153m(running UserPromptSubmit hooks… 0/2 · 3s · ↓\u001b[39m \u001b[38;2;153;153;153m25 tokens · \u001b[38;2;181;181;181mthinking with low effort\u001b[38;2;153;153;153m)\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[2B\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress up to edit queued messages\u001b[22m\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m"
+  },
+  {
+   "at": 9945,
+   "data": " (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9958,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[8A\u001b[38;2;255;255;255m⏺\u001b[39m one\u001b[K\r\u001b[2C\u001b[1Btwo\r\u001b[1B \u001b[3Gthree\u001b[K\r\u001b[2C\u001b[1Bfour\r\u001b[1B  five\u001b[K\r\u001b[1B  six\u001b[K\r\u001b[1B  seven\u001b[K\r\u001b[2C\u001b[1Beight\u001b[K\r\r\n\u001b[3Gnine\r\r\n\u001b[3Gten\r\r\n\u001b[3Geleven\r\r\n\u001b[3Gtwelve\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────────────────"
+  },
+  {
+   "at": 9962,
+   "data": "───────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 9973,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[5A\u001b[38;2;153;153;153mctrl+enter to send now\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress up to edit queued messages\u001b[22m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30"
+  },
+  {
+   "at": 9974,
+   "data": "Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10071,
+   "mark": "queued"
+  },
+  {
+   "at": 10073,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Athirteen\r\u001b[1B  fourteen\u001b[K\r\u001b[2C\u001b[1Bfifteen\u001b[K\r\u001b[2C\u001b[1Bsixteen\r\u001b[1B  seventeen\u001b[K\r\u001b[1B  eighteen\u001b[K\r\u001b[1B  nineteen\u001b[K\r\u001b[2C\u001b[1Btwenty\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────────────────"
+  },
+  {
+   "at": 10074,
+   "data": "─────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10178,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Atwenty-one\r\u001b[1B  twenty-two\u001b[K\r\u001b[2C\u001b[1Btwenty-three\u001b[K\r\u001b[2C\u001b[1Btwenty-four\r\u001b[1B  twenty-five\u001b[K\r\u001b[1B  twenty-six\u001b[K\r\u001b[1B  twenty-seven\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────────────"
+  },
+  {
+   "at": 10187,
+   "data": "─────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[40G·\u001b[42G←\u001b[44Gfor\u001b[48Gagents\u001b[104G○\u001b[106Glow\u001b[110G·\u001b[112G/effort\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10209,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[103C\u001b[1A\u001b[K\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10224,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[38C\u001b[1A\u001b[K\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10290,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Atwenty-eight\r\u001b[1B  twenty-nine\u001b[K\r\u001b[2C\u001b[1Bthirty\u001b[K\r\u001b[2C\u001b[1Bthirty-one\r\u001b[1B  thirty-two\u001b[K\r\u001b[1B  thirty-three\u001b[K\r\u001b[1B  thirty-four\u001b[K\r\u001b[2C\u001b[1Bthirty-five\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────────"
+  },
+  {
+   "at": 10291,
+   "data": "─────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10412,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Athirty-six\r\u001b[1B  thirty-seven\u001b[K\r\u001b[2C\u001b[1Bthirty-eight\u001b[K\r\u001b[2C\u001b[1Bthirty-nine\r\u001b[1B  forty\u001b[K\r\u001b[1B  forty-one\u001b[K\r\u001b[1B  forty-two\u001b[K\r\u001b[2C\u001b[1Bforty-three\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────"
+  },
+  {
+   "at": 10413,
+   "data": "───────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10520,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aforty-four\r\u001b[1B  forty-five\u001b[K\r\u001b[2C\u001b[1Bforty-six\u001b[K\r\u001b[2C\u001b[1Bforty-seven\r\u001b[1B  forty-eight\u001b[K\r\u001b[1B  forty-nine\u001b[K\r\u001b[1B  fifty\u001b[K\r\u001b[2C\u001b[1Bfifty-one\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m──────────────────────────────────"
+  },
+  {
+   "at": 10521,
+   "data": "──────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10596,
+   "data": "\u001b]0;◐ English number words list\u0007"
+  },
+  {
+   "at": 10648,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Afifty-two\r\u001b[1B  fifty-three\u001b[K\r\u001b[2C\u001b[1Bfifty-four\u001b[K\r\u001b[2C\u001b[1Bfifty-five\r\u001b[1B  fifty-six\u001b[K\r\u001b[1B  fifty-seven\u001b[K\r\u001b[1B  fifty-eight\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────"
+  },
+  {
+   "at": 10648,
+   "data": "────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10752,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Afifty-nine\r\u001b[1B  sixty\u001b[K\r\u001b[2C\u001b[1Bsixty-one\u001b[K\r\u001b[2C\u001b[1Bsixty-two\r\u001b[1B  sixty-three\u001b[K\r\u001b[1B  sixty-four\u001b[K\r\u001b[1B  sixty-five\u001b[K\r\u001b[2C\u001b[1Bsixty-six\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────────────"
+  },
+  {
+   "at": 10753,
+   "data": "─────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10864,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Asixty-seven\r\u001b[1B  sixty-eight\u001b[K\r\u001b[2C\u001b[1Bsixty-nine\u001b[K\r\u001b[2C\u001b[1Bseventy\r\u001b[1B  seventy-one\u001b[K\r\u001b[1B  seventy-two\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────"
+  },
+  {
+   "at": 10866,
+   "data": "────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 10974,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aseventy-three\r\u001b[1B  seventy-four\u001b[K\r\u001b[2C\u001b[1Bseventy-five\u001b[K\r\u001b[2C\u001b[1Bseventy-six\r\u001b[1B  seventy-seven\u001b[K\r\u001b[1B  seventy-eight\u001b[K\r\u001b[1B  seventy-nine\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────────"
+  },
+  {
+   "at": 10975,
+   "data": "─────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11089,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aeighty\r\u001b[1B  eighty-one\u001b[K\r\u001b[2C\u001b[1Beighty-two\u001b[K\r\u001b[2C\u001b[1Beighty-three\r\u001b[1B  eighty-four\u001b[K\r\u001b[1B  eighty-five\u001b[K\r\u001b[1B  eighty-six\u001b[K\r\u001b[2C\u001b[1Beighty-seven\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────"
+  },
+  {
+   "at": 11090,
+   "data": "────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11214,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aeighty-eight\r\u001b[1B  eighty-nine\u001b[K\r\u001b[2C\u001b[1Bninety\u001b[K\r\u001b[2C\u001b[1Bninety-one\r\u001b[1B  ninety-two\u001b[K\r\u001b[1B  ninety-three\u001b[K\r\u001b[1B  ninety-four\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────"
+  },
+  {
+   "at": 11216,
+   "data": "────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11316,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aninety-five\r\u001b[1B  ninety-six\u001b[K\r\u001b[2C\u001b[1Bninety-seven\u001b[K\r\u001b[2C\u001b[1Bninety-eight\r\u001b[1B  ninety-nine\u001b[K\r\u001b[1B  one hundred\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m──────────────────────────────────────────"
+  },
+  {
+   "at": 11316,
+   "data": "──────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11422,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gone\r\u001b[1B  one hundred two\u001b[K\r\u001b[2C\u001b[1Bone hundred three\u001b[K\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gfour\r\u001b[1B  one hundred five\u001b[K\r\u001b[1B  one hundred six\u001b[K\r\u001b[1B  one hundred seven\u001b[K\r\u001b[2C\u001b[1Bone hundred eight\u001b[K\r\r\n\r\r\n\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \u001b[49m\r\r\n\u001b[3G\u001b[38;2;153;153;153mctrl+enter\u001b[14Gto\u001b[17Gsend\u001b[22Gnow\u001b[39m\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────"
+  },
+  {
+   "at": 11424,
+   "data": "────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11539,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gnine\r\u001b[1B  one hundred ten\u001b[K\r\u001b[2C\u001b[1Bone hundred eleven\u001b[K\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gtwelve\r\u001b[1B  one hundred thirteen\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────"
+  },
+  {
+   "at": 11540,
+   "data": "────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11557,
+   "data": "\u001b]0;◑ English number words list\u0007"
+  },
+  {
+   "at": 11647,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gfourteen\r\u001b[1B  one hundred fifteen\u001b[K\r\u001b[2C\u001b[1Bone hundred sixteen\u001b[K\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gseventeen\r\u001b[1B  one hundred eighteen\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────"
+  },
+  {
+   "at": 11651,
+   "data": "────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11763,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gnineteen\r\u001b[1B  one hundred twenty\u001b[K\r\u001b[2C\u001b[1Bone hundred twenty-one\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gtwenty-two\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[1B\u001b[49m  \u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────"
+  },
+  {
+   "at": 11764,
+   "data": "────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 11869,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gtwenty-three\r\u001b[1B  one hundred twenty-four\u001b[K\r\u001b[2C\u001b[1Bone hundred twenty-five\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gtwenty-six\r\u001b[1B  one hundred twenty-seven\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m───────────────────────────"
+  },
+  {
+   "at": 11870,
+   "data": "─────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12002,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gtwenty-eight\r\u001b[1B  one hundred twenty-nine\u001b[K\r\u001b[2C\u001b[1Bone hundred thirty\u001b[K\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gthirty-one\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[1B\u001b[49m  \u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────────"
+  },
+  {
+   "at": 12003,
+   "data": "───────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12105,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gthirty-two\r\u001b[1B  one hundred thirty-three\u001b[K\r\u001b[2C\u001b[1Bone hundred thirty-four\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gthirty-five\r\u001b[1B  one hundred thirty-six\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m────────────────────────────"
+  },
+  {
+   "at": 12106,
+   "data": "────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12212,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gthirty-seven\r\u001b[1B  one hundred thirty-eight\u001b[K\r\u001b[2C\u001b[1Bone hundred thirty-nine\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gforty\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[1B\u001b[49m  \u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m──────────────────────────────────────"
+  },
+  {
+   "at": 12213,
+   "data": "──────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12317,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gforty-one\r\u001b[1B  one hundred forty-two\u001b[K\r\u001b[2C\u001b[1Bone hundred forty-three\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gforty-four\r\u001b[1B  one hundred forty-five\u001b[K\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\r\n\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m──────────────────────────────"
+  },
+  {
+   "at": 12318,
+   "data": "──────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12441,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gforty-six\r\u001b[1B  one hundred forty-seven\u001b[K\r\u001b[2C\u001b[1Bone hundred forty-eight\r\u001b[2C\u001b[1Bone\u001b[7Ghundred\u001b[15Gforty-nine\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[1B\u001b[49m  \u001b[38;2;153;153;153mctrl+enter to send now\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m─────────────────────────────────────"
+  },
+  {
+   "at": 12443,
+   "data": "───────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12471,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8Aone\u001b[7Ghundred\u001b[15Gfifty\r\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[2C\u001b[1B\u001b[49m\u001b[38;2;153;153;153mctrl+enter to send now\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m✢\u001b[39m \u001b[38;2;215;119;87mJitterbugging… \u001b[38;2;153;153;153m(5s · ↓\u001b[39m \u001b[38;2;153;153;153m877 tokens)\r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[2mPress\u001b[9Gup\u001b[12Gto\u001b[15Gedit\u001b[20Gqueued\u001b[27Gmessages\u001b[22m\r\r\n\u001b[38;2;136;136;136m──────────────────────────"
+  },
+  {
+   "at": 12494,
+   "data": "──────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[6A\u001b[38;2;230;149;117mJitterbugging…\u001b[19G\u001b[38;2;153;153;153mrunning Stop hooks… 0/2 · 5s · ↓\u001b[52G877 tokens)\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12514,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[38C\u001b[6A\u001b[38;2;153;153;153m1\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12524,
+   "data": "\u001b]0;✳ English number words list\u0007"
+  },
+  {
+   "at": 12524,
+   "data": "\u001b]9;4;0;\u0007"
+  },
+  {
+   "at": 12530,
+   "data": "\u001b]0;◑ English number words list\u0007"
+  },
+  {
+   "at": 12530,
+   "data": "\u001b]9;4;3;\u0007"
+  },
+  {
+   "at": 12531,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[9A\u001b[38;2;153;153;153m✻\u001b[39m \u001b[38;2;153;153;153mChurned for 5s · done 8:25 PM\u001b[39m\u001b[K\r\u001b[2C\u001b[1B\u001b[K\r\u001b[1B\u001b[48;2;55;55;55m\u001b[38;2;153;153;153m❯ Then reply with only the word done.\u001b[39m                                                                                   \r\u001b[1B\u001b[49m\u001b[K\r\u001b[1B\u001b[38;2;215;119;87m✢\u001b[3GGerminating… \r\u001b[1B\u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\r\u001b[1B\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[K\r\u001b[1B\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────"
+  },
+  {
+   "at": 12536,
+   "data": "────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12624,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✳\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12726,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 12848,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 13092,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✽\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 13401,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✻\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 13491,
+   "data": "\u001b]0;◐ English number words list\u0007"
+  },
+  {
+   "at": 13624,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✶\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 13745,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✳\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 13847,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;215;119;87m✢\u001b[39m\r\r\n\r\n\r\n\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 14005,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[2C\u001b[8A\u001b[48;2;55;55;55m\u001b[38;2;255;255;255mThen reply with only the word done.\r\u001b[2B\u001b[49m⏺\u001b[3G\u001b[39mdone\u001b[K\r\u001b[2B\u001b[38;2;215;119;87m✢\u001b[39m \u001b[38;2;218;124;92mGerminating…\u001b[38;2;215;119;87m \u001b[38;2;153;153;153m(running Stop hooks… 0/2 · 1s · ↓\u001b[39m \u001b[38;2;153;153;153m2 tokens)\u001b[39m\u001b[K\r\u001b[1B\u001b[K\r\u001b[2B\u001b[38;2;153;153;153m❯ \u001b[39m\u001b[K\r\r\n\u001b[38;2;136;136;136m────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────\u001b[39m\r\r\n\u001b[3G\u001b[38;2;255;193;7m⏵⏵\u001b[6Gauto\u001b[11Gmode\u001b[16Gon\u001b[38;2;153;153;153m (shift+tab\u001b[30Gto\u001b[33Gcycle)\u001b[39m\r\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 14020,
+   "data": "\u001b]0;✳ English number words list\u0007"
+  },
+  {
+   "at": 14020,
+   "data": "\u001b]9;4;0;\u0007"
+  },
+  {
+   "at": 14021,
+   "data": "\u001b[?2026h\u001b[?25l\u001b[2D\u001b[3B\r\u001b[6A\u001b[38;2;153;153;153m✻\u001b[3GChurned for 1s · do\u001b[23Ge\u001b[25G8:25\u001b[30GPM\u001b[39m\u001b[K\r\u001b[3B❯ \r\r\n\r\n\r\n\u001b[2C\u001b[3A\u001b[?25h\u001b[?2026l"
+  },
+  {
+   "at": 37587,
+   "mark": "end"
+  }
+ ]
+}
