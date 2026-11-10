@@ -348,6 +348,7 @@ test("Claude's queue placeholder is an empty input, and the held prompt reads as
   assert.equal(queued.inputState, "empty");
   assert.equal(queued.canSubmit, true);
   assert.equal(queued.queuedPrompt, true);
+  assert.match(queued.reason, /Press Up/);
   // Typed by the person, the same words are a draft.
   assert.equal(claude.detect({ ...screen("❯ Press up to edit queued messages"), inputWasEdited: true }).inputState, "draft");
   // A draft typed under a queued prompt: still queued, and the draft blocks a send.

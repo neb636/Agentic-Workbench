@@ -92,7 +92,10 @@ export function detectCliScreen(kind: "codex" | "claude") {
       return result("waiting-for-input", false, "decision", "Answer the question in the terminal.");
     }
     // A held prompt means a turn is running, even in a frame without a spinner (Claude draws none while streaming text).
-    if (working || queuedPrompt) return result("working", inputState === "empty", "working", empty ? "Submit using the CLI’s native queue or steering." : "Clear the native draft or use the terminal input.", inputState);
+    // The queue and how to edit it are Claude's own, so the words for them come from here, not the composer.
+    if (queuedPrompt) return result("working", inputState === "empty", "queued", empty ? "Queued in the CLI until it can take it. Press Up in the terminal to edit it."
+      : "A prompt is queued in the CLI and a draft is in the terminal. Send or clear the draft there first.", inputState);
+    if (working) return result("working", inputState === "empty", "working", empty ? "Submit using the CLI’s native queue or steering." : "Clear the native draft or use the terminal input.", inputState);
     if (match) return result("ready", inputState === "empty", empty ? "prompt" : "native-draft", !screen.bracketedPaste ? "Use the terminal; paste mode is not available." : empty ? "Ready for a prompt." : "A draft is already in the terminal. Send or clear it there first.", inputState);
     return result("unknown", false, "unmatched", "Use the terminal until its prompt is recognized.");
   };
