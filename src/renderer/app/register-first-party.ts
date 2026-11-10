@@ -12,6 +12,7 @@ import { fileBuffers, isViewDirty, setViewDirty } from "../core/dirty-views";
 import { TerminalView } from "../features/terminal/TerminalView";
 import { localTerminalProvider } from "../features/terminal/terminal-provider";
 import { clearComposerRuntime, registerComposerContributions } from "../features/agent/composer-state";
+import { registerSendSelection } from "../features/agent/send-selection";
 import { agentIdleStatus, publishAgentStatuses } from "../features/agent/session-status";
 import { agentCloseConfirmation } from "../features/agent/close-confirmation";
 import { confirmDestructive } from "../ui/confirm";
@@ -89,6 +90,7 @@ export function registerFirstPartyContributions(): void {
   services.promptMenus.register(instructionsMenu);
   startRepoInstructions();
   registerComposerContributions();
+  registerSendSelection();
   publishAgentStatuses();
 
   services.widgets.register({ id: "settings", slot: "sidebar.footer", order: 100, component: SettingsButton });

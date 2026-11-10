@@ -19,6 +19,9 @@ import { watchWorkspace } from "../../core/workspace-watch";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button } from "../../ui/controls";
 import { codeTheme } from "./code-theme";
+import type { TextSelection } from "../../core/context-menu-registry";
+import { SelectionActions } from "./SelectionActions";
+import { sendShortcut, takesSelections } from "./selection-target";
 
 const PICTURE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
 const DIFF_BASES: Record<DiffBase, string> = { head: "Last commit", default: "Default branch" };
@@ -28,6 +31,28 @@ function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+/**
+ * Where the "Send to agent" pill goes: just after the last selected line's text, so the list it opens drops below the
+ * selection instead of over it. Kept inside the visible code; hidden when the selection is scrolled away.
+ */
+function pillPosition(view: EditorView, frame: HTMLElement): { top: number; left: number } | undefined {
+  const { from, to, empty } = view.state.selection.main;
+  if (empty) return undefined;
+  const doc = view.state.doc;
+  let last = doc.lineAt(to);
+  if (to === last.from && last.from > from) last = doc.line(last.number - 1);
+  const scroller = view.scrollDOM.getBoundingClientRect();
+  const box = frame.getBoundingClientRect();
+  const top = view.lineBlockAt(from).top + view.documentTop;
+  const lineTop = view.lineBlockAt(last.from).top + view.documentTop;
+  if (lineTop + 20 < scroller.top + 4 || top > scroller.bottom - 4) return undefined;
+  const lineEnd = view.coordsAtPos(last.to, -1)?.right ?? scroller.right;
+  const left = Math.max(Math.min(lineEnd + 16, scroller.right - PILL_WIDTH - 14), view.contentDOM.getBoundingClientRect().left);
+  const y = Math.min(Math.max(lineTop, scroller.top + 6), scroller.bottom - 30);
+  return { top: Math.round(y - box.top), left: Math.round(left - box.left) };
+}
+const PILL_WIDTH = 150;
 
 /** Shown when the file on disk no longer matches what this tab opened (usually an agent edited it). */
 type Conflict = { disk: FileContent | null; saving: boolean };
@@ -85,6 +110,28 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
   const [notice, setNotice] = useState("");
   const [original, setOriginal] = useState<string | null | undefined>(undefined);
   const picture = PICTURE.test(path);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [sendable] = useState(takesSelections);
+  const [pill, setPill] = useState<{ top: number; left: number }>();
+  /** The selection being sent, snapshotted when its list opened. */
+  const [sending, setSending] = useState<TextSelection>();
+  const dragging = useRef(false);
+  const currentSelection = (): TextSelection | undefined => {
+    const editor = editorRef.current;
+    if (!editor) return undefined;
+    const { from, to } = editor.state.selection.main;
+    if (from === to) return undefined;
+    const doc = editor.state.doc;
+    const first = doc.lineAt(from);
+    let last = doc.lineAt(to);
+    // A selection of whole lines ends at the start of the next one, which isn't part of it.
+    if (to === last.from && last.number > first.number) last = doc.line(last.number - 1);
+    return { location: { root, path }, text: editor.state.sliceDoc(from, to), fromLine: first.number, toLine: last.number };
+  };
+  const openSend = () => { const selection = currentSelection(); if (selection) setSending(selection); };
+  const openSendRef = useRef(openSend);
+  openSendRef.current = openSend;
+  const closeSend = (sent: boolean) => { setSending(undefined); if (!sent) requestAnimationFrame(() => editorRef.current?.focus()); };
   const update = (patch: Partial<FileViewState>) => useWorkbenchStore.getState().updateViewState(workspace.id, view.id, patch);
   const markDirty = (value: boolean) => { setDirty(value); setViewDirty(view.id, value); };
 
@@ -184,14 +231,33 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
       // The file changed on disk while the tab was away: ask, as when it changes on screen.
       if (!missing.current && kept.hash !== file.hash) setConflict({ disk: file, saving: false });
     }
+    const pillKey = {};
+    const placePill = (editorView: EditorView) => editorView.requestMeasure({ key: pillKey,
+      read: (v) => dragging.current || !frameRef.current ? undefined : pillPosition(v, frameRef.current),
+      write: (next) => setPill((current) => current?.top === next?.top && current?.left === next?.left ? current : next) });
     const editor = new EditorView({
       parent: host,
       state: EditorState.create({ doc: kept?.text ?? file.content, extensions: [
         lineNumbers(), highlightActiveLineGutter(), highlightActiveLine(), drawSelection(), history(), search({ top: true }), highlightSelectionMatches(),
-        keymap.of([{ key: "Mod-s", preventDefault: true, run: () => { void saveRef.current(); return true; } }, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
+        keymap.of([{ key: "Mod-s", preventDefault: true, run: () => { void saveRef.current(); return true; } },
+          // Send to agent; with nothing selected, the cursor's line is selected and sent.
+          { key: "Mod-l", preventDefault: true, run: (v) => {
+            if (!sendable) return false;
+            const main = v.state.selection.main;
+            if (main.empty) {
+              const line = v.state.doc.lineAt(main.head);
+              if (line.from === line.to) return true;
+              v.dispatch({ selection: { anchor: line.from, head: line.to } });
+            }
+            requestAnimationFrame(() => openSendRef.current());
+            return true;
+          } }, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
         readOnly.current.of(EditorState.readOnly.of(file.truncated)),
         codeTheme, language.current.of([]), merge.current.of([]),
+        // The pill hides while a selection is being dragged out, and shows where it ends up.
+        EditorView.domEventHandlers({ mousedown: () => { dragging.current = true; setPill(undefined); return false; } }),
         EditorView.updateListener.of((change) => {
+          if (change.selectionSet || change.docChanged || change.geometryChanged || change.viewportChanged) placePill(change.view);
           if (change.docChanged) {
             const isDirty = !change.state.doc.eq(saved.current);
             markDirty(isDirty);
@@ -206,11 +272,18 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
       ] }),
     });
     editorRef.current = editor;
+    const onScroll = () => placePill(editor);
+    const onMouseUp = () => { if (!dragging.current) return; dragging.current = false; placePill(editor); };
+    editor.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("mouseup", onMouseUp);
     const description = LanguageDescription.matchFilename(languages, path.split("/").at(-1) ?? path);
     let active = true;
     void description?.load().then((support) => { if (active) editor.dispatch({ effects: language.current.reconfigure(support) }); });
     return () => {
       active = false;
+      editor.scrollDOM.removeEventListener("scroll", onScroll);
+      window.removeEventListener("mouseup", onMouseUp);
+      setPill(undefined); setSending(undefined);
       if (editor.state.doc.eq(saved.current)) fileBuffers.delete(view.id);
       else fileBuffers.set(view.id, { text: editor.state.doc.toString(), saved: saved.current.toString(), hash: baseHash.current });
       editor.destroy(); editorRef.current = null;
@@ -270,13 +343,14 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
       {picture ? <PictureView root={root} path={path} />
         : error ? <div className="code-message" role="alert">{error}</div>
           : file?.binary ? <div className="code-message">This file looks binary, so it is not shown.</div>
-            : <div className="code-editor" ref={hostRef} {...menu.bind(() => {
+            : <div className="code-editor-frame" ref={frameRef}><div className="code-editor" ref={hostRef} {...menu.bind(() => {
           const editor = editorRef.current;
           if (!editor) return [];
           const writable = !file?.truncated && !editor.state.readOnly;
           const selected = editor.state.sliceDoc(editor.state.selection.main.from, editor.state.selection.main.to);
           const replace = (text: string) => { editor.focus(); editor.dispatch(editor.state.replaceSelection(text)); };
           return [
+            ...(sendable && selected ? [{ id: "send-to-agent", label: "Send to Agent…", shortcut: sendShortcut(), section: "agent", run: () => openSendRef.current() }] : []),
             { id: "undo", label: "Undo", disabled: !writable || !undoDepth(editor.state), run: () => { undo(editor); } },
             { id: "redo", label: "Redo", disabled: !writable || !redoDepth(editor.state), run: () => { redo(editor); } },
             { id: "cut", label: "Cut", disabled: !writable || !selected, section: "clipboard", run: async () => { await navigator.clipboard.writeText(selected); replace(""); } },
@@ -287,7 +361,11 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
             { id: "replace", label: "Replace…", disabled: !writable, section: "search", run: () => { openSearchPanel(editor); requestAnimationFrame(() => hostRef.current?.querySelector<HTMLInputElement>('input[name="replace"]')?.focus()); } },
             { id: "save", label: "Save", disabled: !writable || !dirty, section: "save", run: () => save() },
           ];
-        })} />}
+        })} />
+            {sendable && (pill || sending) && <SelectionActions workspace={workspace} selection={sending}
+              position={pill ?? { top: 8, left: Math.max(8, (frameRef.current?.clientWidth ?? 0) - PILL_WIDTH - 16) }}
+              onOpen={openSend} onClose={closeSend} onError={(caught) => setNotice(errorMessage(caught))} />}
+          </div>}
       <div className="code-footer">
         <span>Ln {cursor.line}, Col {cursor.column} · LF · UTF-8{state.diff ? ` · diff vs ${DIFF_BASES[diffBase].toLowerCase()}${original === null ? " (new file)" : ""}` : ""}</span>
         <span>{notice && <span className="code-notice">{notice} · </span>}{file ? `${formatSize(file.size)}${file.truncated ? " · showing the first 2 MB" : ""}` : picture ? "Picture" : "Loading…"}</span>
