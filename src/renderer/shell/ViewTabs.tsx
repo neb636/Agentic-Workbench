@@ -89,7 +89,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
                 }}
                 onAuxClick={(event) => { if (event.button === 1) close(view); }}
                 onDoubleClick={() => { if (preview) useWorkbenchStore.getState().updateViewState(view.workspaceId, view.id, { preview: false }); }}>
-                {Icon && <Icon size={14} />}
+                {Icon && <Icon size={14} view={view} />}
                 <span className="view-tab-title">{view.title}</span>
                 {status && <span className={`status-dot tone-${status.tone} ${status.unseen ? "is-unseen" : ""}`} aria-label={status.unseen ? "Completed" : status.label} role="img" />}
               </span>
@@ -108,7 +108,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
         <Menu aria-label="More views" items={hidden} onAction={(key) => activate(String(key))}>
           {(view) => {
             const Icon = services.views.get(view.type)?.icon;
-            return <MenuItem id={view.id} textValue={view.title}>{Icon && <Icon size={14} />}<span>{view.title}</span></MenuItem>;
+            return <MenuItem id={view.id} textValue={view.title}>{Icon && <Icon size={14} view={view} />}<span>{view.title}</span></MenuItem>;
           }}
         </Menu>
       </Popover>

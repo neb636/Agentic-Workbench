@@ -51,9 +51,10 @@ export function SessionLauncher({ workspace, state, providers, selected, busy, n
     <RadioGroup aria-label="Coding harness" value={selected ?? ""} onChange={(providerId) => onChange({ providerId })} className="harness-options" orientation="horizontal">
       {agents.map((p) => {
         const provider = services.sessions.get(p.id);
+        const Mark = provider?.icon ?? AgentIcon;
         return <Radio key={p.id} value={p.id} isDisabled={!p.available || busy} className="harness-option">
           {({ isSelected }) => <>
-            <span className="harness-icon"><AgentIcon size={18} /></span>
+            <span className="harness-icon"><Mark size={22} /></span>
             <span className="harness-copy">
               <strong>{p.label}</strong>
               <small>{provider?.description && `${provider.description} · `}<span className={p.available ? "is-ready" : "is-missing"}>{p.available ? "Ready" : "Not installed"}</span></small>

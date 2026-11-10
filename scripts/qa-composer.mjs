@@ -90,6 +90,12 @@ try {
   await page.getByRole("heading", { name: "Start a new session" }).waitFor();
   assert.match(await page.locator(".harness-option").filter({ hasText: "Claude Code" }).innerText(), /Not installed/);
   await page.getByRole("radio", { name: /Codex/ }).waitFor();
+  // Each harness shows its own mark, even when not installed, and a tab shows its session's harness or the default one.
+  const mark = (scope) => scope.locator("svg[data-harness-mark]").getAttribute("data-harness-mark");
+  assert.equal(await mark(page.locator(".harness-option").filter({ hasText: "Claude Code" })), "claude");
+  assert.equal(await mark(page.locator(".harness-option").filter({ hasText: "Codex" })), "codex");
+  assert.equal(await mark(page.getByRole("tab", { name: "Other" })), "codex");
+  assert.equal(await mark(page.getByRole("tab", { name: "Untitled" })), "codex");
   // A new worktree is the default, created from origin's default branch; the picker searches the other branches.
   await page.waitForFunction(() => document.querySelector('[role="radio"][aria-checked="true"]')?.textContent.includes("New worktree"));
   await page.getByRole("button", { name: "Create from: origin/main" }).click();

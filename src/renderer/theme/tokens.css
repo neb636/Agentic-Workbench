@@ -39,6 +39,13 @@
   --wb-status-error: #fe5938;
   --wb-status-idle: #a8a8a8;
 
+  /* Harness marks: each vendor's own colors, the same on every surface */
+  --wb-mark-claude: #d97757;
+  --wb-mark-claude-eyes: #2b1a14;
+  --wb-mark-codex-start: #b1a7ff;
+  --wb-mark-codex-middle: #7a9dff;
+  --wb-mark-codex-end: #3941ff;
+
   /* Overlays and depth */
   --wb-overlay: #1212122e;
   --wb-tooltip-bg: #121212;

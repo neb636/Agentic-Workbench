@@ -10,7 +10,7 @@ import { useWorkbenchStore } from "../../state/workbench-store";
 import { Button } from "../../ui/controls";
 import { ChevronUpIcon } from "../../ui/icons";
 import { AgentComposer, type ComposerSession } from "./AgentComposer";
-import { modelSettings, needsModelChoice, rememberAgentModels, useAgentModels } from "./agent-models";
+import { defaultHarness, modelSettings, needsModelChoice, rememberAgentModels, rememberDefaultHarness, useAgentModels } from "./agent-models";
 import { prepareSessionFolder } from "./composer-state";
 import { SessionLauncher } from "./SessionLauncher";
 import { SessionResume } from "./SessionResume";
@@ -44,10 +44,10 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
     let active = true;
-    void window.workbench.agent.providers().then((items) => { rememberAgentModels(items); if (active) setProviders(items); }).catch((e: unknown) => { if (active) setError(String(e)); });
+    void window.workbench.agent.providers().then((items) => { rememberAgentModels(items); rememberDefaultHarness(items); if (active) setProviders(items); }).catch((e: unknown) => { if (active) setError(String(e)); });
     return () => { active = false; };
   }, []);
-  const selected = state.providerId ?? providers.find((p) => p.available)?.id ?? providers[0]?.id;
+  const selected = state.providerId ?? defaultHarness(providers);
   const needsModel = useAgentModels(() => needsModelChoice(selected ?? "", state.modelSettings?.[selected ?? ""]));
   const patch = (value: Partial<AgentViewState>) => update(workspace.id, view.id, value);
   const start = async (resume = false) => {
