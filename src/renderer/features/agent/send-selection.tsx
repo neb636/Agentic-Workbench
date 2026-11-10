@@ -29,10 +29,12 @@ export function selectionReference(selection: TextSelection, cwd: string): strin
   const { root, path } = selection.location;
   const shown = cwd === root ? path : `${root.replace(/[\\/]$/, "")}/${path}`;
   const lines = selection.fromLine === selection.toLine ? `${selection.fromLine}` : `${selection.fromLine}-${selection.toLine}`;
+  // A draft that starts with `/` or `!` is refused as a native command, so an absolute path is quoted rather than left bare.
+  const location = /^[/!]/.test(shown) ? `\`${shown}:${lines}\`` : `${shown}:${lines}`;
   const code = selection.text.replace(/\s+$/, "");
   const extension = /\.([A-Za-z0-9+-]+)$/.exec(path)?.[1]?.toLowerCase() ?? "";
   const marks = fence(code);
-  return `${shown}:${lines}\n${marks}${extension}\n${code}\n${marks}\n`;
+  return `${location}\n${marks}${extension}\n${code}\n${marks}\n`;
 }
 
 /** Adds the selection to a session's composer (a new session's, without `viewId`), then shows that composer ready to type in. */
