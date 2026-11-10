@@ -12,6 +12,9 @@ import { TerminalView } from "../features/terminal/TerminalView";
 import { localTerminalProvider } from "../features/terminal/terminal-provider";
 import { clearComposerRuntime, registerComposerContributions } from "../features/agent/composer-state";
 import { agentIdleStatus, publishAgentStatuses } from "../features/agent/session-status";
+import { agentCloseConfirmation } from "../features/agent/close-confirmation";
+import { confirmDestructive } from "../ui/confirm";
+import { workspaceRemoveConfirmation } from "../features/views/workspace-confirmation";
 import { personaMenu } from "../features/personas/persona-menu";
 import { instructionsMenu } from "../features/instructions/instructions-menu";
 import { FileView } from "../features/files/FileView";
@@ -38,6 +41,7 @@ export function registerFirstPartyContributions(): void {
     defaultTitle: "Untitled",
     listInSidebar: true,
     idleStatus: agentIdleStatus,
+    confirmClose: agentCloseConfirmation,
     onActivate: (view) => void services.commands.execute("agent.session.resume", { workspaceId: view.workspaceId, viewId: view.id }),
     createState: () => ({ autoTitle: true }),
   });
@@ -127,9 +131,10 @@ export function registerFirstPartyContributions(): void {
   });
   services.commands.register<string>("workspace.remove", async (workspaceId) => {
     const workspace = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
-    for (const view of workspace?.views ?? []) {
-      // A tab kept open (unsaved edits the person chose not to lose) keeps the workspace too.
-      if (!await services.commands.execute<boolean>("view.close", { workspaceId, viewId: view.id })) return;
+    if (!workspace || !await confirmDestructive(workspaceRemoveConfirmation(workspace))) return;
+    for (const view of workspace.views) {
+      // Already confirmed for the whole workspace; a tab kept open (unsaved edits the person chose not to lose) keeps the workspace too.
+      if (!await services.commands.execute<boolean>("view.close", { workspaceId, viewId: view.id, confirmed: true })) return;
     }
     useWorkbenchStore.getState().removeWorkspace(workspaceId);
   });
@@ -143,8 +148,11 @@ export function registerFirstPartyContributions(): void {
     const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);
     if (view) services.views.get(view.type)?.onActivate?.(view);
   });
-  services.commands.register<{ workspaceId: string; viewId: string }>("view.close", ({ workspaceId, viewId }) => {
+  /** `confirmed`: the person already agreed to lose this view (removing its workspace), so its own question is skipped. */
+  services.commands.register<{ workspaceId: string; viewId: string; confirmed?: boolean }>("view.close", async ({ workspaceId, viewId, confirmed }) => {
     const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId)?.views.find((item) => item.id === viewId);
+    const confirmation = !confirmed && view ? services.views.get(view.type)?.confirmClose?.(view) : undefined;
+    if (confirmation && !await confirmDestructive(confirmation)) return false;
     if (isViewDirty(viewId) && !window.confirm(`${view?.title ?? "This tab"} has unsaved changes. Close it and lose them?`)) return false;
     setViewDirty(viewId, false);
     fileBuffers.delete(viewId);
