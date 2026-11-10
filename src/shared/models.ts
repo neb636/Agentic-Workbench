@@ -138,11 +138,6 @@ export interface AgentDeliveryResult {
   message: string;
 }
 
-export interface PromptQuotation {
-  id: string;
-  content: string;
-}
-
 /** A file added to a prompt: stored by the app, and read by the CLI from `path`. */
 export interface PromptAttachment {
   id: string;
@@ -159,7 +154,6 @@ export interface AgentViewState {
   providerId?: string;
   draft?: string;
   split?: number;
-  quotations?: PromptQuotation[];
   attachments?: PromptAttachment[];
   intent?: AgentPromptRequest["intent"];
   composerRevision?: number;
