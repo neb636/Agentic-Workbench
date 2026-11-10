@@ -414,3 +414,5 @@
 .base-empty { padding: 24px 12px; color: var(--wb-text-secondary); text-align: center; }
 .base-footer { display: flex; flex: none; justify-content: space-between; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--wb-border-subtle); color: var(--wb-text-secondary); font-size: 11px; }
 .base-footer-sync { margin-left: auto; }
+.prompt-option-title { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.prompt-option-tag { display: inline-flex; flex: none; color: var(--wb-text-muted); }

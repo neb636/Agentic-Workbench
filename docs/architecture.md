@@ -51,8 +51,17 @@ Composer menus are declared with the prompt-option DSL in `shared/prompt-options
 - Definitions are plain data and validated by `promptOptionDefinitionSchema`, so built-in and user-managed options share one schema.
 - `PromptMenuRegistry` entries declare a placement, a reset-after-send default (options may override it), a contribution kind, an options function, and an optional manager.
 - The generic `prompt-menus` contributor resolves every menu against the view's selections. Options hidden by `when` contribute nothing, and conditions on hidden options are false.
-- First-party menus are Persona (a list select of stored personas, prepended, cleared after each send) and Instructions (built-in options plus stored `instructionOptions`, appended, kept between sends).
-- Older `appendedInstructions` state migrates to workspace-scoped toggles on load. Preview and Send use the same assembly path. TerminalSurface exposes selected text and a focus handle without leaking xterm to the composer. Quotations capture selected text only; Workbench does not reconstruct assistant messages from terminal output.
+- A menu may declare `subscribe` (when its options may change; the menu bar re-renders) and `optionTag` (a small marker beside an option).
+- First-party menus are Persona (a list select of stored personas, prepended, cleared after each send) and Instructions (appended, kept between sends).
+- Older `appendedInstructions` state migrates to workspace-scoped toggles on load.
+
+Instructions come in three layers (`shared/instruction-layers.ts`), and the composer offers them in this order:
+
+- Everywhere: the person's own instructions in every workspace (`instructionOptions` with `scope: "global"`). The defaults in `shared/default-instructions.ts` are seeded here once, and `seededInstructionIds` records them, so a deleted default stays deleted until "Restore default instructions".
+- Shared in the repo: `.workbench/instructions.json` at the workspace root (`{ "version": 1, "instructions": [...] }`, validated by `repoInstructionsFileSchema`). It is checked in, so everyone who works in the repo gets these. The renderer reads and writes it through the ordinary `files` API: it saves only over the version it read, and it reloads when the workspace watch reports a change under `.workbench/`. It is read from the workspace path, not from a view's worktree. A file that doesn't validate is reported in the manager and contributes nothing. A shared instruction replaces a stored one with the same id in that repo.
+- Only me in the repo: `instructionOptions` with `scope: "workspace"`. Never written to the repo.
+
+`Workspace.disabledInstructionIds` turns global or shared instructions off for one workspace without changing them anywhere else. The manager lists the three layers with a per-repo switch, and its "Who gets it" control moves an instruction between layers (the id is kept, so selections and conditions still apply). The composer marks shared and personal options with their layer's icon. Preview and Send use the same assembly path. TerminalSurface exposes selected text and a focus handle without leaking xterm to the composer. Quotations capture selected text only; Workbench does not reconstruct assistant messages from terminal output.
 
 The agent composer registers quote, preview, recall, and send commands through CommandRegistry. Its feature-owned store tracks delivery and up to 20 recent submissions/saved drafts per view, bounded to 2 million serialized characters. History remains in memory until the view closes or the app restarts. Recall saves the current draft before restoring text, quotations, and intent, then uses current persona/instruction contributions on the next send. It refuses to replace a draft too large to save. Revision checks protect edits made during asynchronous delivery, including when the view is detached.
 
@@ -116,13 +125,14 @@ Core and the renderer see only the generic `sourceControl` API and types.
 
 `npm test` covers adapter launch contracts and model arguments, ANSI redraws, prompt controls, multiline and chunked paste, protocol input, Plan mode switching in both directions, first-prompt readiness, recorded Codex and Claude transcripts, delayed paste acknowledgment, native draft collisions, concurrent delivery, approval races at command/paste/Enter stages, status/interrupt transitions, owner isolation, replay, process exit, and missing executables.
 
-`npm test` also covers the prompt-option DSL and assembly order, state migration, workspace file containment and safe writes, terminal path links, and the Git adapter (porcelain parsing, commit, worktrees, checkout, fileAt, ignored, search) against temporary repositories.
+`npm test` also covers the prompt-option DSL and assembly order, state migration, default-instruction seeding, instruction layers and the shared instructions file, workspace file containment and safe writes, terminal path links, and the Git adapter (porcelain parsing, commit, worktrees, checkout, fileAt, ignored, search) against temporary repositories.
 
 After `npm run build`, `npm run qa:composer` runs deterministic Electron checks against an isolated simulated CLI, a temporary Git repository, and isolated app persistence. It covers:
 
 - the three-pane shell and nested sessions;
 - the launcher with a new worktree;
 - the Persona and Instructions menus, including a conditional option and a migrated instruction;
+- the three instruction layers: a checked-in shared instruction and its tag, turning a global off for the repo, editing a former built-in, moving one into `.workbench/instructions.json`, a personal one, restoring a deleted default, and an unreadable shared file;
 - the exact composed prompt, the folder it was delivered in, and the model and effort it launched with;
 - restarting with a different model after a prompt;
 - the title taken from the first prompt;

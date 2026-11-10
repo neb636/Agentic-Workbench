@@ -342,3 +342,35 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 [data-context-target] { outline: 1px solid var(--wb-accent); outline-offset: -1px; }
 
 .context-menu-shortcut { margin-inline-start: auto; padding-inline-start: 20px; color: var(--wb-text-secondary); font: inherit; font-size: 11px; }
+
+/* Instructions manager: three layers (everywhere, shared in the repo, only me in the repo) */
+.instructions-manager { display: grid; gap: 14px; }
+.instructions-summary { padding: 8px 12px; border-radius: var(--wb-radius-md); background: var(--wb-bg-field); color: var(--wb-text-secondary); font-size: 12px; }
+.instructions-manager .persona-manager { grid-template-columns: 280px minmax(0, 1fr); }
+.instruction-layers { gap: 16px; max-height: min(560px, 62vh); overflow: auto; padding-right: 4px; }
+.instruction-layer { display: grid; gap: 4px; }
+.instruction-layer + .instruction-layer { padding-top: 12px; border-top: 1px solid var(--wb-border-subtle); }
+.instruction-layer-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 8px; }
+.instruction-layer-icon { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--wb-radius-xs); background: var(--wb-bg-field); color: var(--wb-text-secondary); }
+.instruction-layer.is-shared .instruction-layer-icon { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.instruction-layer-copy h3 { font-size: 12px; font-weight: 600; }
+.instruction-layer-copy p { margin-top: 1px; color: var(--wb-text-secondary); font-size: 11px; line-height: 15px; }
+.instruction-list { display: grid; gap: 2px; outline: none; }
+.instruction-list .empty-copy { padding: 4px 10px; }
+.instruction-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px 6px 10px; }
+.instruction-row-copy { display: grid; gap: 1px; min-width: 0; }
+.instruction-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.instruction-row.is-off .instruction-row-copy { opacity: .55; }
+.instruction-row-switch { display: inline-flex; outline: none; }
+.instruction-row-switch[data-selected] .switch-track { background: var(--wb-strong-end); }
+.instruction-row-switch[data-selected] .switch-thumb { transform: translateX(12px); }
+.instruction-row-switch[data-focus-visible] .switch-track { box-shadow: 0 0 0 2px var(--wb-focus-ring); }
+.instruction-file-link { justify-self: start; font-size: 11px; }
+.instruction-file-error { padding: 6px 8px; border-radius: var(--wb-radius-sm); background: var(--wb-bg-field); color: var(--wb-status-error); font-size: 11px; line-height: 15px; }
+.instruction-audience { display: grid; gap: 6px; }
+.instruction-audience-label { color: var(--wb-text-secondary); font-size: 12px; font-weight: 500; }
+.instruction-audience-segments { justify-self: start; }
+.instruction-audience-segments .segment { display: inline-flex; align-items: center; gap: 5px; }
+.instruction-consequence { color: var(--wb-text-secondary); font-size: 11px; line-height: 15px; }
+.instruction-list-caption { justify-self: end; margin: 2px 8px -2px 0; color: var(--wb-text-muted); font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.instruction-list .empty-copy:empty { display: none; }

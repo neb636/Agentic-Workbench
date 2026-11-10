@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PromptCondition } from "./prompt-options";
 import { MAX_ATTACHMENT_BYTES } from "./prompt-attachments";
+import { defaultInstructions } from "./default-instructions";
 
 export const workbenchViewSchema = z.object({
   id: z.string(),
@@ -16,6 +17,7 @@ export const workspaceSchema = z.object({
   path: z.string(),
   // A bad icon falls back to the folder rather than failing validation, which would discard the whole saved state.
   icon: z.string().max(64 * 1024).regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/).optional().catch(undefined),
+  disabledInstructionIds: z.array(z.string()).optional(),
   views: z.array(workbenchViewSchema),
   activeViewId: z.string().optional(),
 });
@@ -68,6 +70,12 @@ export const storedPromptOptionSchema = z.object({
   option: promptOptionDefinitionSchema,
 });
 
+/** `.workbench/instructions.json`: instructions checked into a workspace and shared with everyone who works there. */
+export const repoInstructionsFileSchema = z.object({
+  version: z.literal(1),
+  instructions: z.array(promptOptionDefinitionSchema),
+});
+
 export const layoutStateSchema = z.object({
   leftSize: z.number().min(0).max(100).optional(),
   rightSize: z.number().min(0).max(100).optional(),
@@ -81,14 +89,19 @@ export const persistedStateSchema = z.object({
   activeWorkspaceId: z.string().optional(),
   personas: z.array(personaSchema).default([]),
   instructionOptions: z.array(storedPromptOptionSchema).default([]),
+  seededInstructionIds: z.array(z.string()).optional(),
   layout: layoutStateSchema.default({ leftCollapsed: false, rightCollapsed: false }),
   defaultAgentProviderId: z.string().optional(),
 });
 
 const legacyInstructionSchema = z.object({ id: z.string(), workspaceId: z.string(), content: z.string(), enabled: z.boolean() });
 
-/** Converts state written before prompt options existed; unknown shapes pass through to normal validation. */
+/** Converts state written before prompt options existed, then seeds default instructions not added before. */
 export function migratePersistedState(input: unknown): unknown {
+  return seedDefaultInstructions(migrateLegacyInstructions(input));
+}
+
+function migrateLegacyInstructions(input: unknown): unknown {
   if (typeof input !== "object" || input === null) return input;
   const source = input as Record<string, unknown>;
   if (source.instructionOptions !== undefined || !Array.isArray(source.appendedInstructions)) return input;
@@ -100,6 +113,25 @@ export function migratePersistedState(input: unknown): unknown {
     return [{ scope: "workspace", workspaceId, option: { id, kind: "toggle", label, category: "Custom", defaultOn: enabled, text: content } }];
   });
   return { ...source, instructionOptions };
+}
+
+/**
+ * Defaults are ordinary global instructions the person may edit or delete. Each is added once: its id is recorded
+ * in `seededInstructionIds`, and an id already in use (such as an edited default) is never replaced.
+ */
+export function seedDefaultInstructions(input: unknown): unknown {
+  if (typeof input !== "object" || input === null) return input;
+  const source = input as Record<string, unknown>;
+  const seeded = Array.isArray(source.seededInstructionIds) ? source.seededInstructionIds.filter((id): id is string => typeof id === "string") : [];
+  const existing = Array.isArray(source.instructionOptions) ? source.instructionOptions : [];
+  const usedIds = new Set(existing.map((item) => (item as { option?: { id?: unknown } } | null)?.option?.id));
+  const added = defaultInstructions.filter((option) => !seeded.includes(option.id) && !usedIds.has(option.id));
+  if (!added.length && defaultInstructions.every((option) => seeded.includes(option.id))) return input;
+  return {
+    ...source,
+    instructionOptions: [...added.map((option) => ({ scope: "global", option })), ...existing],
+    seededInstructionIds: [...new Set([...seeded, ...defaultInstructions.map((option) => option.id)])],
+  };
 }
 
 export const ptyCreateOptionsSchema = z.object({

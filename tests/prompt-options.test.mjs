@@ -105,7 +105,7 @@ test("legacy appended instructions migrate to workspace toggles", () => {
     { id: "i2", workspaceId: "w", content: "   ", enabled: false },
   ] };
   const state = persistedStateSchema.parse(migratePersistedState(legacy));
-  assert.deepEqual(state.instructionOptions, [{ scope: "workspace", workspaceId: "w", option: {
+  assert.deepEqual(state.instructionOptions.filter((item) => item.scope === "workspace"), [{ scope: "workspace", workspaceId: "w", option: {
     id: "i1", kind: "toggle", label: "Explain tradeoffs.", category: "Custom", defaultOn: true, text: "Explain tradeoffs.\nAlways.",
   } }]);
   assert.equal("appendedInstructions" in state, false);
