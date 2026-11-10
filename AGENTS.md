@@ -13,4 +13,5 @@
 - Prefer the smallest abstraction supported by current needs or explicitly planned consumers. Do not create speculative plugin frameworks or future infrastructure; leave a clean extension seam instead.
 - Keep the application local-first unless a feature explicitly requires an external service.
 - Preserve working architectural boundaries. Refactor only when a concrete requirement makes the current boundary inadequate.
+- Do not add unit tests to this repository. Verify changes with type checking, linting, builds, and focused QA as appropriate.
 - QA defaults to the simulated CLI and recorded transcripts. Use a real CLI session only when the behavior depends on the real CLI's timing or screen and cannot be observed otherwise. Real sessions use only the cheapest model for each harness (today Claude Code `haiku` at `low`, Codex `gpt-6-luna` at `low`), send short prompts that use no tools, and never accept billing, login, or trust prompts. Say in the pull request what ran live and why.

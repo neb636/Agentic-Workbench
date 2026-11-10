@@ -73,7 +73,7 @@ Send stays available while a CLI starts or asks something in the terminal: the c
 
 Adapters turn a model choice into launch arguments (`modelArgs`) and may say how to read the CLI's current models (`listModels`, which starts no conversation). `AgentModelCatalogue` runs those reads in main at startup and every 30 minutes, keeps the last good list in memory, and pushes a changed list to the renderer; an adapter's static `models` stand in until the first read succeeds. Nothing is chosen by default: the composer's Model picker starts empty, and Send and Start session stay disabled until a model is picked for each new conversation (New conversation clears the choice). Resumed conversations keep their own model. A harness offering no models isn't gated. Settings apply only to new conversations: before the first prompt, Send relaunches with the new choice; afterwards the composer offers "Restart with…". Main rejects any model or effort the catalogue doesn't list.
 
-`scripts/cli-probe.mjs` records what a real CLI draws into `tests/fixtures/*.json`; tests replay those recordings through the adapters. Re-record them when a CLI update changes its screens.
+`scripts/cli-probe.mjs` records what a real CLI draws into `tests/fixtures/*.json`; the recordings remain available for focused QA of the adapters. Re-record them when a CLI update changes its screens.
 
 When the CLI is working and its input editor is available, submission follows the harness's native steering/queue behavior. Workbench does not own a second prompt queue. Claude Code holds a prompt sent mid-turn (its empty input reads "Press up to edit queued messages", the held prompt "ctrl+enter to send now") and takes it at its next opening; its adapter reads that input as empty and reports `queuedPrompt` (which also means working), so the send is confirmed at once and the composer shows the adapter's reason (queued, and how to edit it) until the CLI takes it. Codex steers the running turn with Enter, so nothing is queued (`tests/fixtures/*-queued.json`). Approval responses and slash commands belong in the terminal. Interrupt sends the provider's native interrupt key; it does not terminate the session.
 
@@ -114,9 +114,7 @@ Core and the renderer see only the generic `sourceControl` API and types.
 
 ## Validation
 
-`npm test` covers adapter launch contracts and model arguments, ANSI redraws, prompt controls, multiline and chunked paste, protocol input, Plan mode switching in both directions, first-prompt readiness, recorded Codex and Claude transcripts, delayed paste acknowledgment, native draft collisions, concurrent delivery, approval races at command/paste/Enter stages, status/interrupt transitions, owner isolation, replay, process exit, and missing executables.
-
-`npm test` also covers the prompt-option DSL and assembly order, state migration, workspace file containment and safe writes, terminal path links, and the Git adapter (porcelain parsing, commit, worktrees, checkout, fileAt, ignored, search) against temporary repositories.
+Do not add unit tests. Validate changes with `npm run lint`, `npm run build` (which includes type checking), and focused Electron QA as appropriate. Recorded CLI transcripts remain in `tests/fixtures/` for reference.
 
 After `npm run build`, `npm run qa:composer` runs deterministic Electron checks against an isolated simulated CLI, a temporary Git repository, and isolated app persistence. It covers:
 
@@ -139,7 +137,7 @@ After `npm run build`, `npm run qa:composer` runs deterministic Electron checks 
 
 `npm run build && node scripts/qa-electron.mjs` runs Electron QA with isolated Workbench persistence. Set `QA_SEND=1` for a harmless live Codex response, or `QA_CLAUDE_SEND=1` for Claude delivery (requires native authentication and uses the user's CLI account). The Claude check follows the native workspace trust flow; it never selects a billing/model-credit option. No application account or API key is introduced.
 
-Verified locally on macOS: Codex CLI 0.155.1 native startup, multiline send/response, and planning submissions from normal and already-planning sessions (native mode indicator and response checked). Claude Code 2.1.280 recognizes the planning prefix with its native argument hint; delivery reaches its model/usage-credit choice. That account choice was left untouched, so Claude's full response and resulting Plan mode remain unverified. Other operating systems also need live verification. Those checks predate the footer-driven mode switch; it is covered by transcripts recorded from Codex CLI 0.166 and Claude Code 2.1.319 (`tests/fixtures/`), not yet by a live run here. Both providers have deterministic screen/delivery tests. New CLI versions and terminal input modes such as Vim mode may produce Unknown; direct terminal interaction remains available.
+Verified locally on macOS: Codex CLI 0.155.1 native startup, multiline send/response, and planning submissions from normal and already-planning sessions (native mode indicator and response checked). Claude Code 2.1.280 recognizes the planning prefix with its native argument hint; delivery reaches its model/usage-credit choice. That account choice was left untouched, so Claude's full response and resulting Plan mode remain unverified. Other operating systems also need live verification. Those checks predate the footer-driven mode switch; reference transcripts were recorded from Codex CLI 0.166 and Claude Code 2.1.319 (`tests/fixtures/`); the footer-driven mode switch has not yet been verified by a live run here. New CLI versions and terminal input modes such as Vim mode may produce Unknown; direct terminal interaction remains available.
 
 
 ## Context menus and file operations
