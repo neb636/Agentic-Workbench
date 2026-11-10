@@ -27,7 +27,8 @@ interface WorkbenchStore extends PersistedState {
   upsertPersona: (persona: Persona) => void;
   deletePersona: (personaId: string) => void;
   upsertInstructionOption: (option: StoredPromptOption) => void;
-  deleteInstructionOption: (optionId: string) => void;
+  /** `keepWorkspaceSettings`: the instruction lives on under the same id elsewhere, so keep where it is turned off. */
+  deleteInstructionOption: (optionId: string, options?: { keepWorkspaceSettings?: boolean }) => void;
   /** Turns a global or shared instruction off (or back on) in one workspace only. */
   setInstructionDisabled: (workspaceId: string, optionId: string, disabled: boolean) => void;
   /** Adds back these default instructions, unless one with the same id is already stored. */
@@ -165,10 +166,10 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
           : [...state.instructionOptions, stored],
       };
     }),
-  deleteInstructionOption: (optionId) =>
+  deleteInstructionOption: (optionId, options) =>
     set((state) => ({
       instructionOptions: state.instructionOptions.filter((item) => item.option.id !== optionId),
-      workspaces: state.workspaces.map((workspace) => workspace.disabledInstructionIds?.includes(optionId)
+      workspaces: options?.keepWorkspaceSettings ? state.workspaces : state.workspaces.map((workspace) => workspace.disabledInstructionIds?.includes(optionId)
         ? { ...workspace, disabledInstructionIds: workspace.disabledInstructionIds.filter((id) => id !== optionId) }
         : workspace),
     })),

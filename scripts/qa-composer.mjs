@@ -458,13 +458,30 @@ try {
   await manager.getByRole("textbox", { name: "Appended text" }).fill(EDITED_PR);
   await manager.getByRole("button", { name: "Save instruction" }).click();
 
+  // An edit never overwrites a shared instruction someone else changed while the form was open.
+  await sharedList.getByRole("row", { name: "Follow the team style" }).click();
+  const original = await readFile(sharedFile, "utf8");
+  const changedElsewhere = original.replace(SHARED_TEXT, "Follow the style guide an agent just rewrote.");
+  await writeFile(sharedFile, changedElsewhere);
+  await page.waitForTimeout(800); // The watch reloads the file.
+  await manager.getByRole("textbox", { name: "Label" }).fill("My stale edit");
+  await manager.getByRole("button", { name: "Save instruction" }).click();
+  await manager.getByRole("alert").filter({ hasText: "changed in .workbench/instructions.json while you were editing" }).waitFor();
+  assert.equal(await readFile(sharedFile, "utf8"), changedElsewhere);
+  await writeFile(sharedFile, original);
+  await page.waitForTimeout(800);
+
   // Moving one into the shared layer writes it to the checked-in file, readable and stable for review.
+  // It keeps its id, so having turned it off in this repo still applies there.
+  await everywhere.getByRole("row", { name: "Create issue" }).locator(".instruction-row-switch").click();
   await everywhere.getByRole("row", { name: "Create issue" }).click();
   await manager.getByRole("radio", { name: "Shared in repo" }).click();
   await manager.getByText("Saved to .workbench/instructions.json in Composer QA. Commit it to share it with everyone who works there.", { exact: false }).waitFor();
   await manager.getByRole("button", { name: "Save instruction" }).click();
   await sharedList.getByRole("row", { name: "Create issue" }).waitFor();
   assert.equal(await everywhere.getByRole("row", { name: "Create issue" }).count(), 0);
+  await sharedList.getByRole("row", { name: "Create issue" }).getByText("Off in Composer QA").waitFor();
+  await sharedList.getByRole("row", { name: "Create issue" }).locator(".instruction-row-switch").click();
   const written = await readFile(sharedFile, "utf8");
   assert.deepEqual(JSON.parse(written).instructions.map((option) => option.id), ["team-style", "create-issue"]);
   assert.match(written, /^\{\n {2}"version": 1,\n {2}"instructions": \[\n/);

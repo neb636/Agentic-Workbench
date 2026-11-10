@@ -57,7 +57,8 @@ function InstructionForm({ option, layer: initialLayer, repo, sharedAvailable, o
   layer: InstructionLayer;
   repo: string;
   sharedAvailable: boolean;
-  onSave: (layer: InstructionLayer, option: PromptOptionDefinition) => Promise<string | undefined>;
+  /** `original` is the instruction as it was when editing began, to detect changes made meanwhile. */
+  onSave: (layer: InstructionLayer, option: PromptOptionDefinition, original?: PromptOptionDefinition) => Promise<string | undefined>;
 }) {
   const [kind, setKind] = useState<Kind>(option?.kind === "multiSelect" ? "select" : option?.kind ?? "toggle");
   const [label, setLabel] = useState(option?.label ?? "");
@@ -71,6 +72,8 @@ function InstructionForm({ option, layer: initialLayer, repo, sharedAvailable, o
   const [placeholder, setPlaceholder] = useState(option?.kind === "text" ? option.placeholder : "");
   const [resetAfterSend, setResetAfterSend] = useState(option?.resetAfterSend ?? false);
   const [layer, setLayer] = useState<InstructionLayer>(initialLayer);
+  // The fields above hold this version; `option` itself follows the file if someone else changes it meanwhile.
+  const [original] = useState(option);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -94,7 +97,7 @@ function InstructionForm({ option, layer: initialLayer, repo, sharedAvailable, o
     if (typeof built === "string") { setError(built); return; }
     setError("");
     setSaving(true);
-    void onSave(layer, built).then((failure) => { setSaving(false); if (failure) setError(failure); });
+    void onSave(layer, built, original).then((failure) => { setSaving(false); if (failure) setError(failure); });
   }}>
     <div className="instruction-audience">
       <span className="instruction-audience-label" id="instruction-audience-label">Who gets it</span>
@@ -200,15 +203,29 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
     return undefined;
   };
 
-  const save = async (layer: InstructionLayer, option: PromptOptionDefinition): Promise<string | undefined> => {
+  const save = async (layer: InstructionLayer, edited: PromptOptionDefinition, original?: PromptOptionDefinition): Promise<string | undefined> => {
+    const moving = Boolean(current && current.layer !== layer);
+    if (original && !current) return "This instruction was removed while you were editing, so your edits weren't saved.";
+    // Another writer (an agent, an editor, a teammate's pull) changed this shared instruction while the form was open.
+    if (current?.layer === "shared" && original && JSON.stringify(current.option) !== JSON.stringify(original)) {
+      return `This instruction changed in ${REPO_INSTRUCTIONS_PATH} while you were editing, so your edits weren't saved. Select it again to see the new version.`;
+    }
+    // Moving onto an id the destination already holds (a shared instruction replacing a stored one, or the reverse)
+    // would overwrite that other copy, so the moved one gets a new id instead.
+    const sharedIds = new Set(layered.filter((item) => item.layer === "shared").map((item) => item.option.id));
+    const taken = moving && (layer === "shared" ? sharedIds.has(edited.id) : current?.layer === "shared" && stored.some((item) => item.option.id === edited.id));
+    const option = taken ? { ...edited, id: createId("instruction") } : edited;
     const failure = await writeLayer(layer, option);
     if (failure) return failure;
     // A move: the new copy is saved, so take it out of the old place. Stored-to-stored moves replace in place.
-    if (current && current.layer !== layer) {
+    if (current && moving) {
       if (current.layer === "shared") {
-        const removed = await saveRepoInstructions(root, (options) => options.filter((item) => item.id !== option.id));
+        const removed = await saveRepoInstructions(root, (options) => options.filter((item) => item.id !== current.option.id));
         if (removed) return `Saved, but it is still in ${REPO_INSTRUCTIONS_PATH}: ${removed}`;
-      } else if (layer === "shared") remove(option.id);
+      } else if (layer === "shared") {
+        // Same id in the new place, so where it was turned off still applies.
+        remove(current.option.id, { keepWorkspaceSettings: !taken });
+      }
     }
     setEditing({ layer, id: option.id });
     return undefined;
