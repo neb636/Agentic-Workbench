@@ -2,9 +2,9 @@ import { app } from "electron";
 import { mkdirSync, promises as fs, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { PersistedState } from "../shared/models";
-import { migratePersistedState, persistedStateSchema } from "../shared/schemas";
+import { migratePersistedState, persistedStateSchema, seedDefaultInstructions } from "../shared/schemas";
 
-const emptyState: PersistedState = {
+const unseededEmptyState: PersistedState = {
   workspaces: [],
   personas: [
     {
@@ -19,6 +19,7 @@ const emptyState: PersistedState = {
   instructionOptions: [],
   layout: { leftCollapsed: false, rightCollapsed: false },
 };
+const emptyState = seedDefaultInstructions(unseededEmptyState) as PersistedState;
 
 function statePath() {
   return path.join(app.getPath("userData"), "workbench-state.json");

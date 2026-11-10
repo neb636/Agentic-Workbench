@@ -9,7 +9,8 @@ import { Buffer } from "node:buffer";
 import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
-// Instructions menus (including a conditional option and a migrated instruction), composed
+// Instructions menus (including a conditional option and a migrated instruction), the three instruction
+// layers (everywhere, shared in .workbench/instructions.json, only me in this repo) and their manager, composed
 // prompt order, title from the first prompt, quote/preview/recall, attachments (picker, drop, paste,
 // limit, restart, cleanup), resuming after a restart (the tab the app opens on resumes, others wait for a click; draft and attachments stay),
 // uncertain delivery handoff, Plan chosen before the CLI starts,
@@ -28,6 +29,13 @@ git("config", "user.email", "qa@example.com");
 git("config", "user.name", "QA");
 await writeFile(join(repo, "tracked.txt"), "one\n");
 await writeFile(join(repo, "src", "app.ts"), "export const answer: number = 42;\n// The workbench renders this file read-only.\n");
+// Instructions checked into the repo and shared with everyone who works in it.
+const SHARED_TEXT = "Follow the team style guide in docs/style.md.";
+const sharedFile = join(repo, ".workbench", "instructions.json");
+await mkdir(join(repo, ".workbench"));
+await writeFile(sharedFile, JSON.stringify({ version: 1, instructions: [
+  { id: "team-style", kind: "toggle", label: "Follow the team style", category: "Team", defaultOn: false, text: SHARED_TEXT },
+] }, null, 2));
 git("add", ".");
 git("commit", "--quiet", "-m", "initial");
 // Remote-tracking refs without a reachable remote: the picker lists them and the fetch before creating fails quietly.
@@ -401,6 +409,98 @@ try {
   await page.getByText("No uncommitted changes.").waitFor();
   assert.equal(git("log", "-1", "--format=%s").trim(), "QA commit");
 
+  // Instructions come in three layers: everywhere (the person's own), shared in the repo (checked in), and only me here.
+  const previewText = async () => {
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    const text = await page.getByRole("dialog", { name: "Prompt preview" }).locator("pre").innerText();
+    await page.keyboard.press("Escape");
+    return text;
+  };
+  const openInstructions = () => page.getByRole("button", { name: /^Instructions/ }).click();
+  await page.getByRole("tab", { name: "Explain this failure." }).locator(".view-tab-title").click();
+  await prompt().waitFor();
+  await openInstructions();
+  // Only layers other than Everywhere are marked, so a shared instruction says where it comes from.
+  const teamSwitch = page.getByRole("switch", { name: /Follow the team style.*Shared in Composer QA/ });
+  assert.equal(await teamSwitch.isChecked(), false);
+  assert.equal(await page.getByRole("switch", { name: /Open PR.*Shared/ }).count(), 0);
+  await page.getByText("Follow the team style", { exact: true }).click();
+  assert.equal(await teamSwitch.isChecked(), true);
+  await shot("instructions-popover-tags");
+  await page.keyboard.press("Escape");
+  let composed = await previewText();
+  assert(composed.indexOf(SHARED_TEXT) > composed.indexOf(OPEN_PR), "shared instructions follow global ones");
+  assert(composed.indexOf(SHARED_TEXT) < composed.indexOf("Explain the tradeoffs."), "personal instructions come last");
+
+  await openInstructions();
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
+  const manager = page.getByRole("dialog", { name: "Manage instructions" });
+  const summary = manager.locator(".instructions-summary");
+  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 7 instructions: 5 everywhere, 1 shared, 1 only yours.");
+  const everywhere = manager.getByRole("grid", { name: "Everywhere" });
+  const sharedList = manager.getByRole("grid", { name: "Shared in Composer QA" });
+  const onlyMe = manager.getByRole("grid", { name: "Only me in Composer QA" });
+  for (const label of ["Create issue", "Open PR", "Write report", "Unit tests", "Test focus"]) await everywhere.getByRole("row", { name: label }).waitFor();
+  await sharedList.getByRole("row", { name: "Follow the team style" }).waitFor();
+  await onlyMe.getByRole("row", { name: "Explain the tradeoffs." }).waitFor();
+  await shot("instructions-manager");
+
+  // A global instruction can be turned off for this repo alone.
+  const writeReport = everywhere.getByRole("row", { name: "Write report" });
+  assert.equal(await writeReport.getByRole("switch", { name: "On in Composer QA" }).isChecked(), true);
+  await writeReport.locator(".instruction-row-switch").click();
+  await everywhere.getByRole("row", { name: "Write report" }).getByText("Off in Composer QA").waitFor();
+  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 6 instructions: 4 everywhere, 1 shared, 1 only yours. 1 turned off here.");
+
+  // Former built-ins are ordinary instructions: edit one.
+  const EDITED_PR = "Open a draft pull request and link it in your reply.";
+  await everywhere.getByRole("row", { name: "Open PR" }).click();
+  await manager.getByRole("textbox", { name: "Appended text" }).fill(EDITED_PR);
+  await manager.getByRole("button", { name: "Save instruction" }).click();
+
+  // Moving one into the shared layer writes it to the checked-in file, readable and stable for review.
+  await everywhere.getByRole("row", { name: "Create issue" }).click();
+  await manager.getByRole("radio", { name: "Shared in repo" }).click();
+  await manager.getByText("Saved to .workbench/instructions.json in Composer QA. Commit it to share it with everyone who works there.", { exact: false }).waitFor();
+  await manager.getByRole("button", { name: "Save instruction" }).click();
+  await sharedList.getByRole("row", { name: "Create issue" }).waitFor();
+  assert.equal(await everywhere.getByRole("row", { name: "Create issue" }).count(), 0);
+  const written = await readFile(sharedFile, "utf8");
+  assert.deepEqual(JSON.parse(written).instructions.map((option) => option.id), ["team-style", "create-issue"]);
+  assert.match(written, /^\{\n {2}"version": 1,\n {2}"instructions": \[\n/);
+
+  // A personal instruction only for this repo.
+  await manager.getByRole("button", { name: "Add to Only me in Composer QA" }).click();
+  await manager.getByRole("textbox", { name: "Label" }).fill("Mention the ticket");
+  await manager.getByRole("textbox", { name: "Appended text" }).fill("Mention QA-1 in the summary.");
+  await manager.getByText("On by default", { exact: true }).click();
+  await manager.getByRole("button", { name: "Add instruction" }).click();
+  await onlyMe.getByRole("row", { name: "Mention the ticket" }).waitFor();
+
+  // A deleted default can be restored.
+  await everywhere.getByRole("row", { name: "Write report" }).click();
+  await manager.getByRole("button", { name: "Delete instruction" }).click();
+  assert.equal(await everywhere.getByRole("row", { name: "Write report" }).count(), 0);
+  await manager.getByRole("button", { name: "Restore 1 default instruction" }).click();
+  await everywhere.getByRole("row", { name: "Write report" }).waitFor();
+  await shot("instructions-manager-edited");
+  await manager.getByRole("button", { name: "Done", exact: true }).click();
+
+  composed = await previewText();
+  assert(composed.includes(EDITED_PR) && !composed.includes(OPEN_PR), "the edited global instruction is used");
+  assert(composed.includes(SHARED_TEXT));
+  assert(composed.trimEnd().endsWith("Explain the tradeoffs.\n\nMention QA-1 in the summary."), composed);
+
+  // An unreadable shared file is reported in the manager and contributes nothing.
+  await writeFile(sharedFile, "{ not json");
+  await openInstructions();
+  await page.getByRole("switch", { name: /Follow the team style/ }).waitFor({ state: "detached" });
+  await page.getByRole("button", { name: "Manage", exact: true }).click();
+  await manager.getByRole("alert").filter({ hasText: "Couldn’t read .workbench/instructions.json" }).waitFor();
+  assert.equal(await manager.getByRole("button", { name: "Add to Shared in Composer QA" }).isDisabled(), true);
+  await shot("instructions-invalid-file");
+  await manager.getByRole("button", { name: "Done", exact: true }).click();
+  assert(!(await previewText()).includes(SHARED_TEXT));
   // Active views panel and the tab overflow menu.
   await page.getByRole("radio", { name: "Active views" }).click();
   await page.getByRole("grid", { name: "Agent session" }).getByRole("row").first().waitFor();

@@ -20,7 +20,16 @@ export interface PromptMenuDefinition {
   /** Whether options return to their defaults after a successful send; options may override it. */
   resetAfterSend: boolean;
   options: (context: PromptMenuContext) => PromptOptionDefinition[];
-  manage?: { title: string; description: string; component: ComponentType<{ workspaceId: string }> };
+  /** Calls `listener` whenever `options` may return something different; returns an unsubscribe. */
+  subscribe?: (listener: () => void) => () => void;
+  /** A small marker shown beside an option, such as where it comes from. */
+  optionTag?: (optionId: string, context: PromptMenuContext) => PromptOptionTag | undefined;
+  manage?: { title: string; description: string; component: ComponentType<{ workspaceId: string; close: () => void }> };
+}
+
+export interface PromptOptionTag {
+  label: string;
+  icon: ComponentType<{ size?: number }>;
 }
 
 export interface PromptMenuOptions {

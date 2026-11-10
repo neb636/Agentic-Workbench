@@ -1,24 +1,23 @@
-import { choice, isChoice, select, textInput, toggle, type PromptOptionDefinition } from "../../../shared/prompt-options";
+import { activeInstructions, layerInstructions, type LayeredInstruction } from "../../../shared/instruction-layers";
+import type { Workspace } from "../../../shared/models";
 import type { PromptMenuDefinition } from "../../core/prompt-menu-registry";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { ListChecksIcon } from "../../ui/icons";
+import { layerCopy } from "./layer-copy";
 import { InstructionsManager } from "./InstructionsManager";
+import { sharedOptionsOf, useRepoInstructions } from "./repo-instructions";
 
-export const builtInInstructions: PromptOptionDefinition[] = [
-  toggle("create-issue", { label: "Create issue", category: "Project management",
-    text: "When the work is done, draft an issue that describes the change, why it was needed, and any follow-up work." }),
-  toggle("open-pr", { label: "Open PR", category: "Delivery",
-    text: "When the change is ready, open a draft pull request that summarizes the change and how it was verified." }),
-  toggle("write-report", { label: "Write report", category: "Delivery",
-    text: "Finish with a short report: what changed, why, how it was verified, and any risks or follow-ups." }),
-  select("unit-tests", { label: "Unit tests", category: "Verification", display: "segmented", default: "repo-defaults", choices: [
-    choice("repo-defaults", "Repo defaults"),
-    choice("write-new", "Write new", "Add or update unit tests that cover this change, and run them before finishing."),
-    choice("skip", "Skip", "Do not add or run unit tests for this change."),
-  ] }),
-  textInput("test-focus", { label: "Test focus", category: "Verification", when: isChoice("unit-tests", "write-new"),
-    placeholder: "e.g. error handling", template: "Focus the new tests on {{value}}." }),
-];
+/** Every instruction for a workspace, with its layer and whether it is on there. */
+export function workspaceInstructions(workspaceId: string): LayeredInstruction[] {
+  const state = useWorkbenchStore.getState();
+  const workspace = state.workspaces.find((item) => item.id === workspaceId);
+  return layerInstructions({
+    stored: state.instructionOptions,
+    shared: sharedOptionsOf(workspace?.path),
+    workspaceId,
+    disabledIds: workspace?.disabledInstructionIds ?? [],
+  });
+}
 
 export const instructionsMenu: PromptMenuDefinition = {
   id: "instructions",
@@ -29,11 +28,23 @@ export const instructionsMenu: PromptMenuDefinition = {
   kind: "instruction",
   placement: "append",
   resetAfterSend: false,
-  options: ({ workspaceId }) => [
-    ...builtInInstructions,
-    ...useWorkbenchStore.getState().instructionOptions
-      .filter((stored) => stored.scope === "global" || stored.workspaceId === workspaceId)
-      .map((stored) => stored.option),
-  ],
-  manage: { title: "Manage instructions", description: "Reusable options that add instructions after your prompt.", component: InstructionsManager },
+  options: ({ workspaceId }) => activeInstructions(workspaceInstructions(workspaceId)).map((item) => item.option),
+  subscribe: (listener) => {
+    // Drafts change workspaces on every keystroke; only paths and turned-off ids matter here.
+    const layersKey = (workspaces: Workspace[]) => workspaces.map((w) => `${w.id}\0${w.path}\0${(w.disabledInstructionIds ?? []).join()}`).join("\n");
+    const offStore = useWorkbenchStore.subscribe((state, previous) => {
+      if (state.instructionOptions !== previous.instructionOptions
+        || (state.workspaces !== previous.workspaces && layersKey(state.workspaces) !== layersKey(previous.workspaces))) listener();
+    });
+    const offRepo = useRepoInstructions.subscribe(listener);
+    return () => { offStore(); offRepo(); };
+  },
+  // Everywhere is the usual case, so only the other layers are marked.
+  optionTag: (optionId, { workspaceId }) => {
+    const item = activeInstructions(workspaceInstructions(workspaceId)).find((entry) => entry.option.id === optionId);
+    if (!item || item.layer === "global") return undefined;
+    const workspace = useWorkbenchStore.getState().workspaces.find((entry) => entry.id === workspaceId);
+    return { label: layerCopy[item.layer].title(workspace?.name ?? "this repo"), icon: layerCopy[item.layer].icon };
+  },
+  manage: { title: "Manage instructions", description: "Reusable instructions added after your prompt.", component: InstructionsManager },
 };

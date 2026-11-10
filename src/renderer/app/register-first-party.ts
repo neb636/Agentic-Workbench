@@ -14,6 +14,7 @@ import { clearComposerRuntime, registerComposerContributions } from "../features
 import { agentIdleStatus, publishAgentStatuses } from "../features/agent/session-status";
 import { personaMenu } from "../features/personas/persona-menu";
 import { instructionsMenu } from "../features/instructions/instructions-menu";
+import { startRepoInstructions } from "../features/instructions/repo-instructions";
 import { FileView } from "../features/files/FileView";
 import { FilesPanel } from "../features/files/FilesPanel";
 import { registerFileCommands } from "../features/files/file-commands";
@@ -80,6 +81,7 @@ export function registerFirstPartyContributions(): void {
 
   services.promptMenus.register(personaMenu);
   services.promptMenus.register(instructionsMenu);
+  startRepoInstructions();
   registerComposerContributions();
   publishAgentStatuses();
 
