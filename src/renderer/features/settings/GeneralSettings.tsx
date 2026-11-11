@@ -1,4 +1,5 @@
 import { Button as AriaButton, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, Text } from "react-aria-components";
+import { services } from "../../core/services";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { ChevronDownIcon } from "../../ui/icons";
 import { useDefaultCli } from "./default-cli";
@@ -19,5 +20,6 @@ export function GeneralSettings() {
         </ListBox>
       </Popover>
     </Select>
+    {services.widgets.forSlot("settings.general").map(({ id, component: Section }) => <Section key={id} />)}
   </div>;
 }

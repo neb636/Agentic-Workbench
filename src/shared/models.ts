@@ -1,5 +1,6 @@
 import type { FileOperation, FileOperationResult, FileOperationProgress } from "./file-operations";
 import type { PromptOptionDefinition, PromptSelections } from "./prompt-options";
+import type { AiUsageApi } from "./ai-usage";
 
 export type ViewType = string;
 
@@ -67,6 +68,8 @@ export interface PersistedState {
   layout: LayoutState;
   /** The CLI that runs built-in AI actions. Unset: the first one installed. */
   defaultAgentProviderId?: string;
+  /** Each self-contained feature's own settings, by feature id. The feature validates its entry. */
+  featureSettings?: Record<string, unknown>;
 }
 
 export interface PtyCreateOptions {
@@ -431,6 +434,7 @@ export interface AgentSessionSnapshot {
 
 export interface WorkbenchApi {
   platform: NodeJS.Platform;
+  aiUsage: AiUsageApi;
   persistence: {
     load: () => Promise<PersistedState>;
     save: (state: PersistedState) => Promise<void>;

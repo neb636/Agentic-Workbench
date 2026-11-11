@@ -112,7 +112,7 @@ function listen(channel: string, handler: (event: Electron.IpcMainEvent, input: 
 }
 
 /** Only the app's own top frame may call privileged handlers. */
-function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown): void {
+export function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown): void {
   ipcMain.handle(channel, (event, input: unknown) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
     return listener(event, input);

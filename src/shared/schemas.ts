@@ -93,6 +93,7 @@ export const persistedStateSchema = z.object({
   seededInstructionIds: z.array(z.string()).optional(),
   layout: layoutStateSchema.default({ leftCollapsed: false, rightCollapsed: false }),
   defaultAgentProviderId: z.string().optional(),
+  featureSettings: z.record(z.string(), z.unknown()).optional(),
 });
 
 const legacyInstructionSchema = z.object({ id: z.string(), workspaceId: z.string(), content: z.string(), enabled: z.boolean() });

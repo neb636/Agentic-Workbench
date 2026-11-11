@@ -68,6 +68,9 @@ const COMMAND_SETTLE_MS = 150;
 const MODE_CYCLE_ATTEMPTS = 5;
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Extra launch arguments for a new agent session of `providerId` in `cwd`; [] when it doesn't apply. */
+export type LaunchArgsContributor = (providerId: string, cwd: string) => string[];
+
 export class AgentSessionManager {
   private readonly sessions = new Map<string, Session>();
   /** Sessions already closed whose processes are still being ended; quitting waits for them too. */
@@ -78,6 +81,8 @@ export class AgentSessionManager {
     /** The folder holding a view's prompt attachments; it exists once this returns. */
     private readonly attachmentFolder?: (viewId: string) => string,
     private readonly catalogue = new AgentModelCatalogue(providers),
+    /** Arguments other features add to every agent session they apply to, after the adapter's own. */
+    private readonly launchArgs: LaunchArgsContributor[] = [],
   ) {}
 
   discover(): AgentProviderInfo[] {
@@ -108,6 +113,7 @@ export class AgentSessionManager {
       }
       args.push(...provider.modelArgs(options.settings));
     }
+    for (const contribute of this.launchArgs) args.push(...contribute(provider.id, options.workspacePath));
     const terminal = new Terminal({ cols: options.cols, rows: options.rows, scrollback: 2000, allowProposedApi: true });
     const serialize = new SerializeAddon();
     terminal.loadAddon(serialize);

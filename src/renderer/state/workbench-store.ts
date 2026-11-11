@@ -35,6 +35,8 @@ interface WorkbenchStore extends PersistedState {
   restoreDefaultInstructions: (ids: string[]) => void;
   updateLayout: (patch: Partial<LayoutState>) => void;
   setDefaultAgentProvider: (providerId: string) => void;
+  /** Replaces one feature's settings; the feature owns their shape. */
+  setFeatureSettings: (featureId: string, settings: unknown) => void;
 }
 
 const initialState: PersistedState = {
@@ -188,6 +190,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
     }),
   updateLayout: (patch) => set((state) => ({ layout: { ...state.layout, ...patch } })),
   setDefaultAgentProvider: (providerId) => set({ defaultAgentProviderId: providerId }),
+  setFeatureSettings: (featureId, settings) => set((state) => ({ featureSettings: { ...state.featureSettings, [featureId]: settings } })),
 }));
 
 function persistedSnapshot(state: WorkbenchStore): PersistedState {
@@ -199,6 +202,7 @@ function persistedSnapshot(state: WorkbenchStore): PersistedState {
     seededInstructionIds: state.seededInstructionIds,
     layout: state.layout,
     defaultAgentProviderId: state.defaultAgentProviderId,
+    featureSettings: state.featureSettings,
   };
 }
 

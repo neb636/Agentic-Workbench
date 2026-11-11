@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC } from "../shared/ipc";
+import { AI_USAGE_IPC, type UsageSnapshot } from "../shared/ai-usage";
 import type {
   AgentProviderInfo,
   AgentSessionCreateOptions,
@@ -15,6 +16,16 @@ import type {
 
 const api: WorkbenchApi = {
   platform: process.platform,
+  aiUsage: {
+    snapshot: () => ipcRenderer.invoke(AI_USAGE_IPC.snapshot),
+    refresh: () => ipcRenderer.invoke(AI_USAGE_IPC.refresh),
+    configure: (providers) => ipcRenderer.invoke(AI_USAGE_IPC.configure, { providers }),
+    onChanged: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, payload: UsageSnapshot) => listener(payload);
+      ipcRenderer.on(AI_USAGE_IPC.changed, wrapped);
+      return () => ipcRenderer.removeListener(AI_USAGE_IPC.changed, wrapped);
+    },
+  },
   persistence: {
     load: () => ipcRenderer.invoke(IPC.persistenceLoad) as Promise<PersistedState>,
     save: (state) => ipcRenderer.invoke(IPC.persistenceSave, state) as Promise<void>,

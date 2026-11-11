@@ -30,6 +30,7 @@ import { SourceControlBadge, SourceControlPanel, StatusBranch, WorkspaceBranch }
 import { SessionSummary } from "../features/status/StatusItems";
 import { ResourceManager } from "../features/resources/ResourceManager";
 import { SettingsButton } from "../features/settings/SettingsButton";
+import { registerAiUsage } from "../features/ai-usage/register-ai-usage";
 import { BranchIcon, CommitIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
 
 let registered = false;
@@ -109,6 +110,7 @@ export function registerFirstPartyContributions(): void {
   services.widgets.register({ id: "sessions", slot: "statusbar.start", order: 10, component: SessionSummary });
   services.widgets.register({ id: "branch", slot: "statusbar.end", order: 10, component: StatusBranch });
   services.widgets.register({ id: "resources", slot: "statusbar.end", order: 20, component: ResourceManager });
+  registerAiUsage();
 
   services.commands.register<{ workspaceId: string }>("workspace.reveal", ({ workspaceId }) => {
     const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId);
