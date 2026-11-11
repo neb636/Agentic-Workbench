@@ -23,7 +23,6 @@ const fixtures = join(directory, "fixtures");
 const claudeConfig = join(directory, "claude-config");
 const codexHome = join(directory, "codex-home");
 await Promise.all([fixtures, claudeConfig, codexHome].map((folder) => mkdir(folder, { recursive: true })));
-await writeFile(join(codexHome, "auth.json"), "{}");
 const runStatusLine = (command, input) => new Promise((done, fail) => { const child = execFile("/bin/sh", ["-c", command], (error, stdout) => error ? fail(error) : done(stdout)); child.stdin.end(input); });
 const hours = (count) => Math.floor(Date.now() / 1000 + count * 3600);
 const claudeReply = { status: 200, body: {
@@ -115,9 +114,10 @@ try {
   assert.equal(theirs, `mine:${payload.length}\n`, "their command's output, from the same payload");
   await until(async () => /55% 2h 0m/.test(await statusText()), "live figures through their status line");
 
-  // Failures: Claude keeps its last figures, marked old; Codex not signed in is listed with its reason.
+  // Failures: Claude keeps its last figures, marked old; Codex signed out is listed with its reason.
   await writeFile(join(fixtures, "claude.json"), JSON.stringify({ status: 429, retryAfter: "120" }));
-  await writeFile(rateLimits, JSON.stringify({ error: "API key authentication requires a ChatGPT account" }));
+  // What a real app-server answers with no saved login (Codex 0.167); there is no auth.json check of our own.
+  await writeFile(rateLimits, JSON.stringify({ error: "codex account authentication required to read rate limits" }));
   await page.waitForTimeout(31_000); // past the 30 s floor between manual refreshes
   await page.evaluate(() => window.workbench.aiUsage.refresh());
   await until(async () => (await provider("claude.cli")).status === "stale", "stale Claude");
@@ -126,7 +126,7 @@ try {
   await until(async () => (await status.locator(".ai-usage-warning").count()) === 1 && !/6d 23h/.test(await statusText()), "warning shown, Codex chip gone");
   await page.getByRole("button", { name: /^AI usage/ }).click();
   assert.match(await popover.innerText(), /Claude Code[\s\S]*Anthropic asked to check less often\./);
-  assert.match(await popover.innerText(), /Codex\nSigned in with an API key, which has no plan limits\./);
+  assert.match(await popover.innerText(), /Codex\nSign in to Codex to see plan usage\./);
   await page.screenshot({ path: join(shots, "ai-usage-failures.png") });
   await closeAll();
 

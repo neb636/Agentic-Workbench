@@ -1,7 +1,5 @@
 import { spawn } from "node:child_process";
-import { access } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { UsageCredits, UsageWindow } from "../../../shared/ai-usage";
 import { executablePath } from "../../executables";
 import { clampPercent, readFixture, UsageReadError, type UsageReading, type UsageSource } from "../usage-source";
@@ -53,6 +51,7 @@ export function parseCodexRateLimits(result: unknown): UsageReading {
 function rpcFailure(message: unknown): UsageReadError {
   const text = typeof message === "string" ? message.toLowerCase() : "";
   if (/api key|apikey/.test(text)) return new UsageReadError("unavailable", "Signed in with an API key, which has no plan limits.");
+  if (/authentication required|not (signed|logged) in/.test(text)) return new UsageReadError("unavailable", "Sign in to Codex to see plan usage.");
   if (/sign in|log ?in|not authenticated|unauthori[sz]ed|401|refresh/.test(text)) return new UsageReadError("stale-login", "Sign in to Codex again to see plan usage.");
   if (/429|rate.?limit|too many/.test(text)) return new UsageReadError("rate-limited", "OpenAI asked to check less often.");
   return new UsageReadError("failed", "Couldn't read Codex usage.");
@@ -121,8 +120,7 @@ export class CodexUsageSource implements UsageSource {
       if (fixture.error) throw rpcFailure(fixture.error);
       return parseCodexRateLimits(fixture.result);
     }
-    const home = process.env.CODEX_HOME || join(homedir(), ".codex");
-    if (!await access(join(home, "auth.json")).then(() => true, () => false)) throw new UsageReadError("unavailable", "Sign in to Codex to see plan usage.");
+    // Whether there is a login is Codex's to say: it may be in auth.json or in the system's credential store.
     const executable = executablePath(this.executable);
     if (!executable) throw new UsageReadError("unavailable", "Codex isn't installed.");
     // Turned off while the checks above ran: no app-server, which could also renew the login.
