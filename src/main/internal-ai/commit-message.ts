@@ -34,22 +34,22 @@ export class CommitMessages {
   private readonly active = new Map<string, Promise<string>>();
 
   constructor(
-    private readonly sourceControl: { pendingChanges: (root: string) => Promise<PendingChanges> },
+    private readonly sourceControl: { pendingChanges: (root: string, stagedOnly?: boolean) => Promise<PendingChanges> },
     private readonly ai: { run: (request: InternalAiRequest) => Promise<string> },
   ) {}
 
   /** One at a time per folder and CLI, decided before reading: files changing meanwhile would make it a different request. */
-  generate(root: string, providerId?: string): Promise<string> {
-    const key = JSON.stringify([root, providerId ?? null]);
+  generate(root: string, providerId?: string, stagedOnly = false): Promise<string> {
+    const key = JSON.stringify([root, providerId ?? null, stagedOnly]);
     const existing = this.active.get(key);
     if (existing) return existing;
-    const result = this.create(root, providerId).finally(() => this.active.delete(key));
+    const result = this.create(root, providerId, stagedOnly).finally(() => this.active.delete(key));
     this.active.set(key, result);
     return result;
   }
 
-  private async create(root: string, providerId?: string): Promise<string> {
-    const changes = await this.sourceControl.pendingChanges(root);
+  private async create(root: string, providerId: string | undefined, stagedOnly: boolean): Promise<string> {
+    const changes = await this.sourceControl.pendingChanges(root, stagedOnly);
     if (!changes.summary.trim()) throw new Error("There are no changes to describe.");
     const message = cleanCommitMessage(await this.ai.run({ purpose: "commit-message", providerId, prompt: commitMessagePrompt(changes) }));
     if (!message) throw new Error("The CLI didn't return a commit message.");

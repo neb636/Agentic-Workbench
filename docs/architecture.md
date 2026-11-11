@@ -111,12 +111,18 @@ File tabs are editable. A single click opens a preview tab that the next single 
 
 The renderer shares one watch per root through `core/workspace-watch.ts`.
 
-Source control sits behind `SourceControlProvider` (detect, status, commit-all, create worktree, branches, checkout, and optionally fileAt, ignored, and search), selected per root by `SourceControlService`. `GitSourceControlProvider` is the only adapter:
+Source control sits behind `SourceControlProvider` (detect, status, commit, create worktree, branches, checkout, and optionally fileAt, ignored, search, amend, staging, branch actions, history, revert, and stashes), selected per root by `SourceControlService`. Status tells the panel which `actions` and `features` the provider has, and the panel offers only those, so it holds no knowledge of a particular system. `GitSourceControlProvider` is the only adapter:
 
 - It runs fixed git argument lists with `execFile`. No shell is involved, and no caller-supplied arguments are accepted beyond validated branch names, commit messages, relative paths, and search text (always after `-e`).
 - It parses `status --porcelain=v2 -z`.
 - Checkout refuses while there are uncommitted changes; remote branches become local tracking branches.
 - `fileAt` shows a file at HEAD or at the merge base with the default branch (origin's HEAD, else `main`, else `master`). The ref is never taken from the renderer. Changes open as diffs in the file tab.
+- Commit takes everything, or only what is staged when something is. Commit message generation describes the same set.
+- Pull, push, and fetch run with terminal prompts off and a 5 minute limit. A branch with no upstream is published to origin. Without the person's own `pull.rebase` or `pull.ff`, a diverged pull merges. There is no force push.
+- A merge, rebase, cherry-pick, or revert left waiting on conflicts is reported in status, and the panel offers Continue and Abort.
+- Discard touches only files status still reports as changed. Untracked files are deleted permanently after a confirmation.
+- Stashes belong to the whole repository, so they are addressed by commit rather than by position.
+- History includes the upstream's commits, and a commit's files open in a read-only `commit-file` view.
 - Search is `git grep` over tracked and untracked files, capped at 500 matches or 2 seconds; a newer search cancels the last.
 
 Core and the renderer see only the generic `sourceControl` API and types.

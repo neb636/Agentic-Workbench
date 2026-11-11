@@ -23,12 +23,14 @@ import { startRepoInstructions } from "../features/instructions/repo-instruction
 import { FileView } from "../features/files/FileView";
 import { FilesPanel } from "../features/files/FilesPanel";
 import { registerFileCommands } from "../features/files/file-commands";
+import { CommitFileView } from "../features/source-control/CommitFileView";
+import { registerSourceControlCommands } from "../features/source-control/source-control-commands";
 import { ActiveViewsPanel } from "../features/views/ActiveViewsPanel";
 import { SourceControlBadge, SourceControlPanel, StatusBranch, WorkspaceBranch } from "../features/source-control/SourceControlPanel";
 import { SessionSummary } from "../features/status/StatusItems";
 import { ResourceManager } from "../features/resources/ResourceManager";
 import { SettingsButton } from "../features/settings/SettingsButton";
-import { BranchIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
+import { BranchIcon, CommitIcon, FileIcon, FilesIcon, LayersIcon, TerminalIcon } from "../ui/icons";
 
 let registered = false;
 
@@ -56,6 +58,15 @@ export function registerFirstPartyContributions(): void {
     icon: TerminalIcon,
     component: TerminalView,
     createState: () => ({ providerId: "terminal.local" }),
+  });
+  services.views.register({
+    id: "commit-file",
+    label: "Commit file",
+    description: "One file as a past commit changed it.",
+    icon: CommitIcon,
+    component: CommitFileView,
+    creatable: false,
+    isPreview: () => true,
   });
   services.views.register({
     id: "file",
@@ -127,6 +138,7 @@ export function registerFirstPartyContributions(): void {
   ] });
   registerFileActionContributions();
   registerFileCommands();
+  registerSourceControlCommands();
   services.commands.register("workspace.add", async () => {
     const path = await window.workbench.workspace.chooseDirectory();
     if (path) useWorkbenchStore.getState().addWorkspace(path);

@@ -38,6 +38,10 @@ export const ExpandIcon = ({ size }: IconProps) => <Icon size={size}><path d="M1
 export const RefreshIcon = ({ size }: IconProps) => <Icon size={size}><path d="M20 11a8 8 0 0 0-14.3-4.3L4 9M4 4v5h5M4 13a8 8 0 0 0 14.3 4.3L20 15M20 20v-5h-5" /></Icon>;
 export const StopIcon = ({ size }: IconProps) => <Icon size={size}><rect x="6.5" y="6.5" width="11" height="11" rx="2.5" /></Icon>;
 export const ArrowUpIcon = ({ size }: IconProps) => <Icon size={size}><path d="M12 19V5M6 11l6-6 6 6" /></Icon>;
+export const ArrowDownIcon = ({ size }: IconProps) => <Icon size={size}><path d="M12 5v14M6 13l6 6 6-6" /></Icon>;
+export const MinusIcon = ({ size }: IconProps) => <Icon size={size}><path d="M5 12h14" /></Icon>;
+export const UndoIcon = ({ size }: IconProps) => <Icon size={size}><path d="M9 7 4 12l5 5" /><path d="M4 12h10a6 6 0 0 1 6 6" /></Icon>;
+export const CloudDownIcon = ({ size }: IconProps) => <Icon size={size}><path d="M7 17a4.5 4.5 0 0 1-.6-9 6 6 0 0 1 11.4 1.4A3.8 3.8 0 0 1 17.5 17" /><path d="M12 11v9M9 17l3 3 3-3" /></Icon>;
 export const NewChatIcon = ({ size }: IconProps) => <Icon size={size}><path d="M20.5 12.5v4a3 3 0 0 1-3 3h-7l-5 3v-3a3 3 0 0 1-2-3v-9a3 3 0 0 1 3-3h6.5" /><path d="M18 3v6M15 6h6" /></Icon>;
 export const MemoryIcon = ({ size }: IconProps) => <Icon size={size}><rect x="3.5" y="7" width="17" height="10" rx="2" /><path d="M7 17v2.5M12 17v2.5M17 17v2.5M7 10.5v3M10.5 10.5v3M14 10.5v3M17.5 10.5v3" /></Icon>;
 export const CommitIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="12" cy="12" r="3.5" /><path d="M3 12h5.5M15.5 12H21" /></Icon>;
