@@ -15,3 +15,11 @@
 - Preserve working architectural boundaries. Refactor only when a concrete requirement makes the current boundary inadequate.
 - Do not add unit tests to this repository. Verify changes with type checking, linting, builds, and focused QA as appropriate.
 - QA defaults to the simulated CLI and recorded transcripts. Use a real CLI session only when the behavior depends on the real CLI's timing or screen and cannot be observed otherwise. Real sessions use only the cheapest model for each harness (today Claude Code `haiku` at `low`, Codex `gpt-6-luna` at `low`), send short prompts that use no tools, and never accept billing, login, or trust prompts. Say in the pull request what ran live and why.
+
+# Pull requests and Codex review
+
+- Open pull requests ready for review, with a body that summarizes the change. Never merge them yourself.
+- Codex reviews every PR. Follow `.agents/skills/ship/SKILL.md` (also `.claude/skills/ship`): watch with
+  `node scripts/watch-codex-review.mjs --pr <n>`, verify each finding, fix it or push back on its thread, then ask for
+  one re-review with `@codex review`. Handle findings yourself; don't hand them to the user.
+- Codex command approvals live in `.codex/rules/commands.rules` (allow, prompt-to-reviewer, forbidden); extend that file rather than prompting.

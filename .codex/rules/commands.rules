@@ -1,0 +1,119 @@
+# Commands the project owner has authorized for Codex. Matching commands run without asking.
+# Decisions: allow = run; prompt = send to the automatic reviewer; forbidden = never run.
+# When two rules match, the strictest one wins (so the forbidden rules below beat the allows).
+
+# --- Git: routine work (commit, branch, push, diff, log) ---
+prefix_rule(pattern = ["git"], decision = "allow")
+prefix_rule(
+    pattern = ["git", "push", "--force"],
+    decision = "forbidden",
+    justification = "Force-pushing rewrites shared branch history. Ask the user first.",
+)
+prefix_rule(
+    pattern = ["git", "push", "-f"],
+    decision = "forbidden",
+    justification = "Force-pushing rewrites shared branch history. Ask the user first.",
+)
+prefix_rule(
+    pattern = ["git", "reset", "--hard"],
+    decision = "forbidden",
+    justification = "Discards uncommitted work. Commit or stash first.",
+)
+prefix_rule(
+    pattern = ["git", "clean"],
+    decision = "prompt",
+    justification = "Deletes untracked files. Confirm which files should go.",
+)
+
+# --- GitHub CLI: reads run freely. Writes are "prompt" rules, so they go to the automatic reviewer (config.toml).
+# Note: a command that matches no rule runs with no approval at all (config.toml turns the sandbox off so
+# browsers can start). So every write has to be listed here. Don't add a catch-all gh prompt: it would outrank the allows.
+prefix_rule(pattern = ["gh", "pr", "view"], decision = "allow")
+prefix_rule(pattern = ["gh", "pr", "list"], decision = "allow")
+prefix_rule(pattern = ["gh", "pr", "checks"], decision = "allow")
+prefix_rule(pattern = ["gh", "run", "view"], decision = "allow")
+prefix_rule(pattern = ["gh", "run", "list"], decision = "allow")
+prefix_rule(pattern = ["gh", "issue", "view"], decision = "allow")
+prefix_rule(pattern = ["gh", "issue", "list"], decision = "allow")
+prefix_rule(pattern = ["gh", "pr", "edit"], decision = "prompt", justification = "Changes a PR.")
+prefix_rule(pattern = ["gh", "pr", "comment"], decision = "prompt", justification = "Posts on a PR.")
+prefix_rule(pattern = ["gh", "pr", "review"], decision = "prompt", justification = "Posts a PR review.")
+prefix_rule(pattern = ["gh", "pr", "close"], decision = "prompt", justification = "Closes a PR.")
+prefix_rule(pattern = ["gh", "pr", "reopen"], decision = "prompt", justification = "Reopens a PR.")
+prefix_rule(pattern = ["gh", "issue", "create"], decision = "prompt", justification = "Creates an issue.")
+prefix_rule(pattern = ["gh", "issue", "comment"], decision = "prompt", justification = "Posts on an issue.")
+prefix_rule(pattern = ["gh", "issue", "edit"], decision = "prompt", justification = "Changes an issue.")
+prefix_rule(pattern = ["gh", "issue", "close"], decision = "prompt", justification = "Closes an issue.")
+prefix_rule(pattern = ["gh", "run", "rerun"], decision = "prompt", justification = "Reruns CI.")
+prefix_rule(pattern = ["gh", "run", "cancel"], decision = "prompt", justification = "Cancels CI.")
+prefix_rule(pattern = ["gh", "api"], decision = "prompt", justification = "Raw GitHub API call; may write.")
+prefix_rule(
+    pattern = ["gh", "pr", "merge"],
+    decision = "forbidden",
+    justification = "The user merges PRs. Stop once the PR is open and reviewed.",
+)
+prefix_rule(
+
+# --- Node, npm and project tools ---
+prefix_rule(pattern = ["node"], decision = "allow")
+prefix_rule(pattern = ["npm", "run"], decision = "allow")
+prefix_rule(pattern = ["npm", "ci"], decision = "allow")
+# Changing packages is the user's call. These go to the reviewer, which is the strongest gate Codex has here.
+prefix_rule(pattern = ["npm", "install"], decision = "prompt", justification = "Installs or adds packages. Ask the user first.")
+prefix_rule(pattern = ["npm", "i"], decision = "prompt", justification = "Installs or adds packages. Ask the user first.")
+prefix_rule(pattern = ["npm", "add"], decision = "prompt", justification = "Adds packages. Ask the user first.")
+prefix_rule(pattern = ["npm", "uninstall"], decision = "prompt", justification = "Removes packages. Ask the user first.")
+prefix_rule(pattern = ["npx", "tsc"], decision = "allow")
+prefix_rule(pattern = ["npx", "playwright"], decision = "allow")
+
+# --- Reading and light file work inside the project ---
+prefix_rule(pattern = ["ls"], decision = "allow")
+prefix_rule(pattern = ["pwd"], decision = "allow")
+prefix_rule(pattern = ["cat"], decision = "allow")
+prefix_rule(pattern = ["head"], decision = "allow")
+prefix_rule(pattern = ["tail"], decision = "allow")
+prefix_rule(pattern = ["wc"], decision = "allow")
+prefix_rule(pattern = ["sort"], decision = "allow")
+prefix_rule(pattern = ["uniq"], decision = "allow")
+prefix_rule(pattern = ["cut"], decision = "allow")
+prefix_rule(pattern = ["diff"], decision = "allow")
+prefix_rule(pattern = ["file"], decision = "allow")
+prefix_rule(pattern = ["stat"], decision = "allow")
+prefix_rule(pattern = ["du"], decision = "allow")
+prefix_rule(pattern = ["which"], decision = "allow")
+prefix_rule(pattern = ["date"], decision = "allow")
+prefix_rule(pattern = ["echo"], decision = "allow")
+prefix_rule(pattern = ["grep"], decision = "allow")
+prefix_rule(pattern = ["rg"], decision = "allow")
+prefix_rule(pattern = ["find"], decision = "allow")
+prefix_rule(pattern = ["sed"], decision = "allow")
+prefix_rule(pattern = ["awk"], decision = "allow")
+prefix_rule(pattern = ["jq"], decision = "allow")
+prefix_rule(pattern = ["mkdir"], decision = "allow")
+prefix_rule(pattern = ["touch"], decision = "allow")
+prefix_rule(pattern = ["cp"], decision = "allow")
+prefix_rule(pattern = ["mv"], decision = "allow")
+prefix_rule(pattern = ["open"], decision = "allow")
+prefix_rule(pattern = ["rm"], decision = "prompt", justification = "Deletes files. Confirm what goes.")
+
+# --- Never, whatever the reviewer says ---
+prefix_rule(
+    pattern = ["rm", "-rf", "/"],
+    decision = "forbidden",
+    justification = "Would wipe the disk.",
+)
+prefix_rule(
+    pattern = ["rm", "-rf", "~"],
+    decision = "forbidden",
+    justification = "Would wipe the home folder.",
+)
+prefix_rule(
+    pattern = ["sudo"],
+    decision = "forbidden",
+    justification = "No admin commands from Codex.",
+)
+
+# --- Opening a PR is expected work (ship skill) ---
+prefix_rule(pattern = ["gh", "pr", "create"], decision = "allow")
+prefix_rule(pattern = ["npx", "electron"], decision = "allow")
+prefix_rule(pattern = ["npx", "eslint"], decision = "allow")
