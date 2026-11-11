@@ -17,6 +17,7 @@ import type { AgentModelSettings, AgentSessionStatus, AgentViewState } from "../
 import { services } from "../../core/services";
 import type { ViewStatus } from "../../core/view-status";
 import { Button, IconButton } from "../../ui/controls";
+import { useGuardedTooltip } from "../../ui/use-guarded-tooltip";
 import { ArrowUpIcon, ChevronDownIcon, FilesIcon, HistoryIcon, NewChatIcon, PlusIcon, StopIcon } from "../../ui/icons";
 import { errorMessage } from "../../core/errors";
 import { MAX_ATTACHMENTS } from "../../../shared/prompt-attachments";
@@ -62,6 +63,8 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   // A running or saved conversation already has its model; only a new one must be given one.
   const needsModel = !session && !savedConversation(state) && needsModelChoice(providerId, state.modelSettings?.[providerId]);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const pillTooltip = useGuardedTooltip(pillRef);
   const [historyId, setHistoryId] = useState<string>();
   const [error, setError] = useState("");
   const [copiedRevision, setCopiedRevision] = useState<number>();
@@ -139,8 +142,8 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
   return <div className="composer-dock">
     {session && <div className="session-strip">
       <div className="session-strip-start">
-        <TooltipTrigger delay={300}>
-          <AriaButton className={`session-pill tone-${session.display.tone}`} aria-label={`Session status: ${session.display.label}`}>
+        <TooltipTrigger delay={300} {...pillTooltip}>
+          <AriaButton ref={pillRef} className={`session-pill tone-${session.display.tone}`} aria-label={`Session status: ${session.display.label}`}>
             <span className="status-dot" />{session.display.label}
           </AriaButton>
           <Tooltip className="wb-tooltip">{session.display.description}</Tooltip>
