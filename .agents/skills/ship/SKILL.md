@@ -36,5 +36,5 @@ It prints `CLEAN`, `FINDINGS` (one block per comment), `NOREVIEW`, `TIMEOUT` or 
    - **Too nitpicky** (style preference, overstated severity, tiny bounded cost whose fix adds code): react 👎
      (`-f content=-1`) and reply `Not worth it: <why>`. A crash, lost data, a leak or a feature that doesn't work
      as built is never nitpicky.
-   - **Needs the user's call:** say so in one line in your final message.
+   - **Needs the user's input:** say so in one line in your final message.
 3. **One round only:** after a pushed fix, comment `@codex review` once with a line on what changed, then stop.

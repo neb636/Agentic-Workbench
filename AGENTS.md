@@ -22,4 +22,4 @@
 - Codex reviews every PR. Follow `.agents/skills/ship/SKILL.md` (also `.claude/skills/ship`): watch with
   `node scripts/watch-codex-review.mjs --pr <n>`, verify each finding, fix it or push back on its thread, then ask for
   one re-review with `@codex review`. Handle findings yourself; don't hand them to the user.
-- Codex command approvals for this repo live in `.codex/rules/commands.rules`; extend that file rather than prompting.
+- Codex command approvals live in `.codex/rules/commands.rules` (allow, prompt-to-reviewer, forbidden); extend that file rather than prompting.
