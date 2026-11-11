@@ -1,0 +1,6 @@
+# Commands authorized by the project owner.
+prefix_rule(pattern = ["git"], decision = "allow")
+prefix_rule(pattern = ["npm", "run"], decision = "allow")
+prefix_rule(pattern = ["node", "scripts"], decision = "allow")
+prefix_rule(pattern = ["gh", "pr"], decision = "allow")
+prefix_rule(pattern = ["gh", "api"], decision = "allow")
