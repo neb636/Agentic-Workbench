@@ -72,13 +72,23 @@ export class AiUsageService {
   }
 
   snapshot(): UsageSnapshot {
-    const now = Date.now();
-    // A window past its reset has started over; until the next read says otherwise, it is empty.
-    const current = (window: UsageWindow): UsageWindow => window.resetsAt && window.resetsAt <= now ? { ...window, usedPercent: 0, resetsAt: undefined } : window;
+    this.expireWindows();
     return { providers: this.sources.flatMap((source) => {
       const entry = this.entries.get(source.providerId);
-      return entry ? [{ ...entry.usage, windows: entry.usage.windows.map(current) }] : [];
+      return entry ? [entry.usage] : [];
     }) };
+  }
+
+  /** A window past its reset has started over; until the next read says otherwise, it is empty. True when one did. */
+  private expireWindows(): boolean {
+    const now = Date.now();
+    let changed = false;
+    for (const entry of this.entries.values()) {
+      if (!entry.usage.windows.some((window) => window.resetsAt && window.resetsAt <= now)) continue;
+      changed = true;
+      entry.usage = { ...entry.usage, windows: entry.usage.windows.map((window) => window.resetsAt && window.resetsAt <= now ? { ...window, usedPercent: 0, resetsAt: undefined } : window) };
+    }
+    return changed;
   }
 
   async refresh(): Promise<UsageSnapshot> {
@@ -101,6 +111,8 @@ export class AiUsageService {
   }
 
   private tick(): void {
+    // Windows shown in the status bar reset on their own schedule, focused or not.
+    if (this.expireWindows()) this.publish();
     if (!this.isFocused()) return;
     const now = Date.now();
     for (const entry of this.entries.values()) {

@@ -41,7 +41,9 @@ export class ClaudeUsageSource implements UsageSource {
   async read(signal: AbortSignal): Promise<UsageReading> {
     const fixture = await readFixture("claude");
     if (fixture) return interpret(fixture as Response);
+    if (signal.aborted) throw new UsageReadError("failed", "Stopped.");
     const login = await readClaudeLogin();
+    if (signal.aborted) throw new UsageReadError("failed", "Stopped.");
     if (!login?.accessToken) throw new UsageReadError("unavailable", "Sign in to Claude Code to see plan usage.");
     let response: globalThis.Response;
     try {

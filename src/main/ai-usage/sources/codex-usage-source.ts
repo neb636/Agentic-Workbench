@@ -61,6 +61,7 @@ function rpcFailure(message: unknown): UsageReadError {
 /** initialize → initialized → account/rateLimits/read over newline-delimited JSON-RPC, then the child is ended. */
 function readRateLimits(executable: string, signal: AbortSignal): Promise<unknown> {
   return new Promise((resolve, reject) => {
+    if (signal.aborted) { reject(new UsageReadError("failed", "Stopped.")); return; }
     const child = spawn(executable, APP_SERVER_ARGS, { cwd: tmpdir(), stdio: ["pipe", "pipe", "ignore"] });
     let buffer = "";
     let received = 0;
@@ -124,6 +125,8 @@ export class CodexUsageSource implements UsageSource {
     if (!await access(join(home, "auth.json")).then(() => true, () => false)) throw new UsageReadError("unavailable", "Sign in to Codex to see plan usage.");
     const executable = executablePath(this.executable);
     if (!executable) throw new UsageReadError("unavailable", "Codex isn't installed.");
+    // Turned off while the checks above ran: no app-server, which could also renew the login.
+    if (signal.aborted) throw new UsageReadError("failed", "Stopped.");
     return parseCodexRateLimits(await readRateLimits(executable, signal));
   }
 }
