@@ -11,7 +11,7 @@ import { codeTheme } from "../files/code-theme";
 
 /** Read-only: what one commit did to one file. Views like this have no session. */
 export function CommitFileView({ view }: ViewComponentProps) {
-  const { root, commitId, shortId, path, originalPath, subject } = view.state as CommitFileViewState;
+  const { root, commitId, shortId, path, originalPath, subject, reloaded } = view.state as CommitFileViewState;
   const hostRef = useRef<HTMLDivElement>(null);
   const [contents, setContents] = useState<SourceControlCommitFileContents>();
   const [error, setError] = useState("");
@@ -23,7 +23,7 @@ export function CommitFileView({ view }: ViewComponentProps) {
       .then((value) => { if (active) setContents(value); })
       .catch((caught: unknown) => { if (active) setError(errorMessage(caught)); });
     return () => { active = false; };
-  }, [root, commitId, path, originalPath]);
+  }, [root, commitId, path, originalPath, reloaded]);
 
   useEffect(() => {
     const host = hostRef.current;

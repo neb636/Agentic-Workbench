@@ -207,6 +207,8 @@ export interface CommitFileViewState {
   subject: string;
   path: string;
   originalPath?: string;
+  /** Set when a view of the staged contents is opened again, so it reads the index afresh. */
+  reloaded?: number;
 }
 
 /** What a diff compares with: the last commit, or where this branch left the default branch (what a PR would show). */
