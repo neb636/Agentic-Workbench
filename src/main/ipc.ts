@@ -29,6 +29,13 @@ import {
   ptyResizeSchema,
   ptyTerminateSchema,
   workspaceRootSchema,
+  sourceControlActionSchema,
+  sourceControlBranchActionSchema,
+  sourceControlCommitFileSchema,
+  sourceControlCommitSchema,
+  sourceControlHistorySchema,
+  sourceControlPathsSchema,
+  sourceControlStashActionSchema,
 } from "../shared/schemas";
 import type { FilesChangedEvent } from "../shared/models";
 import { AgentSessionManager } from "./agent-session-manager";
@@ -259,8 +266,50 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   handle(IPC.sourceControlStatus, async (_event, input: unknown) =>
     workspace.sourceControl.status(await allowedRoot(workspaceRootSchema.parse(input).root)));
   handle(IPC.sourceControlCommit, async (_event, input: unknown) => {
-    const { root, message } = commitSchema.parse(input);
-    return workspace.sourceControl.commit(await allowedRoot(root), message);
+    const { root, message, ...options } = commitSchema.parse(input);
+    return workspace.sourceControl.commit(await allowedRoot(root), message, options);
+  });
+  handle(IPC.sourceControlRunAction, async (_event, input: unknown) => {
+    const { root, action } = sourceControlActionSchema.parse(input);
+    return workspace.sourceControl.runAction(await allowedRoot(root), action);
+  });
+  handle(IPC.sourceControlStage, async (_event, input: unknown) => {
+    const { root, paths } = sourceControlPathsSchema.parse(input);
+    return workspace.sourceControl.stage(await allowedRoot(root), paths);
+  });
+  handle(IPC.sourceControlUnstage, async (_event, input: unknown) => {
+    const { root, paths } = sourceControlPathsSchema.parse(input);
+    return workspace.sourceControl.unstage(await allowedRoot(root), paths);
+  });
+  handle(IPC.sourceControlDiscard, async (_event, input: unknown) => {
+    const { root, paths } = sourceControlPathsSchema.parse(input);
+    return workspace.sourceControl.discard(await allowedRoot(root), paths);
+  });
+  handle(IPC.sourceControlBranchAction, async (_event, input: unknown) => {
+    const { root, action, target } = sourceControlBranchActionSchema.parse(input);
+    return workspace.sourceControl.branchAction(await allowedRoot(root), action, target);
+  });
+  handle(IPC.sourceControlHistory, async (_event, input: unknown) => {
+    const { root, skip, limit } = sourceControlHistorySchema.parse(input);
+    return workspace.sourceControl.history(await allowedRoot(root), skip, limit);
+  });
+  handle(IPC.sourceControlCommitFiles, async (_event, input: unknown) => {
+    const { root, id } = sourceControlCommitSchema.parse(input);
+    return workspace.sourceControl.commitFiles(await allowedRoot(root), id);
+  });
+  handle(IPC.sourceControlCommitFile, async (_event, input: unknown) => {
+    const { root, id, path, originalPath } = sourceControlCommitFileSchema.parse(input);
+    return workspace.sourceControl.commitFile(await allowedRoot(root), id, path, originalPath);
+  });
+  handle(IPC.sourceControlRevert, async (_event, input: unknown) => {
+    const { root, id } = sourceControlCommitSchema.parse(input);
+    return workspace.sourceControl.revert(await allowedRoot(root), id);
+  });
+  handle(IPC.sourceControlStashes, async (_event, input: unknown) =>
+    workspace.sourceControl.stashes(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.sourceControlStashAction, async (_event, input: unknown) => {
+    const { root, action, id } = sourceControlStashActionSchema.parse(input);
+    return workspace.sourceControl.stashAction(await allowedRoot(root), action, id);
   });
   handle(IPC.sourceControlCreateWorktree, async (_event, input: unknown) => {
     const { root, branch, base } = createWorktreeSchema.parse(input);
@@ -283,8 +332,8 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   handle(IPC.sourceControlIgnored, async (_event, input: unknown) =>
     workspace.sourceControl.ignored(await allowedRoot(workspaceRootSchema.parse(input).root)));
   handle(IPC.sourceControlGenerateCommitMessage, async (_event, input: unknown) => {
-    const { root, providerId } = generateCommitMessageSchema.parse(input);
-    return workspace.commitMessages.generate(await allowedRoot(root), providerId);
+    const { root, providerId, stagedOnly } = generateCommitMessageSchema.parse(input);
+    return workspace.commitMessages.generate(await allowedRoot(root), providerId, stagedOnly);
   });
   handle(IPC.ptyCreate, async (event, input: unknown) => {
     const options = ptyCreateOptionsSchema.parse(input);

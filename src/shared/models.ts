@@ -199,6 +199,18 @@ export interface FileViewState {
   lineNonce?: number;
 }
 
+/** A file as one past commit changed it, read-only. */
+export interface CommitFileViewState {
+  root: string;
+  commitId: string;
+  shortId: string;
+  subject: string;
+  path: string;
+  originalPath?: string;
+  /** Set when a view of the staged contents is opened again, so it reads the index afresh. */
+  reloaded?: number;
+}
+
 /** What a diff compares with: the last commit, or where this branch left the default branch (what a PR would show). */
 export type DiffBase = "head" | "default";
 
@@ -257,6 +269,62 @@ export interface SourceControlChange {
   originalPath?: string;
   kind: "modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted";
   staged: boolean;
+  /** Has working changes not yet staged. A file can be both. */
+  unstaged: boolean;
+}
+
+/** Whole-repository operations. A provider lists the ones it supports and the panel offers only those. `push` publishes a branch with no upstream. */
+export type SourceControlAction =
+  | "sync" | "pull" | "pullRebase" | "push" | "fetch" | "fetchPrune"
+  | "stageAll" | "unstageAll" | "discardAll" | "undoLastCommit"
+  | "stash" | "stashIncludeUntracked" | "continueOperation" | "abortOperation";
+/** Optional areas of the panel, present when the provider implements them. */
+export type SourceControlFeature = "staging" | "amend" | "branches" | "stashes" | "history" | "revert";
+/** A multi-step operation left waiting on the person, usually for conflicts. */
+export type SourceControlOperation = "merge" | "rebase" | "cherry-pick" | "revert";
+export type SourceControlBranchAction = "create" | "delete" | "merge" | "rebase";
+export type SourceControlStashAction = "apply" | "pop" | "drop";
+
+export interface SourceControlCommitOptions {
+  /** Record only what is staged; otherwise every working change. */
+  stagedOnly?: boolean;
+  /** Replace the last commit instead of adding one. */
+  amend?: boolean;
+}
+
+export interface SourceControlCommit {
+  id: string;
+  shortId: string;
+  subject: string;
+  body: string;
+  author: string;
+  /** Unix seconds. */
+  date: number;
+  parents: string[];
+  /** Branch and tag names pointing here, for display. */
+  refs: string[];
+}
+
+export interface SourceControlHistory {
+  commits: SourceControlCommit[];
+  hasMore: boolean;
+}
+
+export type SourceControlCommitFile = Pick<SourceControlChange, "path" | "originalPath" | "kind">;
+
+/** One file before and after a commit; null where it didn't exist. */
+export interface SourceControlCommitFileContents {
+  before: string | null;
+  after: string | null;
+  binary: boolean;
+  truncated: boolean;
+}
+
+export interface SourceControlStash {
+  id: string;
+  message: string;
+  /** Unix seconds. */
+  date: number;
 }
 
 export interface SourceControlStatus {
@@ -269,6 +337,13 @@ export interface SourceControlStatus {
   behind: number;
   changes: SourceControlChange[];
   truncated: boolean;
+  /** The current commit; absent before the first one. */
+  head?: string;
+  /** Somewhere to push and pull from exists. */
+  hasRemote: boolean;
+  operation?: SourceControlOperation;
+  actions: SourceControlAction[];
+  features: SourceControlFeature[];
 }
 
 /** A branch a new worktree can start from. `ref` is opaque to the renderer; `name` is for display. */
@@ -407,7 +482,21 @@ export interface WorkbenchApi {
   sourceControl: {
     detect: (root: string) => Promise<boolean>;
     status: (root: string) => Promise<SourceControlStatus | null>;
-    commit: (root: string, message: string) => Promise<{ commitId: string }>;
+    commit: (root: string, message: string, options?: SourceControlCommitOptions) => Promise<{ commitId: string }>;
+    runAction: (root: string, action: SourceControlAction) => Promise<void>;
+    stage: (root: string, paths: string[]) => Promise<void>;
+    unstage: (root: string, paths: string[]) => Promise<void>;
+    /** Throws away working changes to these files. Untracked files are deleted. */
+    discard: (root: string, paths: string[]) => Promise<void>;
+    /** `target` is a new name for `create`, otherwise a `BaseBranch.ref`. */
+    branchAction: (root: string, action: SourceControlBranchAction, target: string) => Promise<void>;
+    /** Newest first; includes what the upstream has that this branch doesn't. */
+    history: (root: string, skip: number, limit: number) => Promise<SourceControlHistory>;
+    commitFiles: (root: string, id: string) => Promise<SourceControlCommitFile[]>;
+    commitFile: (root: string, id: string, path: string, originalPath?: string) => Promise<SourceControlCommitFileContents>;
+    revert: (root: string, id: string) => Promise<void>;
+    stashes: (root: string) => Promise<SourceControlStash[]>;
+    stashAction: (root: string, action: SourceControlStashAction, id: string) => Promise<void>;
     /** Starts from `base` (a `BaseBranch.ref`), or the current commit without one. */
     createWorktree: (root: string, branch: string, base?: string) => Promise<WorktreeResult>;
     branches: (root: string) => Promise<string[]>;
@@ -419,7 +508,7 @@ export interface WorkbenchApi {
     /** Ignored paths, folded to their top folder, to dim in the file tree. */
     ignored: (root: string) => Promise<string[]>;
     /** Describes the pending changes with a CLI (`providerId`, else the first one installed). Spends the user's tokens. */
-    generateCommitMessage: (root: string, providerId?: string) => Promise<string>;
+    generateCommitMessage: (root: string, providerId?: string, stagedOnly?: boolean) => Promise<string>;
   };
   pty: {
     create: (options: PtyCreateOptions) => Promise<string>;

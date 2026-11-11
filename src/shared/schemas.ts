@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PromptCondition } from "./prompt-options";
 import { MAX_ATTACHMENT_BYTES } from "./prompt-attachments";
 import { defaultInstructions } from "./default-instructions";
+import type { SourceControlAction } from "./models";
 
 export const workbenchViewSchema = z.object({
   id: z.string(),
@@ -186,8 +187,16 @@ export const attachmentLocationSchema = z.object({ viewId: z.string().min(1).max
 export const fileLocationSchema = z.object({ root: z.string().min(1), path: z.string().max(4096) });
 export const fileFindSchema = z.object({ root: z.string().min(1), query: z.string().max(256) });
 export const workspaceRootSchema = z.object({ root: z.string().min(1) });
-export const commitSchema = z.object({ root: z.string().min(1), message: z.string().trim().min(1).max(10_000) });
-export const generateCommitMessageSchema = z.object({ root: z.string().min(1), providerId: z.string().min(1).max(100).optional() });
+export const commitSchema = z.object({ root: z.string().min(1), message: z.string().trim().min(1).max(10_000), stagedOnly: z.boolean().optional(), amend: z.boolean().optional() });
+export const generateCommitMessageSchema = z.object({ root: z.string().min(1), providerId: z.string().min(1).max(100).optional(), stagedOnly: z.boolean().optional() });
+const commitIdSchema = z.string().regex(/^[0-9a-f]{7,64}$/);
+export const sourceControlActionSchema = z.object({ root: z.string().min(1), action: z.enum(["sync", "pull", "pullRebase", "push", "fetch", "fetchPrune", "stageAll", "unstageAll", "discardAll", "undoLastCommit", "stash", "stashIncludeUntracked", "continueOperation", "abortOperation"] satisfies SourceControlAction[]) });
+export const sourceControlPathsSchema = z.object({ root: z.string().min(1), paths: z.array(z.string().min(1).max(4096)).min(1).max(5000) });
+export const sourceControlBranchActionSchema = z.object({ root: z.string().min(1), action: z.enum(["create", "delete", "merge", "rebase"]), target: z.string().min(1).max(500) });
+export const sourceControlHistorySchema = z.object({ root: z.string().min(1), skip: z.number().int().min(0), limit: z.number().int().min(1).max(500) });
+export const sourceControlCommitSchema = z.object({ root: z.string().min(1), id: commitIdSchema });
+export const sourceControlCommitFileSchema = z.object({ root: z.string().min(1), id: z.union([commitIdSchema, z.literal("index")]), path: z.string().min(1).max(4096), originalPath: z.string().min(1).max(4096).optional() });
+export const sourceControlStashActionSchema = z.object({ root: z.string().min(1), action: z.enum(["apply", "pop", "drop"]), id: commitIdSchema });
 export const createWorktreeSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200), base: z.string().min(1).max(500).optional() });
 export const baseBranchesSchema = z.object({ root: z.string().min(1), refresh: z.boolean().optional() });
 export const checkoutSchema = z.object({ root: z.string().min(1), branch: z.string().min(1).max(200) });

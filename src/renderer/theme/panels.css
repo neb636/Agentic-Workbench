@@ -179,3 +179,25 @@
 .wb-popover .resource-tabs-root, .wb-popover .resource-panel { background: none; outline: none; }
 .wb-popover .resource-tabs .segment[data-hovered] { background: transparent; }
 .wb-popover .resource-tabs .segment[data-selected] { background: var(--wb-bg-raised); }
+
+/* Source control: toolbar, operations, history. */
+.side-panel-actions, .panel-section-actions { display: flex; flex: none; align-items: center; gap: 2px; }
+.panel-section-actions .wb-icon-button { width: 22px; height: 22px; }
+.commit-row { display: flex; align-items: center; gap: 4px; }
+.commit-row .commit-button { flex: 1; min-width: 0; }
+.commit-more { flex: none; }
+.source-control-error { display: flex; align-items: flex-start; gap: 6px; padding: 2px 4px; }
+.source-control-error p { flex: 1; min-width: 0; max-height: 120px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-control-operation { display: grid; gap: 6px; padding: 8px; border: 1px solid var(--wb-border); border-radius: var(--wb-radius-md); }
+.source-control-operation p { color: var(--wb-text-primary); line-height: 17px; }
+.source-control-operation div { display: flex; gap: 6px; }
+.history-row { align-items: flex-start; }
+.history-chevron { display: grid; flex: none; place-items: center; width: 12px; height: 17px; color: var(--wb-text-secondary); transition: transform 120ms ease; }
+.history-chevron.is-open { transform: rotate(90deg); }
+.history-text { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.history-subject, .history-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-meta { color: var(--wb-text-secondary); font-size: 11px; }
+.history-refs { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 2px; }
+.history-ref { max-width: 100%; padding: 0 5px; overflow: hidden; border-radius: var(--wb-radius-xs); background: var(--wb-bg-hover); color: var(--wb-text-secondary); font-size: 10.5px; text-overflow: ellipsis; white-space: nowrap; }
+.history-file { padding-left: 26px; }
+.history-more { width: 100%; margin-top: 4px; }
