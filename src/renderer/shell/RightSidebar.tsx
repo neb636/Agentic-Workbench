@@ -1,8 +1,10 @@
+import { useRef } from "react";
 import { ToggleButton, ToggleButtonGroup, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { Workspace } from "../../shared/models";
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
+import { useGuardedTooltip } from "../ui/use-guarded-tooltip";
 import { SidebarRightIcon } from "../ui/icons";
 
 export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace; onCollapse: () => void }) {
@@ -20,12 +22,7 @@ export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace;
         {panels.map((panel) => {
           const Icon = panel.icon;
           const Badge = panel.badge;
-          return <TooltipTrigger key={panel.id} delay={400}>
-            <ToggleButton id={panel.id} className="activity-button" aria-label={panel.label}>
-              <Icon size={16} />{workspace && Badge && <Badge workspace={workspace} />}
-            </ToggleButton>
-            <Tooltip className="wb-tooltip">{panel.label}</Tooltip>
-          </TooltipTrigger>;
+          return <PanelButton key={panel.id} id={panel.id} label={panel.label}><Icon size={16} />{workspace && Badge && <Badge workspace={workspace} />}</PanelButton>;
         })}
       </ToggleButtonGroup>
     </div>
@@ -33,4 +30,12 @@ export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace;
       {workspace && active && Panel ? <Panel key={`${active.id}-${workspace.id}`} workspace={workspace} /> : <p className="panel-empty">Add a workspace to browse its files and changes.</p>}
     </div>
   </aside>;
+}
+
+function PanelButton({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  return <TooltipTrigger delay={400} {...useGuardedTooltip(ref)}>
+    <ToggleButton id={id} ref={ref} className="activity-button" aria-label={label}>{children}</ToggleButton>
+    <Tooltip className="wb-tooltip" offset={6}>{label}</Tooltip>
+  </TooltipTrigger>;
 }

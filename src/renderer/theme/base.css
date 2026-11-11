@@ -266,7 +266,15 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .choice-editor { display: grid; gap: 8px; margin: 0; padding: 12px; border: 1px solid var(--wb-border-subtle); border-radius: var(--wb-radius-lg); }
 .choice-row { display: grid; grid-template-columns: 1fr 2fr auto; gap: 6px; align-items: center; }
-.wb-checkbox { display: inline-flex; align-items: center; gap: 8px; outline: none; }
+.wb-checkbox, .persona-form label.wb-checkbox, .instruction-form label.wb-checkbox, .general-settings label.wb-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+  margin-bottom: 0;
+  outline: none;
+}
+.checkbox-box { flex: none; }
 .checkbox-box {
   display: inline-grid;
   place-items: center;
