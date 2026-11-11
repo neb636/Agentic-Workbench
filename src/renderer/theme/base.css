@@ -95,6 +95,8 @@ code { font-family: var(--wb-font-mono); font-size: 0.95em; }
   font-size: 11px;
   max-width: 320px;
 }
+/* React Aria parks a tooltip it has not positioned yet at the window's top-left corner. Never show it there. */
+.wb-tooltip:not([data-placement]) { visibility: hidden; }
 .wb-popover {
   min-width: 180px;
   max-width: min(440px, 92vw);
