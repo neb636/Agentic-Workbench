@@ -24,6 +24,29 @@ if (process.argv[2] === "debug" && process.argv[3] === "models") {
   process.exit(0);
 }
 
+// `codex app-server` as the AI usage feature reads it: newline-delimited JSON-RPC answering account/rateLimits/read
+// from the JSON in COMPOSER_QA_RATE_LIMITS (`{ result }` or `{ error }`), read afresh for every request.
+if (process.argv.includes("app-server")) {
+  const { readFileSync } = await import("node:fs");
+  if (process.env.COMPOSER_QA_APP_SERVER) appendFileSync(process.env.COMPOSER_QA_APP_SERVER, JSON.stringify({ argv: process.argv.slice(2) }) + "\n");
+  let buffer = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) {
+    buffer += chunk;
+    let newline;
+    while ((newline = buffer.indexOf("\n")) >= 0) {
+      const message = JSON.parse(buffer.slice(0, newline));
+      buffer = buffer.slice(newline + 1);
+      if (message.method === "initialize") process.stdout.write(JSON.stringify({ id: message.id, result: { userAgent: "qa" } }) + "\n");
+      if (message.method === "account/rateLimits/read") {
+        const reply = JSON.parse(readFileSync(process.env.COMPOSER_QA_RATE_LIMITS, "utf8"));
+        process.stdout.write(JSON.stringify({ id: message.id, ...(reply.error ? { error: { code: -32000, message: reply.error } } : { result: reply.result }) }) + "\n");
+      }
+    }
+  }
+  process.exit(0);
+}
+
 process.stdin.setRawMode(true);
 process.stdin.setEncoding("utf8");
 const screen = (text) => process.stdout.write(`\x1b[2J\x1b[H\x1b[?2004h${text}`);

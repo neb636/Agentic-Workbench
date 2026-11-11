@@ -16,6 +16,7 @@ import { IPC } from "../shared/ipc";
 import type { MenuCommand } from "../shared/models";
 import { SourceControlService } from "./source-control/source-control-provider";
 import { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
+import { createAiUsage, registerAiUsage } from "./ai-usage";
 
 if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
 if (app.isPackaged) adoptLoginShellPath();
@@ -33,7 +34,8 @@ const ptyManager = new PtyManager();
 const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), shrinkPicture);
 const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
 const agentModels = new AgentModelCatalogue(agentProviders);
-const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels);
+const aiUsage = createAiUsage(agentProviders);
+const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (viewId) => attachments.folderFor(viewId), agentModels, [aiUsage.launchArgs]);
 const internalAi = new InternalAiService(agentProviders, () => path.join(app.getPath("userData"), "internal-ai"));
 const resources = new ResourceMonitor([ptyManager, agentSessionManager]);
 const roots = new WorkspaceRoots();
@@ -117,6 +119,7 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments, resources);
+  registerAiUsage(aiUsage);
   addMenuItems();
   createWindow();
   agentModels.start(() => {
@@ -140,6 +143,7 @@ app.on("before-quit", (event) => {
   quitting = true;
   event.preventDefault();
   agentModels.stop();
+  aiUsage.stop();
   internalAi.terminateAll();
   void Promise.allSettled([agentSessionManager.terminateAll(QUIT_GRACE_MS), ptyManager.terminateAll(QUIT_GRACE_MS)]).then(() => app.quit());
 });
