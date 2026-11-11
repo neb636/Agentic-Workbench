@@ -200,6 +200,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
   }
 
   private async record(root: string, commit: string[], stagedOnly = false): Promise<{ commitId: string }> {
+    if ((await this.status(root)).changes.some((change) => change.kind === "conflicted")) throw new Error("Resolve the conflicts before committing.");
     if (!stagedOnly) await this.git(root, ["add", "--all"]);
     await this.git(root, commit);
     return { commitId: (await this.git(root, ["rev-parse", "HEAD"])).trim() };
@@ -324,11 +325,13 @@ export class GitSourceControlProvider implements SourceControlProvider {
   }
 
   async commitFile(root: string, id: string, file: string, originalPath?: string): Promise<SourceControlCommitFileContents> {
-    requireCommitId(id);
+    // "index" is what is staged, compared with HEAD.
+    const staged = id === "index";
+    if (!staged) requireCommitId(id);
     pathspecs(originalPath ? [file, originalPath] : [file]);
-    const parent = await this.parentOf(root, id);
+    const parent = staged ? "HEAD" : await this.parentOf(root, id);
     const read = (ref: string, name: string) => this.gitLimited(root, ["cat-file", "blob", `${ref}:${name}`], {}, COMMIT_FILE_LIMIT).catch(() => null);
-    const [before, after] = await Promise.all([parent ? read(parent, originalPath ?? file) : null, read(id, file)]);
+    const [before, after] = await Promise.all([parent ? read(parent, originalPath ?? file) : null, read(staged ? "" : id, file)]);
     const sides = [before, after];
     return {
       before: before?.output ?? null, after: after?.output ?? null,

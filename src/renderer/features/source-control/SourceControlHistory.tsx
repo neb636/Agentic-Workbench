@@ -10,6 +10,8 @@ import { ChevronRightIcon, CommitIcon, FileIcon } from "../../ui/icons";
 import { CHANGE_LETTERS, relativeTime, runSourceControlTask, useSourceControlActivity } from "./source-control-store";
 
 const PAGE = 50;
+/** The most commits the main process returns for one request. */
+const MAX_REQUEST = 500;
 
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return <Disclosure className="branch-area" defaultExpanded>
@@ -39,7 +41,18 @@ export function SourceControlHistory({ root, status, workspaceId }: { root: stri
   useEffect(() => {
     if (!head) { setCommits([]); setHasMore(false); loaded.current = 0; return; }
     let active = true;
-    window.workbench.sourceControl.history(root, 0, Math.max(PAGE, loaded.current)).then((result) => {
+    // The IPC limit caps one request, so reload what was already shown in pages.
+    (async () => {
+      const wanted = Math.max(PAGE, loaded.current);
+      const all: SourceControlCommit[] = [];
+      let more = false;
+      do {
+        const result = await window.workbench.sourceControl.history(root, all.length, Math.min(MAX_REQUEST, wanted - all.length));
+        all.push(...result.commits); more = result.hasMore;
+        if (!result.commits.length) break;
+      } while (all.length < wanted && more);
+      return { commits: all, hasMore: more };
+    })().then((result) => {
       if (!active) return;
       loaded.current = result.commits.length;
       setCommits(result.commits); setHasMore(result.hasMore); setError("");

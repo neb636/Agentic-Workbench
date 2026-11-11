@@ -135,7 +135,7 @@ function CommitArea({ root, status }: { root: string; status: SourceControlStatu
   const moreActions = [
     ...(status.actions.includes("push") ? [{ id: "push", label: status.upstream ? "Commit & Push" : "Commit & Publish", disabled: !ready || !pushable, run: () => setConfirming("push") }] : []),
     ...(status.actions.includes("sync") && status.upstream ? [{ id: "sync", label: "Commit & Sync", disabled: !ready || !pushable, run: () => setConfirming("sync") }] : []),
-    ...(status.features.includes("amend") ? [{ id: "amend", label: "Amend Last Commit", section: "amend", disabled: !status.head || !message.trim() || busy || generating, run: () => setConfirming("amend") }] : []),
+    ...(status.features.includes("amend") ? [{ id: "amend", label: "Amend Last Commit", section: "amend", disabled: !status.head || !message.trim() || busy || generating || conflicted, run: () => setConfirming("amend") }] : []),
   ];
   const showSync = !count && !status.operation && pushable && status.actions.includes("sync") && (!status.upstream || status.ahead > 0 || status.behind > 0);
   return <div className="commit-area">
@@ -213,8 +213,16 @@ export function SourceControlPanel({ workspace }: PanelProps) {
       ...locationActions(workspace, { root, path }, false, change.kind !== "deleted"),
     ] : [];
   };
-  const openChange = (key: Key) => {
-    if (status?.changes.find((c) => c.path === key)?.kind === "deleted") return;
+  const openChange = (key: Key, group: "staged" | "unstaged") => {
+    const change = status?.changes.find((c) => c.path === key);
+    if (change?.kind === "deleted") return;
+    // What will be committed is the index, which the editor never shows, so staged rows open a read-only HEAD-to-index diff.
+    if (group === "staged" && change?.staged && !(change.unstaged && change.kind === "conflicted")) {
+      void services.commands.execute("sourceControl.openCommitFile", {
+        workspaceId: workspace.id, root, commitId: "index", shortId: "staged", subject: "Staged changes", path: String(key), ...(change.originalPath ? { originalPath: change.originalPath } : {}),
+      });
+      return;
+    }
     void services.commands.execute("file.open", { workspaceId: workspace.id, root, path: String(key), diff: true, preview: true });
   };
   const changeRow = (change: SourceControlChange & { id: string }, group: "staged" | "unstaged") => <GridListItem id={change.id} textValue={change.path} className="panel-list-item" {...menu.bind(() => changeActions(change.path))}>
@@ -266,7 +274,7 @@ export function SourceControlPanel({ workspace }: PanelProps) {
           <IconButton label="Unstage all changes" isDisabled={busy} onPress={() => void runAction(root, "unstageAll")}><MinusIcon size={13} /></IconButton>
           <span className="count-badge">{staged.length}</span>
         </span></div>
-        <GridList aria-label="Staged changes" className="panel-list change-list" items={staged.map((change) => ({ ...change, id: change.path }))} onAction={openChange}>
+        <GridList aria-label="Staged changes" className="panel-list change-list" items={staged.map((change) => ({ ...change, id: change.path }))} onAction={(key) => openChange(key, "staged")}>
           {(change) => changeRow(change, "staged")}
         </GridList>
       </>}
@@ -278,7 +286,7 @@ export function SourceControlPanel({ workspace }: PanelProps) {
           </>}
           <span className="count-badge">{unstaged.length}{status.truncated ? "+" : ""}</span>
         </span></div>
-        <GridList aria-label="Changes" className="panel-list change-list" items={unstaged.map((change) => ({ ...change, id: change.path }))} onAction={openChange}
+        <GridList aria-label="Changes" className="panel-list change-list" items={unstaged.map((change) => ({ ...change, id: change.path }))} onAction={(key) => openChange(key, "unstaged")}
           renderEmptyState={() => <p className="panel-empty">No uncommitted changes.</p>}>
           {(change) => changeRow(change, "unstaged")}
         </GridList>
