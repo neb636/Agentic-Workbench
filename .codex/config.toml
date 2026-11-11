@@ -1,2 +1,4 @@
 # Project command approvals are handled by rules/commands.rules.
 approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "danger-full-access"
