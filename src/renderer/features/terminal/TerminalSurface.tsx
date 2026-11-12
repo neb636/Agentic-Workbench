@@ -31,7 +31,7 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     const terminal = new Terminal({ cursorBlink: true, fontFamily: token("--wb-font-mono"), fontSize: 13, lineHeight: 1.25,
       scrollback: 2000, theme: {
         background: token("--wb-terminal-bg"), foreground: token("--wb-terminal-fg"), cursor: token("--wb-terminal-cursor"),
-        selectionBackground: token("--wb-terminal-selection"), black: token("--wb-terminal-black"), red: token("--wb-terminal-red"),
+        selectionBackground: token("--wb-terminal-selection"), scrollbarSliderBackground: token("--wb-code-border"), black: token("--wb-terminal-black"), red: token("--wb-terminal-red"),
         green: token("--wb-terminal-green"), yellow: token("--wb-terminal-yellow"), blue: token("--wb-terminal-blue"),
         magenta: token("--wb-terminal-magenta"), cyan: token("--wb-terminal-cyan"), white: token("--wb-terminal-white"),
       },
