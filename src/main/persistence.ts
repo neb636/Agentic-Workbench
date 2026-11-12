@@ -20,6 +20,18 @@ const unseededEmptyState: PersistedState = {
   instructionOptions: [],
   layout: { leftCollapsed: false, rightCollapsed: false },
 };
+const STATE_BYTE_LIMIT = 32 * 1024 * 1024;
+class StateSizeError extends Error {}
+let preserveExistingState = false;
+
+function serializedState(state: PersistedState): string {
+  if (preserveExistingState) throw new Error("Existing saved state could not be safely loaded; it has been preserved. Resolve the saved-state size before saving.");
+  assertInputBudget(state);
+  const serialized = JSON.stringify(state, null, 2);
+  if (Buffer.byteLength(serialized, "utf8") > STATE_BYTE_LIMIT) throw new StateSizeError("Saved state exceeds 32 MB. Shorten drafts or close unused views before saving. The previous state was preserved.");
+  return serialized;
+}
+
 const emptyState = seedDefaultInstructions(unseededEmptyState) as PersistedState;
 
 function statePath() {
@@ -29,7 +41,7 @@ function statePath() {
 export async function loadState(strict = false): Promise<PersistedState> {
   try {
     await fs.chmod(statePath(), 0o600);
-    if ((await fs.stat(statePath())).size > 32 * 1024 * 1024) throw new Error("Saved state exceeds 32 MB.");
+    if ((await fs.stat(statePath())).size > STATE_BYTE_LIMIT) throw new StateSizeError(`Existing saved state at ${statePath()} exceeds 32 MB and was preserved. Reduce its size before reopening this profile.`);
     const source = await fs.readFile(statePath(), "utf8");
     const data: unknown = JSON.parse(source);
     assertInputBudget(data);
@@ -38,6 +50,7 @@ export async function loadState(strict = false): Promise<PersistedState> {
     if (!result.success) console.error("Workbench state did not validate; starting fresh", result.error.issues.slice(0, 5));
     return result.success ? result.data : emptyState;
   } catch (error) {
+    if (error instanceof StateSizeError) { preserveExistingState = true; throw error; }
     if (strict) throw error;
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       console.error("Could not load workbench state", error);
@@ -51,11 +64,12 @@ let latestSave = 0;
 
 export async function saveState(input: unknown): Promise<PersistedState> {
   const state = persistedStateSchema.parse(input);
+  const serialized = serializedState(state);
   const save = ++latestSave;
   const target = statePath();
   const temporary = `${target}.${save}.next`;
   await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
-  await fs.writeFile(temporary, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 0o600 });
+  await fs.writeFile(temporary, serialized, { encoding: "utf8", mode: 0o600 });
   if (save === latestSave) await fs.rename(temporary, target);
   else await fs.rm(temporary, { force: true });
   return state;
@@ -64,10 +78,11 @@ export async function saveState(input: unknown): Promise<PersistedState> {
 /** The last save of a closing window; written before returning because the app may exit right after. */
 export function saveStateNow(input: unknown): void {
   const state = persistedStateSchema.parse(input);
+  const serialized = serializedState(state);
   latestSave++;
   const target = statePath();
   const temporary = `${target}.closing`;
   mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-  writeFileSync(temporary, JSON.stringify(state, null, 2), { encoding: "utf8", mode: 0o600 });
+  writeFileSync(temporary, serialized, { encoding: "utf8", mode: 0o600 });
   renameSync(temporary, target);
 }

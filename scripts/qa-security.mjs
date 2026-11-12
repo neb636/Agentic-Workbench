@@ -1,6 +1,6 @@
 /* global window, fetch */
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -28,6 +28,10 @@ try {
   assert.equal(await page.evaluate(async()=>{const state=await window.workbench.persistence.load(); state.workspaces.push({id:'bad',name:'bad',path:'/',views:[]});try{await window.workbench.persistence.save(state);return false;}catch{return true;}}),true);
   await page.evaluate(root=>window.workbench.sourceControl.status(root),repo);
   assert.equal(await access(marker).then(()=>true,()=>false),false);
+  const ordinary = path.join(root, 'ordinary'); await mkdir(ordinary);
+  for (let i=0;i<200;i++) await writeFile(path.join(ordinary, `${i}.txt`), 'ordinary text');
+  const fullSearch = await page.evaluate(root=>window.workbench.files.search(root,'does-not-exist',{regex:true,directory:'ordinary'}),root);
+  assert.equal(fullSearch.limited,false, 'one search worker must cover ordinary multi-file searches');
   const started=Date.now();
   assert.equal(await page.evaluate(async root=>{try{await window.workbench.files.search(root,'^(a+)+$',{regex:true});return false;}catch{return true;}},root),true);
   assert.ok(Date.now()-started<5000);
@@ -35,5 +39,16 @@ try {
   assert.equal(await app.evaluate(async({BrowserWindow,app})=>{const win=new BrowserWindow({show:false,webPreferences:{preload:app.getAppPath()+'/dist-electron/preload/index.js',sandbox:true,contextIsolation:true}});await win.loadURL('data:text/html,<p>Foreign window</p>');const rejected=await win.webContents.executeJavaScript('window.workbench.persistence.load().then(()=>false,()=>true)');win.destroy();return rejected;}),true);
   await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:0,checkboxChecked:false});});
   assert.equal(await page.evaluate(async root=>{try{await window.workbench.sourceControl.stage(root,['tracked.txt']);return false;}catch{return true;}},repo),true);
-  console.log('Security QA passed: sandbox, sender identity, root grants, passive Git execution, trust cancellation, CSP and cancellable regex. Profile:',profile);
+  await page.waitForTimeout(250);
+  const beforeSave = await readFile(path.join(profile,'workbench-state.json'),'utf8');
+  assert.equal(await page.evaluate(async()=>{const state=await window.workbench.persistence.load(); state.workspaces[0].views.push({id:'large',workspaceId:'0',type:'agent',title:'Large',state:{draft:'あ'.repeat(12*1024*1024)}});try{await window.workbench.persistence.save(state);return false;}catch{return true;}}),true);
+  assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),beforeSave);
+  await page.evaluate(async()=>{const state=await window.workbench.persistence.load(); state.workspaces[0].views.push({id:'large',workspaceId:'0',type:'agent',title:'Large',state:{draft:'あ'.repeat(12*1024*1024)}});window.workbench.persistence.saveNow(state);});
+  assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),beforeSave);
+  const oversized = JSON.parse(beforeSave); oversized.workspaces[0].views.push({id:'legacy',workspaceId:'0',type:'agent',title:'Legacy',state:{draft:'あ'.repeat(12*1024*1024)}});
+  const legacy = JSON.stringify(oversized); await writeFile(path.join(profile,'workbench-state.json'),legacy);
+  assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.load();return false;}catch{return true;}}),true);
+  assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.save({workspaces:[]});return false;}catch{return true;}}),true);
+  assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),legacy);
+  console.log('Security QA passed: sandbox, sender identity, root grants, passive Git execution, trust cancellation, CSP, reusable regex worker, UTF-8 save limits and oversized-profile preservation. Profile:',profile);
 } finally {await app.close();}

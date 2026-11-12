@@ -1,4 +1,4 @@
-import { regexLines } from "./search-worker";
+import { RegexSearch } from "./search-worker";
 import { createHash } from "node:crypto";
 import { promises as fs, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
@@ -303,19 +303,22 @@ export class WorkspaceFiles {
     const needle = options.caseSensitive ? query : query.toLowerCase();
     const matches: import("../shared/models").SearchMatch[] = [];
     const start = Date.now();
-    for (const file of await this.index(base)) {
-      if (directory && !file.startsWith(`${directory}/`)) continue;
-      if (Date.now() - start > 2000 || matches.length >= 500) return { matches, limited: true };
-      const content = await this.read(root, file).catch(() => undefined);
-      if (!content || content.binary || content.truncated) continue;
-      const lines = content.content.split(/\r?\n/);
-      const regexMatches = options.regex ? new Set(await regexLines(lines, query, options.caseSensitive)) : undefined;
-      for (let i = 0; i < lines.length; i++) {
-        if (regexMatches ? regexMatches.has(i) : (options.caseSensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) matches.push({ path: file, line: i + 1, text: lines[i] });
-        if (matches.length >= 500) return { matches, limited: true };
+    const expression = options.regex ? new RegexSearch(query, options.caseSensitive) : undefined;
+    try {
+      for (const file of await this.index(base)) {
+        if (directory && !file.startsWith(`${directory}/`)) continue;
+        if (Date.now() - start > 2000 || matches.length >= 500) return { matches, limited: true };
+        const content = await this.read(root, file).catch(() => undefined);
+        if (!content || content.binary || content.truncated) continue;
+        const lines = content.content.split(/\r?\n/);
+        const regexMatches = expression ? new Set(await expression.lines(lines)) : undefined;
+        for (let i = 0; i < lines.length; i++) {
+          if (regexMatches ? regexMatches.has(i) : (options.caseSensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) matches.push({ path: file, line: i + 1, text: lines[i] });
+          if (matches.length >= 500) return { matches, limited: true };
+        }
       }
-    }
-    return { matches, limited: false };
+      return { matches, limited: false };
+    } finally { expression?.dispose(); }
   }
 
   async find(root: string, query: string, limit = 200): Promise<string[]> {
