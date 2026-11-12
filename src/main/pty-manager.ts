@@ -42,6 +42,7 @@ export class PtyManager {
   private readonly ending = new Set<Promise<void>>();
 
   create(options: PtyCreateOptions, owner: WebContents): string {
+    if ([...this.sessions.values()].filter((s) => s.owner === owner).length >= 256) throw new Error("Close unused terminal sessions before starting more.");
     const shell = process.platform === "win32"
       ? process.env.COMSPEC ?? "powershell.exe"
       : process.env.SHELL ?? "/bin/zsh";
@@ -54,12 +55,17 @@ export class PtyManager {
     const session: ManagedPty = { id: randomUUID(), process: processInstance, owner, viewId: options.viewId, cwd: options.cwd,
       terminal, serialize, sequence: 0, pendingData: "", listeners: [], disposed: false };
     this.sessions.set(session.id, session);
+    let queuedBytes = 0;
     session.listeners.push(
       // The window's terminal answers protocol queries while it is attached; the headless one only keeps the screen.
       processInstance.onData((data) => {
         if (session.disposed) return;
         // Queued for the window only once parsed: an attach snapshot's sequence must cover only what its screen shows.
+        queuedBytes += Buffer.byteLength(data);
+        if (queuedBytes > 4 * 1024 * 1024) processInstance.pause();
         terminal.write(data, () => {
+          queuedBytes -= Buffer.byteLength(data);
+          if (queuedBytes < 1024 * 1024 && !session.disposed) processInstance.resume();
           if (session.disposed) return;
           session.pendingData += data;
           session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);

@@ -1,7 +1,11 @@
-import { app, dialog, ipcMain, nativeImage, shell, Menu, type WebContents } from "electron";
+import { imagePreview } from "./image-previews";
+import { app, dialog, ipcMain, shell, Menu, type WebContents } from "electron";
 import { promises as fs } from "node:fs";
 import { FileOperations } from "./file-operations";
 import { basename, join } from "node:path";
+import { authorizeWorkspaceExecution, revokeExecutionTrust } from "./workspace-trust";
+import { assertInputBudget } from "../shared/input-budget";
+import { assertAppSender } from "./security";
 import { IPC } from "../shared/ipc";
 import {
   agentPromptSchema,
@@ -90,36 +94,44 @@ class FileWatchOwners {
 /** Twice the sidebar tile, and small enough to live in the persisted state. */
 const WORKSPACE_ICON_SIDE = 64;
 
-/** A square PNG data URL cropped from the middle of a PNG or JPEG; null for what nativeImage can't decode. */
-function workspaceIcon(bytes: Buffer): string | null {
-  const image = nativeImage.createFromBuffer(bytes);
-  if (image.isEmpty()) return null;
-  const { width, height } = image.getSize();
-  const side = Math.min(width, height);
-  return image
-    .crop({ x: Math.floor((width - side) / 2), y: Math.floor((height - side) / 2), width: side, height: side })
-    .resize({ width: WORKSPACE_ICON_SIDE, height: WORKSPACE_ICON_SIDE, quality: "best" })
-    .toDataURL();
-}
-
 function listen(channel: string, handler: (event: Electron.IpcMainEvent, input: unknown) => void): void {
   ipcMain.on(channel, (event, input: unknown) => {
     try {
-      if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
+      assertAppSender(event);
+      assertInputBudget(input);
       handler(event, input);
     } catch (error) { console.warn(`Rejected ${channel}:`, String(error)); }
   });
 }
 
+let resolveExecutionRoot: ((root: string) => Promise<string>) | undefined;
+
 /** Only the app's own top frame may call privileged handlers. */
 export function handle(channel: string, listener: (event: Electron.IpcMainInvokeEvent, input: unknown) => unknown): void {
   ipcMain.handle(channel, (event, input: unknown) => {
-    if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
+    assertAppSender(event);
+    assertInputBudget(input);
+    const executing = new Set<string>([IPC.sourceControlCommit, IPC.sourceControlRunAction, IPC.sourceControlStage, IPC.sourceControlUnstage, IPC.sourceControlDiscard, IPC.sourceControlBranchAction, IPC.sourceControlRevert, IPC.sourceControlStashAction, IPC.sourceControlCreateWorktree, IPC.sourceControlCheckout, IPC.sourceControlGenerateCommitMessage, IPC.sourceControlPreviewCommitMessage]);
+    if (executing.has(channel) || (channel === IPC.sourceControlBaseBranches && baseBranchesSchema.parse(input).refresh)) {
+      const { root } = workspaceRootSchema.parse(input);
+      if (!resolveExecutionRoot) throw new Error("Workspace authorization is unavailable.");
+      return resolveExecutionRoot(root).then(authorizeWorkspaceExecution).then(() => { assertAppSender(event); return listener(event, input); });
+    }
     return listener(event, input);
   });
 }
 
 export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSessionManager, workspace: WorkspaceServices, attachments: PromptAttachments, resources: ResourceMonitor): void {
+  resolveExecutionRoot = (root) => workspace.roots.resolve(root);
+  handle(IPC.revokeExecutionTrust, () => revokeExecutionTrust());
+  handle(IPC.storageMaintenance, async (_event, prune) => {
+    if (typeof prune !== "boolean") throw new Error("Invalid maintenance request.");
+    if (prune) {
+      const state = await loadState(true);
+      await attachments.retain(state.workspaces.flatMap((w) => w.views.map((v) => v.id)), true);
+    }
+    return attachments.storageBytes();
+  });
   listen(IPC.appTextMenu, () => Menu.buildFromTemplate([{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { type: "separator" }, { role: "selectAll" }]).popup());
   const histories = new Map<WebContents, FileOperations>();
   const cache = join(app.getPath("userData"), "file-history");
@@ -160,14 +172,20 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     return state;
   });
   handle(IPC.persistenceSave, async (_event, input: unknown) => {
-    const state = await saveState(persistedStateSchema.parse(input));
+    const state = persistedStateSchema.parse(input);
+    for (const item of state.workspaces) if (!workspace.roots.isAllowed(item.path)) throw new Error("Add new workspaces using Choose Directory.");
+    await saveState(state);
     workspace.roots.replace(state.workspaces.map((item) => item.path));
   });
   // Synchronous on purpose: the closing window waits here, so the write finishes before the app can exit.
   ipcMain.on(IPC.persistenceSaveNow, (event, input: unknown) => {
     try {
-      if (event.senderFrame !== event.sender.mainFrame) throw new Error("Untrusted frame");
-      saveStateNow(input);
+      assertAppSender(event);
+      assertInputBudget(input);
+      const state = persistedStateSchema.parse(input);
+      for (const item of state.workspaces) if (!workspace.roots.isAllowed(item.path)) throw new Error("Add new workspaces using Choose Directory.");
+      saveStateNow(state);
+      workspace.roots.replace(state.workspaces.map((item) => item.path));
     } catch (error) { console.error("Could not save workbench state on close", error); }
     event.returnValue = null;
   });
@@ -190,7 +208,8 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
     });
     const chosen = result.canceled ? undefined : result.filePaths[0];
     if (!chosen) return null;
-    const icon = workspaceIcon(await fs.readFile(chosen).catch(() => Buffer.alloc(0)));
+    if ((await fs.stat(chosen)).size > 8 * 1024 * 1024) throw new Error("Workspace icons must be under 8 MB.");
+    const icon = await imagePreview(await fs.readFile(chosen).catch(() => Buffer.alloc(0)), WORKSPACE_ICON_SIDE, true);
     if (!icon) await dialog.showMessageBox({ type: "warning", message: "That image couldn't be read.", detail: "Choose a PNG or JPEG file." });
     return icon;
   });
@@ -331,6 +350,10 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   });
   handle(IPC.sourceControlIgnored, async (_event, input: unknown) =>
     workspace.sourceControl.ignored(await allowedRoot(workspaceRootSchema.parse(input).root)));
+  handle(IPC.sourceControlPreviewCommitMessage, async (_event, input) => {
+    const { root, stagedOnly } = generateCommitMessageSchema.parse(input);
+    return workspace.commitMessages.preview(await allowedRoot(root), stagedOnly);
+  });
   handle(IPC.sourceControlGenerateCommitMessage, async (_event, input: unknown) => {
     const { root, providerId, stagedOnly } = generateCommitMessageSchema.parse(input);
     return workspace.commitMessages.generate(await allowedRoot(root), providerId, stagedOnly);
@@ -353,9 +376,11 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   listen(IPC.ptyTerminate, (event, input: unknown) => {
     void ptyManager.terminate(ptyTerminateSchema.parse(input).sessionId, event.sender);
   });
-  handle(IPC.agentCreate, (event, input: unknown) =>
-    agentSessionManager.create(agentSessionCreateOptionsSchema.parse(input), event.sender),
-  );
+  handle(IPC.agentCreate, async (event, input: unknown) => {
+    const options = agentSessionCreateOptionsSchema.parse(input);
+    options.workspacePath = await workspace.roots.directory(options.workspacePath);
+    return agentSessionManager.create(options, event.sender);
+  });
   handle(IPC.agentProviders, () => agentSessionManager.discover());
   handle(IPC.agentAttach, (event, input: unknown) => agentSessionManager.attach(agentSessionActionSchema.parse(input).sessionId, event.sender));
   listen(IPC.agentInput, (event, input: unknown) => {

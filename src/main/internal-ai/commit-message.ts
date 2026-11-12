@@ -4,6 +4,14 @@ import type { InternalAiRequest } from "./internal-ai-service";
 // Under the limit the commit channel accepts.
 const MESSAGE_LIMIT = 9_000;
 
+/** Conservative redaction supplements file exclusions; it is not a guarantee that arbitrary source is secret-free. */
+function redactSecrets(text: string): string {
+  return text
+    .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g, "[private key omitted]")
+    .replace(/\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[A-Z0-9]{16})\b/g, "[credential omitted]")
+    .replace(/((?:api[_-]?key|access[_-]?token|password|secret|authorization)["']?\s*[:=]\s*["']?)([^\s"',}]{8,})/gi, "$1[credential omitted]");
+}
+
 export function commitMessagePrompt(changes: PendingChanges): string {
   return [
     "Write a commit message for the pending changes below.",
@@ -18,7 +26,7 @@ export function commitMessagePrompt(changes: PendingChanges): string {
     "<changes>",
     changes.summary,
     "",
-    changes.diff,
+    redactSecrets(changes.diff),
     "</changes>",
   ].join("\n");
 }
@@ -46,6 +54,10 @@ export class CommitMessages {
     const result = this.create(root, providerId, stagedOnly).finally(() => this.active.delete(key));
     this.active.set(key, result);
     return result;
+  }
+
+  async preview(root: string, stagedOnly = false): Promise<string> {
+    return commitMessagePrompt(await this.sourceControl.pendingChanges(root, stagedOnly));
   }
 
   private async create(root: string, providerId: string | undefined, stagedOnly: boolean): Promise<string> {

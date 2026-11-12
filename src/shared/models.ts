@@ -448,6 +448,8 @@ export interface WorkbenchApi {
   };
   app: {
     textMenu: () => void;
+    storageMaintenance: (prune: boolean) => Promise<number>;
+    revokeExecutionTrust: () => Promise<void>;
     /** Returns unsubscribe. */
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
   };
@@ -512,6 +514,7 @@ export interface WorkbenchApi {
     /** Ignored paths, folded to their top folder, to dim in the file tree. */
     ignored: (root: string) => Promise<string[]>;
     /** Describes the pending changes with a CLI (`providerId`, else the first one installed). Spends the user's tokens. */
+    previewCommitMessage: (root: string, stagedOnly?: boolean) => Promise<string>;
     generateCommitMessage: (root: string, providerId?: string, stagedOnly?: boolean) => Promise<string>;
   };
   pty: {

@@ -19,7 +19,7 @@ export const workspaceSchema = z.object({
   // A bad icon falls back to the folder rather than failing validation, which would discard the whole saved state.
   icon: z.string().max(64 * 1024).regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/).optional().catch(undefined),
   disabledInstructionIds: z.array(z.string()).optional(),
-  views: z.array(workbenchViewSchema),
+  views: z.array(workbenchViewSchema).max(1000),
   activeViewId: z.string().optional(),
 });
 
@@ -86,7 +86,7 @@ export const layoutStateSchema = z.object({
 });
 
 export const persistedStateSchema = z.object({
-  workspaces: z.array(workspaceSchema).default([]),
+  workspaces: z.array(workspaceSchema).max(1000).default([]),
   activeWorkspaceId: z.string().optional(),
   personas: z.array(personaSchema).default([]),
   instructionOptions: z.array(storedPromptOptionSchema).default([]),
@@ -145,7 +145,7 @@ export const ptyCreateOptionsSchema = z.object({
 
 export const ptyInputSchema = z.object({
   sessionId: z.string(),
-  data: z.string(),
+  data: z.string().max(1024 * 1024),
 });
 
 export const ptyResizeSchema = z.object({

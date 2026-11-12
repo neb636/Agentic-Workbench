@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Button } from "../../ui/controls";
 import { Button as AriaButton, Label, ListBox, ListBoxItem, Popover, Select, SelectValue, Text } from "react-aria-components";
 import { services } from "../../core/services";
 import { useWorkbenchStore } from "../../state/workbench-store";
@@ -5,6 +7,7 @@ import { ChevronDownIcon } from "../../ui/icons";
 import { useDefaultCli } from "./default-cli";
 
 export function GeneralSettings() {
+  const [storageNotice, setStorageNotice] = useState("");
   const { agents, current } = useDefaultCli();
   const setDefaultAgentProvider = useWorkbenchStore((state) => state.setDefaultAgentProvider);
   return <div className="general-settings">
@@ -20,6 +23,10 @@ export function GeneralSettings() {
         </ListBox>
       </Popover>
     </Select>
+    <p className="settings-help">Drafts and attachments stay on this computer. Attachments remain available to saved conversations while their view exists. CLI conversation storage is managed by the CLI.</p>
+    <Button onPress={() => { void window.workbench.app.storageMaintenance(true).then((bytes) => setStorageNotice(`${Math.ceil(bytes / 1024 / 1024)} MB of attachments retained for open views.`)).catch(() => setStorageNotice("Could not clean attachment storage.")); }}>Remove attachments for closed views</Button>
+    <Button onPress={() => { void window.workbench.app.revokeExecutionTrust().then(() => setStorageNotice("Workspace execution trust cleared. Running sessions keep their native permissions.")).catch(() => setStorageNotice("Could not clear execution trust.")); }}>Reset workspace execution trust</Button>
+    {storageNotice && <p role="status" className="settings-help">{storageNotice}</p>}
     {services.widgets.forSlot("settings.general").map(({ id, component: Section }) => <Section key={id} />)}
   </div>;
 }

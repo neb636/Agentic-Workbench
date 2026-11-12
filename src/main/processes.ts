@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, type ChildProcess } from "node:child_process";
 
 export interface ProcessSample {
   pid: number;
@@ -84,4 +84,11 @@ export async function endProcessTree(pid: number, fallback: () => void, graceMs 
   }
   signal(-pid, "SIGKILL");
   for (const item of tree) signal(item, "SIGKILL");
+}
+
+/** Background CLI helpers run in their own groups so wrapper processes cannot strand children. */
+export function killBackgroundProcess(child: ChildProcess): void {
+  if (!child.pid) return;
+  try { if (process.platform !== "win32") process.kill(-child.pid, "SIGKILL"); else child.kill("SIGKILL"); }
+  catch { child.kill("SIGKILL"); }
 }

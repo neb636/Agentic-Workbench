@@ -1,3 +1,4 @@
+import { killBackgroundProcess } from "./processes";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import type { AgentModelChoice } from "../shared/models";
@@ -14,11 +15,11 @@ const EFFORT = /^[a-z]{1,20}$/;
 /** Runs the listing in a neutral folder, so no project's configuration is involved. Output is kept until the CLI has answered. */
 function readListing(executable: string, listing: AgentModelListing): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, listing.args, { cwd: tmpdir(), stdio: ["pipe", "pipe", "ignore"] });
+    const child = spawn(executable, listing.args, { cwd: tmpdir(), detached: true, stdio: ["pipe", "pipe", "ignore"] });
     let stdout = "";
     const finish = (failure?: Error) => {
       clearTimeout(timer);
-      child.kill();
+      killBackgroundProcess(child);
       if (failure) reject(failure); else resolve(stdout);
     };
     const timer = setTimeout(() => finish(new Error("Timed out.")), READ_TIMEOUT_MS);

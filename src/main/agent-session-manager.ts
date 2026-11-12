@@ -93,6 +93,7 @@ export class AgentSessionManager {
   create(options: AgentSessionCreateOptions, owner: WebContents): string {
     const existing = [...this.sessions.values()].find((s) => s.viewId === options.viewId && s.owner === owner);
     if (existing) return existing.id;
+    if ([...this.sessions.values()].filter((s) => s.owner === owner).length >= 256) throw new Error("Close unused agent sessions before starting more.");
     const provider = this.providers.find((p) => p.id === options.providerId);
     if (!provider) throw new Error("Unknown agent provider.");
     const executable = executablePath(provider.executable);
@@ -136,11 +137,16 @@ export class AgentSessionManager {
     terminal.onTitleChange((title) => { session.title = title; });
     // Headless parsing owns terminal replies, including when no renderer is attached.
     terminal.onData((data) => { if (!session.disposed && session.status.lifecycle !== "exited") processInstance.write(data); });
+    let queuedBytes = 0;
     session.listeners.push(processInstance.onData((data) => {
       // Output can still arrive after the session closed; its terminal is gone by then.
       if (session.disposed) return;
       session.lastOutputAt = Date.now();
+      queuedBytes += Buffer.byteLength(data);
+      if (queuedBytes > 4 * 1024 * 1024) processInstance.pause();
       terminal.write(data, () => {
+        queuedBytes -= Buffer.byteLength(data);
+        if (queuedBytes < 1024 * 1024 && !session.disposed) processInstance.resume();
         if (session.disposed) return;
         session.pendingData += data;
         session.dataTimer ??= setTimeout(() => this.emitPending(session), DATA_BATCH_MS);

@@ -147,6 +147,8 @@ function CommitArea({ root, status }: { root: string; status: SourceControlStatu
       </TextField>
       <IconButton className={`commit-generate ${generating ? "is-generating" : ""}`} label={cli ? `Generate commit message with ${cli.label}` : "Generate commit message"} isDisabled={!count || generating || busy} onPress={() => void generate()}><SparkIcon size={14} /></IconButton>
     </div>
+    <Button isDisabled={generating || busy} onPress={() => { void window.workbench.sourceControl.previewCommitMessage(root, stagedOnly).then((text) => choose(`AI changes for ${cli?.label ?? "the default CLI"}`, text, ["Close"])).catch((e) => setError(errorMessage(e))); }}>Preview AI changes</Button>
+    <p className="panel-note">AI generation sends {stagedOnly ? "staged" : "pending"} repository changes to {cli?.label ?? "the default CLI"}. Common credentials are filtered; review sensitive changes before generating.</p>
     <div className="commit-row">
       <Button className="commit-button" isDisabled={!ready} onPress={() => setConfirming("commit")}><CheckIcon size={13} />Commit {what}</Button>
       {moreActions.length > 0 && menu.overflow(moreActions, "More commit", "wb-icon-button commit-more")}

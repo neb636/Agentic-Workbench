@@ -1,13 +1,18 @@
-import { app, BrowserWindow, Menu, MenuItem, nativeImage, shell } from "electron";
+import { app, BrowserWindow, Menu, MenuItem, shell } from "electron";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { AgentModelCatalogue } from "./agent-model-catalogue";
 import { AgentSessionManager } from "./agent-session-manager";
 import { CommitMessages } from "./internal-ai/commit-message";
 import { InternalAiService } from "./internal-ai/internal-ai-service";
+import { isWorkspaceTrusted, loadExecutionTrust } from "./workspace-trust";
+import { executablePath } from "./executables";
+import { APP_URL, registerAppWindow, developmentUrl, configureSecurity } from "./security";
 import { registerIpc } from "./ipc";
 import { ClaudeAgentProvider } from "./providers/claude-agent-provider";
 import { CodexAgentProvider } from "./providers/codex-agent-provider";
 import { GitSourceControlProvider } from "./providers/git-source-control-provider";
+import { imagePreview } from "./image-previews";
 import { PromptAttachments, THUMBNAIL_SIDE } from "./prompt-attachments";
 import { PtyManager } from "./pty-manager";
 import { ResourceMonitor } from "./resource-monitor";
@@ -21,17 +26,8 @@ import { createAiUsage, registerAiUsage } from "./ai-usage";
 if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
 if (app.isPackaged) adoptLoginShellPath();
 
-/** Scales a PNG or JPEG so its shorter side fills a thumbnail; null for what nativeImage can't decode. */
-function shrinkPicture(bytes: Buffer): string | null {
-  const image = nativeImage.createFromBuffer(bytes);
-  if (image.isEmpty()) return null;
-  const { width, height } = image.getSize();
-  if (Math.min(width, height) <= THUMBNAIL_SIDE) return image.toDataURL();
-  return image.resize(width < height ? { width: THUMBNAIL_SIDE, quality: "good" } : { height: THUMBNAIL_SIDE, quality: "good" }).toDataURL();
-}
-
 const ptyManager = new PtyManager();
-const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), shrinkPicture);
+const attachments = new PromptAttachments(() => path.join(app.getPath("userData"), "attachments"), (bytes) => imagePreview(bytes, THUMBNAIL_SIDE));
 const agentProviders = [new CodexAgentProvider(), new ClaudeAgentProvider()];
 const agentModels = new AgentModelCatalogue(agentProviders);
 const aiUsage = createAiUsage(agentProviders);
@@ -39,7 +35,7 @@ const agentSessionManager = new AgentSessionManager(agentProviders, undefined, (
 const internalAi = new InternalAiService(agentProviders, () => path.join(app.getPath("userData"), "internal-ai"));
 const resources = new ResourceMonitor([ptyManager, agentSessionManager]);
 const roots = new WorkspaceRoots();
-const sourceControl = new SourceControlService([new GitSourceControlProvider()]);
+const sourceControl = new SourceControlService([new GitSourceControlProvider(() => executablePath("git"), isWorkspaceTrusted)]);
 const workspaceServices = {
   roots,
   files: new WorkspaceFiles(roots, (target) => shell.trashItem(target)),
@@ -83,17 +79,18 @@ function createWindow(): BrowserWindow {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
       backgroundThrottling: !qaHidden,
     },
   });
 
+  registerAppWindow(window);
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
   window.webContents.on("will-navigate", (event, url) => {
-    const allowed = process.env.VITE_DEV_SERVER_URL;
+    const allowed = developmentUrl();
     if (!allowed || new URL(url).origin !== new URL(allowed).origin) event.preventDefault();
   });
   // Sessions belong to the page that started them. A reload or a crashed renderer loses every view that showed them,
@@ -108,15 +105,19 @@ function createWindow(): BrowserWindow {
     if (details.isMainFrame && !details.isSameDocument) endSessions();
   });
 
-  if (process.env.VITE_DEV_SERVER_URL) {
-    void window.loadURL(process.env.VITE_DEV_SERVER_URL);
+  if (developmentUrl()) {
+    void window.loadURL(developmentUrl()!);
   } else {
-    void window.loadFile(path.join(__dirname, "../../dist/index.html"));
+    void window.loadURL(APP_URL);
   }
   return window;
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await fs.mkdir(app.getPath("userData"), { recursive: true, mode: 0o700 });
+  await fs.chmod(app.getPath("userData"), 0o700);
+  await loadExecutionTrust();
+  configureSecurity();
   if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments, resources);
   registerAiUsage(aiUsage);

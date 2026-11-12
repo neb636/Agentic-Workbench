@@ -36,6 +36,8 @@ const api: WorkbenchApi = {
     chooseIcon: () => ipcRenderer.invoke(IPC.workspaceChooseIcon) as Promise<string | null>,
   },
   app: {
+    storageMaintenance: (prune) => ipcRenderer.invoke(IPC.storageMaintenance, prune),
+    revokeExecutionTrust: () => ipcRenderer.invoke(IPC.revokeExecutionTrust),
     textMenu: () => ipcRenderer.send(IPC.appTextMenu),
     onMenuCommand: (listener) => {
       const wrapped = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
@@ -97,6 +99,7 @@ const api: WorkbenchApi = {
     checkout: (root, branch) => ipcRenderer.invoke(IPC.sourceControlCheckout, { root, branch }),
     fileAt: (root, path, base) => ipcRenderer.invoke(IPC.sourceControlFileAt, { root, path, base }),
     ignored: (root) => ipcRenderer.invoke(IPC.sourceControlIgnored, { root }),
+    previewCommitMessage: (root, stagedOnly) => ipcRenderer.invoke(IPC.sourceControlPreviewCommitMessage, { root, stagedOnly }),
     generateCommitMessage: (root, providerId, stagedOnly) => ipcRenderer.invoke(IPC.sourceControlGenerateCommitMessage, { root, providerId, stagedOnly }),
   },
   resources: {

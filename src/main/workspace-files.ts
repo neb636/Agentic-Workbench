@@ -1,3 +1,4 @@
+import { regexLines } from "./search-worker";
 import { createHash } from "node:crypto";
 import { promises as fs, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
@@ -298,7 +299,7 @@ export class WorkspaceFiles {
     const base = await this.roots.resolve(root);
     const directory = options.directory ?? "";
     await resolveInside(base, directory);
-    const expression = options.regex ? new RegExp(query, options.caseSensitive ? "" : "i") : undefined;
+
     const needle = options.caseSensitive ? query : query.toLowerCase();
     const matches: import("../shared/models").SearchMatch[] = [];
     const start = Date.now();
@@ -308,8 +309,9 @@ export class WorkspaceFiles {
       const content = await this.read(root, file).catch(() => undefined);
       if (!content || content.binary || content.truncated) continue;
       const lines = content.content.split(/\r?\n/);
+      const regexMatches = options.regex ? new Set(await regexLines(lines, query, options.caseSensitive)) : undefined;
       for (let i = 0; i < lines.length; i++) {
-        if (expression ? expression.test(lines[i]) : (options.caseSensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) matches.push({ path: file, line: i + 1, text: lines[i] });
+        if (regexMatches ? regexMatches.has(i) : (options.caseSensitive ? lines[i] : lines[i].toLowerCase()).includes(needle)) matches.push({ path: file, line: i + 1, text: lines[i] });
         if (matches.length >= 500) return { matches, limited: true };
       }
     }
@@ -363,7 +365,8 @@ export class WorkspaceFiles {
     if (cached && Date.now() - cached.at < INDEX_TTL) return cached.files;
     const files: string[] = [];
     const queue = [base];
-    while (queue.length && files.length < WALK_LIMIT) {
+    let visited = 0;
+    while (queue.length && files.length < WALK_LIMIT && visited++ < WALK_LIMIT) {
       const directory = queue.shift()!;
       let entries;
       try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { continue; }

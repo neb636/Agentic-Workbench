@@ -86,7 +86,7 @@ function BranchDialog({ root, status, action, onClose }: { root: string; status:
           </TextField>
           : <Select className="branch-select" placeholder="Choose a branch…" selectedKey={selected} onSelectionChange={(key) => setSelected(key === null ? null : String(key))}>
             <Label>Branch</Label>
-            <AriaButton className="select-trigger"><SelectValue /><ChevronDownIcon size={14} /></AriaButton>
+            <AriaButton className="select-trigger" isDisabled={!options.length}><SelectValue /><ChevronDownIcon size={14} /></AriaButton>
             <Popover className="wb-popover branch-popover">
               <ListBox items={options.map((branch) => ({ id: branch.ref, name: branch.name }))}>{(item) => <ListBoxItem id={item.id} textValue={item.name}><BranchIcon size={12} /> {item.name}</ListBoxItem>}</ListBox>
             </Popover>

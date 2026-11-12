@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { UsageWindow } from "../../../shared/ai-usage";
+import { executablePath } from "../../executables";
 import { claudeConfigDir } from "./claude-credentials";
 import { claudeWindow } from "./claude-usage-parse";
 
@@ -13,9 +14,10 @@ import { claudeWindow } from "./claude-usage-parse";
  */
 const SCRIPT = `#!/bin/sh
 # Agent Workbench: keeps the plan usage Claude Code reports, then runs the person's own status line command, if any.
-payload=$(cat)
+umask 077
+payload=$(head -c 1048576)
 case "$payload" in
-  *'"rate_limits"'*) temporary="$1.$$"; printf '%s' "$payload" > "$temporary" && mv -f "$temporary" "$1" ;;
+  *'"rate_limits"'*) printf '%s' "$payload" | "$3" -e 'const fs=require("node:fs");try {const data=JSON.parse(fs.readFileSync(0,"utf8")); const file=process.argv[1]; fs.writeFileSync(file,JSON.stringify({rate_limits:data.rate_limits}),{mode:384});}catch{}' "$1" ;;
 esac
 [ -n "$2" ] || exit 0
 printf '%s' "$payload" | /bin/sh -c "$2"
@@ -47,17 +49,19 @@ export class ClaudeStatusLine {
    */
   launchArgs(cwd: string): string[] {
     if (!this.supported) return [];
+    const node = executablePath("node");
+    if (!node) return [];
     const theirs = [join(cwd, ".claude", "settings.local.json"), join(cwd, ".claude", "settings.json"), join(claudeConfigDir(), "settings.json")]
       .map(statusLineIn).find(Boolean);
     if (theirs && (theirs.type !== "command" || typeof theirs.command !== "string" || !theirs.command.trim())) return [];
     const folder = this.folder();
     const script = join(folder, "claude-statusline.sh");
     try {
-      mkdirSync(folder, { recursive: true });
+      mkdirSync(folder, { recursive: true, mode: 0o700 });
       writeFileSync(script, SCRIPT, { mode: 0o755 });
     } catch { return []; }
-    const own = typeof theirs?.command === "string" ? ` ${shellQuote(theirs.command)}` : "";
-    const command = `/bin/sh ${shellQuote(script)} ${shellQuote(join(folder, PAYLOAD))}${own}`;
+    const own = shellQuote(typeof theirs?.command === "string" ? theirs.command : "");
+    const command = `/bin/sh ${shellQuote(script)} ${shellQuote(join(folder, PAYLOAD))} ${own} ${shellQuote(node)}`;
     return ["--settings", JSON.stringify({ statusLine: theirs ? { ...theirs, command } : { type: "command", command, padding: 0 } })];
   }
 
@@ -65,7 +69,7 @@ export class ClaudeStatusLine {
   watch(onWindows: (windows: UsageWindow[]) => void): () => void {
     if (!this.supported) return () => undefined;
     const folder = this.folder();
-    try { mkdirSync(folder, { recursive: true }); } catch { return () => undefined; }
+    try { mkdirSync(folder, { recursive: true, mode: 0o700 }); } catch { return () => undefined; }
     let timer: ReturnType<typeof setTimeout> | undefined;
     const read = () => {
       timer = undefined;

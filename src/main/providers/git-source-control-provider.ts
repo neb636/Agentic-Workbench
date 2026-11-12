@@ -29,7 +29,7 @@ const PENDING_SUMMARY_CHARS = 16_000;
 const PENDING_FILE_CHARS = 8_000;
 const PENDING_TOTAL_CHARS = 48_000;
 // Named in the summary, but their contents aren't sent to a model.
-const SECRET_PATHSPECS = ["**/.env*", "**/*.pem", "**/*.key"].map((pattern) => `:(top,exclude,glob)${pattern}`);
+const SECRET_PATHSPECS = ["**/.env*", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx", "**/.npmrc", "**/.netrc", "**/credentials.json", "**/id_rsa", "**/id_ed25519"].map((pattern) => `:(top,exclude,glob)${pattern}`);
 const GIT_ENV = { GIT_OPTIONAL_LOCKS: "0", GIT_TERMINAL_PROMPT: "0" };
 // Mirrors git-check-ref-format rules closely enough to reject anything git would; git re-checks below.
 const BRANCH_PATTERN = /^(?!-)(?!.*(?:\.\.|\/\/|@\{|\\|\.lock(?:\/|$)|\/\.|\/$|\.$))[A-Za-z0-9._\-/]+$/;
@@ -175,7 +175,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
 
   private readonly searches = new Map<string, ChildProcess>();
 
-  constructor(private readonly executable = () => executablePath("git")) {}
+  constructor(private readonly executable = () => executablePath("git"), private readonly trusted: (root: string) => boolean = () => false) {}
 
   async detect(root: string): Promise<boolean> {
     if (!this.executable()) return false;
@@ -440,7 +440,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
         GIT_OBJECT_DIRECTORY: scratchObjects,
         GIT_ALTERNATE_OBJECT_DIRECTORIES: `"${objects.replace(/["\\]/g, "\\$&")}"`,
       };
-      if (!stagedOnly) await this.git(root, ["add", "--all"], 0, env);
+      if (!stagedOnly) await this.git(root, ["add", "--all", "--", ":(top)", ...SECRET_PATHSPECS], 120_000, env);
       const diffArgs = ["-c", "core.quotePath=false", "diff", "--cached", "-M", "--no-ext-diff", "--no-textconv", "--no-color"];
       const fullSummary = (await this.git(root, [...diffArgs, "--stat=120"], 0, env)).trim();
       const read = await this.gitLimited(root, [...diffArgs, "--", ":(top)", ...SECRET_PATHSPECS], env, PENDING_READ_LIMIT);
@@ -469,7 +469,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return new Promise((resolve, reject) => {
       let output = "";
       let limited = false;
-      const child = execFile(executable, args, { cwd: root, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, ...GIT_ENV } }, (error) => {
+      const child = execFile(executable, this.inspectionArgs(root, args), { cwd: root, maxBuffer: 16 * 1024 * 1024, env: { ...process.env, ...GIT_ENV } }, (error) => {
         clearTimeout(timer);
         if (this.searches.get(root) === child) this.searches.delete(root);
         const matches = parseGrep(output);
@@ -495,11 +495,15 @@ export class GitSourceControlProvider implements SourceControlProvider {
     return [...new Set([remoteHead, "origin/main", "main", "origin/master", "master"].filter(Boolean))];
   }
 
-  private git(cwd: string, args: string[], timeout = 0, env: NodeJS.ProcessEnv = {}): Promise<string> {
+  private inspectionArgs(root: string, args: string[]): string[] {
+    return this.trusted(root) ? args : ["-c", "core.fsmonitor=false", "-c", `core.hooksPath=${process.platform === "win32" ? "NUL" : "/dev/null"}`, ...args];
+  }
+
+  private git(cwd: string, args: string[], timeout = 120_000, env: NodeJS.ProcessEnv = {}): Promise<string> {
     const executable = this.executable();
     if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
     return new Promise((resolve, reject) => {
-      execFile(executable, args, { cwd, timeout, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV, ...env } }, (error, stdout, stderr) => {
+      execFile(executable, this.inspectionArgs(cwd, args), { cwd, timeout, maxBuffer: OUTPUT_LIMIT, env: { ...process.env, ...GIT_ENV, ...env } }, (error, stdout, stderr) => {
         // A conflict is reported on stdout, so a failure with nothing on stderr says why from there.
         if (error) reject(new Error(error.killed && timeout ? "Git took too long and was stopped." : String(stderr || stdout.slice(-2000) || error.message).trim()));
         else resolve(stdout);
@@ -512,7 +516,7 @@ export class GitSourceControlProvider implements SourceControlProvider {
     const executable = this.executable();
     if (!executable) return Promise.reject(new Error("Git was not found on this machine."));
     return new Promise((resolve, reject) => {
-      const child = spawn(executable, args, { cwd, env: { ...process.env, ...GIT_ENV, ...env }, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(executable, this.inspectionArgs(cwd, args), { cwd, env: { ...process.env, ...GIT_ENV, ...env }, stdio: ["ignore", "pipe", "pipe"] });
       const chunks: Buffer[] = [];
       let bytes = 0;
       let limited = false;
