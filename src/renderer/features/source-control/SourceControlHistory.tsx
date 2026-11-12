@@ -45,7 +45,7 @@ export function SourceControlHistory({ root, status, workspaceId }: { root: stri
     (async () => {
       const wanted = Math.max(PAGE, loaded.current);
       const all: SourceControlCommit[] = [];
-      let more = false;
+      let more: boolean;
       do {
         const result = await window.workbench.sourceControl.history(root, all.length, Math.min(MAX_REQUEST, wanted - all.length));
         all.push(...result.commits); more = result.hasMore;

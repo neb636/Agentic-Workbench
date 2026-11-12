@@ -31,7 +31,7 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     const terminal = new Terminal({ cursorBlink: true, fontFamily: token("--wb-font-mono"), fontSize: 13, lineHeight: 1.25,
       scrollback: 2000, theme: {
         background: token("--wb-terminal-bg"), foreground: token("--wb-terminal-fg"), cursor: token("--wb-terminal-cursor"),
-        selectionBackground: token("--wb-terminal-selection"), black: token("--wb-terminal-black"), red: token("--wb-terminal-red"),
+        selectionBackground: token("--wb-terminal-selection"), scrollbarSliderBackground: token("--wb-code-border"), black: token("--wb-terminal-black"), red: token("--wb-terminal-red"),
         green: token("--wb-terminal-green"), yellow: token("--wb-terminal-yellow"), blue: token("--wb-terminal-blue"),
         magenta: token("--wb-terminal-magenta"), cyan: token("--wb-terminal-cyan"), white: token("--wb-terminal-white"),
       },
@@ -63,7 +63,7 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     let followOutput = true;
     const write = (data: string) => terminal.write(data, () => { if (active && followOutput) terminal.scrollToBottom(); });
     const wheel = (event: WheelEvent) => { if (event.deltaY < 0) followOutput = false; };
-    const pointer = (event: PointerEvent) => { if ((event.target as HTMLElement).classList.contains("xterm-viewport")) followOutput = false; };
+    const pointer = (event: PointerEvent) => { if ((event.target as HTMLElement).closest(".xterm-viewport, .xterm .scrollbar")) followOutput = false; };
     host.addEventListener("wheel", wheel, { passive: true });
     host.addEventListener("pointerdown", pointer);
     const scroll = terminal.onScroll(() => {

@@ -20,7 +20,7 @@ export class RegexSearch {
       if (value.error) pending?.reject(new Error("Invalid search expression."));
       else pending?.resolve(value.matches ?? []);
     });
-    this.worker.on("error", (error) => this.stop(error));
+    this.worker.on("error", (error: unknown) => this.stop(error instanceof Error ? error : new Error(String(error))));
     this.worker.on("exit", () => this.stop(new Error("Regular expression search stopped.")));
   }
 

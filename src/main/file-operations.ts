@@ -93,13 +93,13 @@ export class FileOperations {
       } catch (error) {
         // Validation failed before source deletion began. Remove only our unchanged copy.
         try { await this.check(target, hash); await fs.rm(target, { recursive: true }); }
-        catch { throw new Error(`Move could not finish; a changed copy remains at ${target}. ${String(error)}`); }
+        catch { throw new Error(`Move could not finish; a changed copy remains at ${target}. ${String(error)}`, { cause: error }); }
         throw error;
       }
       try { await fs.rm(source, { recursive: true }); }
       catch (error) {
         // Recursive removal can fail after deleting children. The destination may now be their only copy.
-        throw new Error(`Source removal could not finish; the source may be incomplete. The destination copy remains at ${target}. ${String(error)}`);
+        throw new Error(`Source removal could not finish; the source may be incomplete. The destination copy remains at ${target}. ${String(error)}`, { cause: error });
       }
     }
   }

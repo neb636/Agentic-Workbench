@@ -59,7 +59,7 @@ export async function loadState(strict = false): Promise<PersistedState> {
     }
     preserveExistingState = true;
     const reason = error instanceof Error ? error.message : String(error);
-    throw new Error(`Could not load saved workbench at ${statePath()}. The existing profile was preserved. ${reason}`);
+    throw new Error(`Could not load saved workbench at ${statePath()}. The existing profile was preserved. ${reason}`, { cause: error });
   }
 }
 
