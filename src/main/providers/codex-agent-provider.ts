@@ -23,10 +23,11 @@ export class CodexAgentProvider implements AgentProviderAdapter {
   }));
   readonly listModels: AgentModelListing = { args: ["debug", "models"], parse: parseCodexModels };
   // Codex can't be given an id for a new conversation; --last looks only at the folder it runs in.
+  // Inline mode: in the alternate screen Codex's output never reaches the terminal's scrollback, so it couldn't be scrolled.
   args(resume?: AgentResume) {
-    if (resume?.kind === "id") return ["resume", resume.id];
-    if (resume?.kind === "latest") return ["resume", "--last"];
-    return resume ? ["resume"] : [];
+    if (resume?.kind === "id") return ["resume", resume.id, "--no-alt-screen"];
+    if (resume?.kind === "latest") return ["resume", "--last", "--no-alt-screen"];
+    return resume ? ["resume", "--no-alt-screen"] : ["--no-alt-screen"];
   }
   modelArgs(settings: AgentModelSettings) {
     // Plan mode has its own effort setting; without it, switching to Plan changes the chosen effort.
