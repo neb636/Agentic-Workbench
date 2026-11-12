@@ -35,9 +35,10 @@ const cols = Number(option("cols", 120)), rows = Number(option("rows", 40));
 const steps = (option("steps", "wait:8000")).split(/\s+(?=(?:wait|type|paste|key|mouse|mark)\b)/).filter(Boolean);
 const out = option("out");
 const model = option("model"), effort = option("effort");
-// The same launch arguments the adapters build (modelArgs).
-const launchArgs = !model ? [] : cli === "claude" ? ["--model", model, ...(effort ? ["--effort", effort] : [])]
+// The same launch arguments the adapters build (args and modelArgs).
+const modelArgs = !model ? [] : cli === "claude" ? ["--model", model, ...(effort ? ["--effort", effort] : [])]
   : ["--model", model, ...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : [])];
+const launchArgs = cli === "codex" ? ["--no-alt-screen", ...modelArgs] : modelArgs;
 const executable = execFileSync("/bin/sh", ["-lc", `command -v ${cli}`], { encoding: "utf8" }).trim();
 const version = execFileSync(executable, ["--version"], { encoding: "utf8" }).trim();
 const keys = { enter: "\r", esc: "\x1b", "shift-tab": "\x1b[Z", tab: "\t", "ctrl-c": "\x03", backspace: "\x7f" };
