@@ -63,6 +63,8 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
 
 const OPEN_PR = "When the change is ready, open a draft pull request that summarizes the change and how it was verified.";
 const WRITE_TESTS = "Add or update unit tests that cover this change, and run them before finishing.";
+await writeFile(join(directory, "execution-trust.json"), JSON.stringify([repo]));
+
 let app;
 try {
   const launch = async () => {
@@ -188,7 +190,10 @@ try {
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Needs input"));
   await page.getByRole("button", { name: "Focus terminal" }).waitFor();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.focus());
   await page.locator(".xterm-helper-textarea").focus();
+  // Allow the terminal focus handoff to settle before native keyboard dispatch.
+  await page.waitForTimeout(150);
   await page.keyboard.press("Control+c");
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
 
@@ -358,6 +363,7 @@ try {
   await page.waitForFunction(() => document.querySelector(".session-pill")?.textContent.includes("Ready"));
   await choosePlan();
   await prompt().fill("Plan after startup work");
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.focus());
   await page.locator(".xterm-helper-textarea").focus();
   await page.keyboard.press("Control+b");
   await page.waitForFunction(() => /working/i.test(document.querySelector(".session-pill")?.textContent ?? ""));
@@ -575,7 +581,9 @@ try {
   const restoredRow = () => page.getByRole("treegrid", { name: "Workspaces" }).getByRole("row", { name: /Explain this failure\./ });
   // Selected without a click (arrow keys), so the pane stays.
   const arrowToSaved = async () => {
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.focus());
     await page.getByRole("tab", { name: "Other" }).focus();
+    await page.waitForTimeout(150);
     await page.keyboard.press("ArrowLeft");
     await page.getByRole("heading", { name: "Resume this session" }).waitFor();
   };

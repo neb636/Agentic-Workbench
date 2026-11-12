@@ -12,6 +12,7 @@ import { createId } from "../core/id";
 
 interface WorkbenchStore extends PersistedState {
   isHydrated: boolean;
+  persistenceError?: string;
   hydrate: () => Promise<void>;
   addWorkspace: (path: string) => string;
   removeWorkspace: (workspaceId: string) => void;
@@ -216,7 +217,10 @@ useWorkbenchStore.subscribe((state, previous) => {
   clearTimeout(persistenceTimer);
   persistenceTimer = setTimeout(() => {
     persistenceTimer = undefined;
-    void window.workbench.persistence.save(persistedSnapshot(useWorkbenchStore.getState()));
+    void window.workbench.persistence.save(persistedSnapshot(useWorkbenchStore.getState())).then(
+      () => useWorkbenchStore.setState({ persistenceError: undefined }),
+      (error: unknown) => useWorkbenchStore.setState({ persistenceError: error instanceof Error ? error.message : String(error) }),
+    );
   }, 180);
 });
 // The last few keystrokes before the app closes belong in the saved draft too.

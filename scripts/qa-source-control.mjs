@@ -38,6 +38,8 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
   activeWorkspaceId: "qa", personas: [], instructionOptions: [], layout: { rightPanel: "source-control", rightCollapsed: false, leftCollapsed: false },
 }));
 
+await writeFile(join(directory, "execution-trust.json"), JSON.stringify([repo]));
+
 let app;
 let page;
 try {

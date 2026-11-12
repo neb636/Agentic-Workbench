@@ -35,6 +35,8 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
 }));
 
 const sent = () => existsSync(oneShots) ? readFileSync(oneShots, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [];
+await writeFile(join(directory, "execution-trust.json"), JSON.stringify([repo]));
+
 let app;
 let page;
 try {

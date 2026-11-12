@@ -1,3 +1,4 @@
+import { killBackgroundProcess } from "../../processes";
 import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import type { UsageCredits, UsageWindow } from "../../../shared/ai-usage";
@@ -61,7 +62,7 @@ function rpcFailure(message: unknown): UsageReadError {
 function readRateLimits(executable: string, signal: AbortSignal): Promise<unknown> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) { reject(new UsageReadError("failed", "Stopped.")); return; }
-    const child = spawn(executable, APP_SERVER_ARGS, { cwd: tmpdir(), stdio: ["pipe", "pipe", "ignore"] });
+    const child = spawn(executable, APP_SERVER_ARGS, { cwd: tmpdir(), detached: true, stdio: ["pipe", "pipe", "ignore"] });
     let buffer = "";
     let received = 0;
     let readId: number | undefined;
@@ -73,7 +74,7 @@ function readRateLimits(executable: string, signal: AbortSignal): Promise<unknow
       settled = true;
       clearTimeout(timer);
       signal.removeEventListener("abort", abort);
-      child.kill();
+      killBackgroundProcess(child);
       if (failure) reject(failure); else resolve(result);
     };
     const send = (message: Raw) => child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);

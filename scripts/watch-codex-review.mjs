@@ -1,3 +1,4 @@
+/* global setTimeout */
 // Waits for Codex's review of a PR's latest commit, prints what it found, and exits.
 // Meant to run under Claude Code's Monitor tool: silent while waiting, so it costs no context until it prints.
 //   node scripts/watch-codex-review.mjs --pr 30 [--timeout 420] [--interval 20]
@@ -66,7 +67,7 @@ while (true) {
       }
       break
     }
-  } catch (e) {
+  } catch {
     // transient gh/network errors: keep trying until the timeout
   }
   if ((Date.now() - started) / 1000 > timeoutS) {

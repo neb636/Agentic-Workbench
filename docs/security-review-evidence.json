@@ -1,0 +1,768 @@
+{
+  "reviewDate": "2026-11-11",
+  "commit": "3a964ac937a0666153248d8b5b1a04e7592dd959",
+  "method": {
+    "scope": "Source review and isolated implementation probes; no Electron UI or live agent sessions",
+    "node": "24.15.0",
+    "git": "2.54.0 (Apple Git-157)",
+    "raceQualification": "Controlled interleaving and clock; no attack success-rate measurement",
+    "dependenciesInstalled": false
+  },
+  "probes": {
+    "persistedRootEscalation": {
+      "rejectedBeforeReplace": true,
+      "readAfterReplace": "OUTSIDE_FIXTURE_CANARY"
+    },
+    "worktreeSymlinkEscape": "OUTSIDE_FIXTURE_CANARY",
+    "symlinkReadRace": "OUTSID",
+    "precreatedTemporarySymlinkWrite": "OUTSIDE_WAS_OVERWRITTEN",
+    "gitSubfolderStatus": [
+      "approved-subfolder/inside.txt",
+      "outside-subfolder.txt"
+    ],
+    "gitSubfolderStage": "outside-subfolder.txt",
+    "gitSubfolderAiDisclosure": true,
+    "passiveGitStatusRunsCommand": "probe",
+    "aiPreparationRunsCleanFilter": "probe",
+    "projectStatuslinePromotion": {
+      "launchSwitch": "--settings",
+      "shellOutput": "PROJECT_COMMAND_EXECUTED"
+    },
+    "fallbackRegexExceedsBudget": {
+      "timeoutMs": 3000,
+      "timedOut": true
+    }
+  },
+  "audit": {
+    "command": "npm audit --package-lock-only --json",
+    "counts": {
+      "info": 0,
+      "low": 0,
+      "moderate": 12,
+      "high": 8,
+      "critical": 2,
+      "total": 22
+    },
+    "qualification": "Counts include propagated dependency matches; exploitability not established by audit",
+    "packages": [
+      {
+        "name": "@electron/universal",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@electron/universal",
+            "version": "2.0.3",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "minimatch"
+        ],
+        "fixAvailable": {
+          "name": "electron-builder",
+          "version": "25.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "@typescript-eslint/eslint-plugin",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@typescript-eslint/eslint-plugin",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@typescript-eslint/type-utils",
+          "@typescript-eslint/utils"
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "@typescript-eslint/parser",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@typescript-eslint/parser",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "fixAvailable": {
+          "name": "typescript-eslint",
+          "version": "8.36.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "@typescript-eslint/type-utils",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@typescript-eslint/type-utils",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree",
+          "@typescript-eslint/utils"
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "@typescript-eslint/typescript-estree",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@typescript-eslint/typescript-estree",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "minimatch"
+        ],
+        "fixAvailable": {
+          "name": "typescript-eslint",
+          "version": "8.36.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "@typescript-eslint/utils",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@typescript-eslint/utils",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@typescript-eslint/typescript-estree"
+        ],
+        "fixAvailable": {
+          "name": "typescript-eslint",
+          "version": "8.36.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "app-builder-lib",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/app-builder-lib",
+            "version": "26.18.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@electron/universal",
+          "dmg-builder",
+          "electron-builder-squirrel-windows",
+          "minimatch"
+        ],
+        "fixAvailable": {
+          "name": "electron-builder",
+          "version": "25.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "concurrently",
+        "severity": "critical",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/concurrently",
+            "version": "9.2.4",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "shell-quote"
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "dmg-builder",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/dmg-builder",
+            "version": "26.18.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "app-builder-lib"
+        ],
+        "fixAvailable": {
+          "name": "electron-builder",
+          "version": "25.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "electron",
+        "severity": "high",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/electron",
+            "version": "38.8.6",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "Electron: Use-after-free in offscreen child window paint callback",
+            "url": "https://github.com/advisories/GHSA-532v-xpq5-8h95",
+            "severity": "high",
+            "affectedRange": "<39.8.1"
+          },
+          {
+            "title": "Electron: Use-after-free in offscreen shared texture release() callback",
+            "url": "https://github.com/advisories/GHSA-8x5q-pvf5-64mp",
+            "severity": "low",
+            "affectedRange": ">=33.0.0-alpha.1 <39.8.5"
+          },
+          {
+            "title": "Electron: Crash in clipboard.readImage() on malformed clipboard image data",
+            "url": "https://github.com/advisories/GHSA-f37v-82c4-4x64",
+            "severity": "low",
+            "affectedRange": "<39.8.5"
+          },
+          {
+            "title": "Electron: Named window.open targets not scoped to the opener's browsing context",
+            "url": "https://github.com/advisories/GHSA-f3pv-wv63-48x8",
+            "severity": "moderate",
+            "affectedRange": "<39.8.5"
+          },
+          {
+            "title": "Electron: Parent process code-sign check is spoofable",
+            "url": "https://github.com/advisories/GHSA-jm7p-cc5g-qwxx",
+            "severity": "moderate",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: Custom protocol with supportFetchAPI but not corsEnabled allows cross-origin reads",
+            "url": "https://github.com/advisories/GHSA-v3j7-r9gq-3gjw",
+            "severity": "high",
+            "affectedRange": "<39.8.10"
+          },
+          {
+            "title": "Electron: Extension tab APIs operate across session boundaries",
+            "url": "https://github.com/advisories/GHSA-m55f-7gqj-fr98",
+            "severity": "moderate",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: shell.openPath path validation bypass via embedded null byte",
+            "url": "https://github.com/advisories/GHSA-5c9j-mhmv-5xgx",
+            "severity": "moderate",
+            "affectedRange": "<39.8.6"
+          },
+          {
+            "title": "Electron: Context isolation bypass via Function.prototype.bind hijack",
+            "url": "https://github.com/advisories/GHSA-h7rp-cf8h-j98x",
+            "severity": "high",
+            "affectedRange": "<39.8.9"
+          },
+          {
+            "title": "Electron: Cross-origin iframe can position native autofill popup",
+            "url": "https://github.com/advisories/GHSA-x8rc-wpg4-grpf",
+            "severity": "low",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: Permission Check Handler Receives Main Frame Origin Instead of Requesting Iframe Origin",
+            "url": "https://github.com/advisories/GHSA-9pf5-hg6p-4pwp",
+            "severity": "moderate",
+            "affectedRange": "<39.8.7"
+          },
+          {
+            "title": "Electron: Off-screen rendering trusts GPU-supplied geometry over shared-memory size",
+            "url": "https://github.com/advisories/GHSA-pfmc-3mgc-p6fp",
+            "severity": "low",
+            "affectedRange": "<39.8.10"
+          },
+          {
+            "title": "Electron: HTTP redirect followed into local file loader",
+            "url": "https://github.com/advisories/GHSA-v64r-4m7r-3mvq",
+            "severity": "moderate",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: window.open features string controls some window options considered privileged",
+            "url": "https://github.com/advisories/GHSA-v93f-fgjr-hjrj",
+            "severity": "moderate",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: Sandboxed iframe can bypass the allow-popups restriction via the OpenURL navigation path",
+            "url": "https://github.com/advisories/GHSA-9f4c-93c8-jc8g",
+            "severity": "high",
+            "affectedRange": "<39.8.10"
+          },
+          {
+            "title": "Electron: Sandboxed iframes can launch external protocol handlers",
+            "url": "https://github.com/advisories/GHSA-p2rr-rvmm-c5fp",
+            "severity": "moderate",
+            "affectedRange": "<39.8.8"
+          },
+          {
+            "title": "Electron: DevTools embedder handler executes arbitrary files via shell open",
+            "url": "https://github.com/advisories/GHSA-f2r8-jv7c-xqmp",
+            "severity": "moderate",
+            "affectedRange": "<39.8.9"
+          },
+          {
+            "title": "Electron: contextBridge object copy honors prototype setters",
+            "url": "https://github.com/advisories/GHSA-ff2p-hmqr-hxm4",
+            "severity": "moderate",
+            "affectedRange": "<39.8.9"
+          },
+          {
+            "title": "Electron: DevTools JavaScript Injection via Unsanitized Dock State Parameter",
+            "url": "https://github.com/advisories/GHSA-4f78-qhmw-8j8m",
+            "severity": "moderate",
+            "affectedRange": "<39.8.7"
+          },
+          {
+            "title": "Electron drops inherited HTML sandbox restrictions for popups opened through OpenURLFromTab",
+            "url": "https://github.com/advisories/GHSA-hq2x-r82h-9wj4",
+            "severity": "high",
+            "affectedRange": "<41.10.4"
+          },
+          {
+            "title": "Electron: Windows opened from a sandboxed top-level document do not inherit its sandbox restrictions",
+            "url": "https://github.com/advisories/GHSA-gr2m-v5gq-v685",
+            "severity": "high",
+            "affectedRange": "<41.10.6"
+          },
+          {
+            "title": "Electron: File and HTTP protocol handlers allow cross-origin reads without corsEnabled",
+            "url": "https://github.com/advisories/GHSA-j84w-jfhq-vhvj",
+            "severity": "high",
+            "affectedRange": "<41.10.6"
+          },
+          {
+            "title": "Electron: Local race condition in Squirrel.Mac update installation on macOS",
+            "url": "https://github.com/advisories/GHSA-vv43-5jgx-7qv8",
+            "severity": "moderate",
+            "affectedRange": "<39.8.10"
+          },
+          {
+            "title": "Electron: <webview> can enable Node.js integration in Web Workers despite embedder restrictions",
+            "url": "https://github.com/advisories/GHSA-9qh4-3jw8-366w",
+            "severity": "high",
+            "affectedRange": "<41.10.6"
+          },
+          {
+            "title": "Electron: HID and USB permission checks can be attributed to the wrong origin",
+            "url": "https://github.com/advisories/GHSA-fw47-9c62-h3vw",
+            "severity": "moderate",
+            "affectedRange": "<42.11.3"
+          },
+          {
+            "title": "Electron: SameSite cookie restrictions are not applied to windows opened from links",
+            "url": "https://github.com/advisories/GHSA-2p8c-gr87-2676",
+            "severity": "moderate",
+            "affectedRange": "<42.11.3"
+          },
+          {
+            "title": "Electron: Pointer lock permission requests can be attributed to the wrong frame",
+            "url": "https://github.com/advisories/GHSA-x562-297c-g43g",
+            "severity": "moderate",
+            "affectedRange": "<42.11.9"
+          },
+          {
+            "title": "Electron: Extension tabs.query returns tab URLs and titles without the tabs permission",
+            "url": "https://github.com/advisories/GHSA-98mx-cjp9-gchm",
+            "severity": "low",
+            "affectedRange": "<42.11.1"
+          },
+          {
+            "title": "Electron: Frame subscription trusts GPU-supplied frame geometry",
+            "url": "https://github.com/advisories/GHSA-3qxv-5xgr-q7w9",
+            "severity": "low",
+            "affectedRange": "<42.11.6"
+          },
+          {
+            "title": "Electron: Off-screen rendering on macOS trusts GPU-supplied frame geometry",
+            "url": "https://github.com/advisories/GHSA-h3v5-h239-pg29",
+            "severity": "low",
+            "affectedRange": "<42.11.6"
+          },
+          {
+            "title": "Electron: openExternal permission requests can be attributed to the wrong origin",
+            "url": "https://github.com/advisories/GHSA-997q-gvvc-jwmx",
+            "severity": "moderate",
+            "affectedRange": "<42.11.3"
+          },
+          {
+            "title": "Electron: Mitigation for compromised eMudhra intermediate certificates",
+            "url": "https://github.com/advisories/GHSA-jr5w-w6x2-84p9",
+            "severity": "high",
+            "affectedRange": "<42.11.16"
+          },
+          "extract-zip"
+        ],
+        "fixAvailable": {
+          "name": "electron",
+          "version": "45.3.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "electron-builder",
+        "severity": "moderate",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/electron-builder",
+            "version": "26.18.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "app-builder-lib",
+          "dmg-builder"
+        ],
+        "fixAvailable": {
+          "name": "electron-builder",
+          "version": "25.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "electron-builder-squirrel-windows",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/electron-builder-squirrel-windows",
+            "version": "26.18.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "app-builder-lib"
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "extract-zip",
+        "severity": "high",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/extract-zip",
+            "version": "2.0.1",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "extract-zip unvalidated symlink path traversal",
+            "url": "https://github.com/advisories/GHSA-jmr9-qjv8-65gv",
+            "severity": "high",
+            "affectedRange": "<=2.0.1"
+          },
+          {
+            "title": "extract-zip allows arbitrary file writes through symlink archive entries",
+            "url": "https://github.com/advisories/GHSA-7pqw-9j4j-h8q3",
+            "severity": "high",
+            "affectedRange": "<=2.0.1"
+          }
+        ],
+        "fixAvailable": {
+          "name": "electron",
+          "version": "45.3.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "follow-redirects",
+        "severity": "high",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/follow-redirects",
+            "version": "1.16.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "follow-redirects array-form headers bypass cross-origin credential stripping",
+            "url": "https://github.com/advisories/GHSA-q3jh-wrc6-jgq8",
+            "severity": "high",
+            "affectedRange": ">=1.16.0 <1.16.1"
+          },
+          {
+            "title": "follow-redirects sensitiveHeaders regex escaping can expose credential headers",
+            "url": "https://github.com/advisories/GHSA-8r9p-f939-6h3c",
+            "severity": "high",
+            "affectedRange": ">=1.16.0 <1.16.1"
+          },
+          {
+            "title": "follow-redirects: Cross-realm sensitiveHeaders arrays are discarded and custom credentials can follow redirects",
+            "url": "https://github.com/advisories/GHSA-mrwp-f3q8-3g9p",
+            "severity": "high",
+            "affectedRange": ">=1.16.0 <=1.16.1"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "joi",
+        "severity": "high",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/joi",
+            "version": "18.2.9",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "joi: quadratic-time split in `string().email({ multiple: true })` allows denial of service",
+            "url": "https://github.com/advisories/GHSA-4528-x5fx-h6hg",
+            "severity": "high",
+            "affectedRange": ">=18.0.0 <18.3.1"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "minimatch",
+        "severity": "moderate",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/@electron/universal/node_modules/minimatch",
+            "version": "9.0.9",
+            "developmentDependency": true
+          },
+          {
+            "path": "node_modules/@typescript-eslint/typescript-estree/node_modules/minimatch",
+            "version": "10.2.6",
+            "developmentDependency": true
+          },
+          {
+            "path": "node_modules/app-builder-lib/node_modules/minimatch",
+            "version": "10.2.6",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "minimatch has potential denial of service via globparts amplification",
+            "url": "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+            "severity": "moderate",
+            "affectedRange": ">=7.0.0 <11.0.1"
+          }
+        ],
+        "fixAvailable": {
+          "name": "electron-builder",
+          "version": "25.1.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "shell-quote",
+        "severity": "critical",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/shell-quote",
+            "version": "1.9.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "shell-quote: `quote()` command injection via a line terminator in a token after a `{ comment }` token",
+            "url": "https://github.com/advisories/GHSA-pqg4-j6r4-53mv",
+            "severity": "critical",
+            "affectedRange": ">=1.8.4 <1.11.0"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "source-map-js",
+        "severity": "high",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/source-map-js",
+            "version": "1.2.1",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+            "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+            "severity": "high",
+            "affectedRange": ">=1.0.0 <1.2.2"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "typescript-eslint",
+        "severity": "moderate",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/typescript-eslint",
+            "version": "8.70.0",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          "@typescript-eslint/eslint-plugin",
+          "@typescript-eslint/parser",
+          "@typescript-eslint/typescript-estree",
+          "@typescript-eslint/utils"
+        ],
+        "fixAvailable": {
+          "name": "typescript-eslint",
+          "version": "8.36.0",
+          "isSemVerMajor": true
+        }
+      },
+      {
+        "name": "undici",
+        "severity": "high",
+        "direct": false,
+        "nodes": [
+          {
+            "path": "node_modules/undici",
+            "version": "6.28.1",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "undici vulnerable to Denial of Service via unbounded memory in the EventSource parser",
+            "url": "https://github.com/advisories/GHSA-4qv8-2p9j-2685",
+            "severity": "moderate",
+            "affectedRange": ">=6.5.0 <6.29.1"
+          },
+          {
+            "title": "undici vulnerable to Denial of Service via unhandled error on excessive content-encodings",
+            "url": "https://github.com/advisories/GHSA-xjj6-f33q-929c",
+            "severity": "high",
+            "affectedRange": ">=6.23.0 <6.29.1"
+          },
+          {
+            "title": "undici vulnerable to TLS certificate validation bypass via dropped tls options in Agent",
+            "url": "https://github.com/advisories/GHSA-2m5v-pch6-74hx",
+            "severity": "high",
+            "affectedRange": ">=4.0.0 <6.29.1"
+          },
+          {
+            "title": "undici vulnerable to Denial of Service via TLS 1.2 certificate-changing renegotiation",
+            "url": "https://github.com/advisories/GHSA-qrxm-fqhp-jwvm",
+            "severity": "high",
+            "affectedRange": ">=4.2.1 <6.29.1"
+          },
+          {
+            "title": "undici WebSocket client vulnerable to Denial of Service via unbounded automatic PONG buffering",
+            "url": "https://github.com/advisories/GHSA-9fm3-97px-rjf6",
+            "severity": "moderate",
+            "affectedRange": ">=5.15.0 <6.29.1"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "vite",
+        "severity": "high",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/vite",
+            "version": "7.3.6",
+            "developmentDependency": true
+          }
+        ],
+        "via": [
+          {
+            "title": "launch-editor: escapeCmdArgs() omits % escaping on Windows",
+            "url": "https://github.com/advisories/GHSA-698v-4r3x-3vcv",
+            "severity": "moderate",
+            "affectedRange": ">=7.0.0 <=7.3.6"
+          },
+          {
+            "title": "launch-editor: Editor CLI flag misinterpretation causing arbitrary command execution for some editors",
+            "url": "https://github.com/advisories/GHSA-r825-w8mm-5pxw",
+            "severity": "moderate",
+            "affectedRange": ">=7.0.0 <=7.3.6"
+          },
+          {
+            "title": "launch-editor: `fs.existsSync()` existence check can be bypassed on Windows",
+            "url": "https://github.com/advisories/GHSA-587h-7wmj-h5pm",
+            "severity": "high",
+            "affectedRange": ">=7.0.0 <=7.3.6"
+          },
+          {
+            "title": "Vite: Cross origin script execution through Vite custom middleware",
+            "url": "https://github.com/advisories/GHSA-9jrq-w75r-8gcw",
+            "severity": "low",
+            "affectedRange": ">=7.0.0 <=7.3.6"
+          },
+          {
+            "title": "Vite: Files outside `server.fs.allow` could be served when project paths match system paths on non-Windows machine",
+            "url": "https://github.com/advisories/GHSA-rq7h-c2jc-7f22",
+            "severity": "moderate",
+            "affectedRange": ">=7.0.0 <=7.3.6"
+          }
+        ],
+        "fixAvailable": true
+      },
+      {
+        "name": "zod",
+        "severity": "high",
+        "direct": true,
+        "nodes": [
+          {
+            "path": "node_modules/zod",
+            "version": "4.6.5",
+            "developmentDependency": false
+          }
+        ],
+        "via": [
+          {
+            "title": "Zod can exhaust memory while validating oversized constrained collections",
+            "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+            "severity": "high",
+            "affectedRange": "<4.6.6"
+          }
+        ],
+        "fixAvailable": true
+      }
+    ]
+  }
+}

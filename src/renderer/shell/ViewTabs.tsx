@@ -75,7 +75,8 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
             const status = viewStatus(view, statuses);
             const unsaved = dirty[view.id];
             const preview = definition?.isPreview?.(view);
-            return <Tab id={view.id} className={`view-tab ${preview ? "is-preview" : ""} ${dropBefore === view.id ? "is-drop-before" : ""}`} aria-label={view.title} {...context.bind(() => viewActions(workspace, view))}>
+            // The strip handles keyboard context menus, leaving arrow events free to reach TabList.
+            return <Tab id={view.id} className={`view-tab ${preview ? "is-preview" : ""} ${dropBefore === view.id ? "is-drop-before" : ""}`} aria-label={view.title} onContextMenu={context.bind(() => viewActions(workspace, view)).onContextMenu}>
               {/* Draggable inside the tab: react-aria leaves native drags alone on draggable elements. */}
               <span className="view-tab-grip" draggable title={view.title}
                 onClick={() => activate(view.id)}

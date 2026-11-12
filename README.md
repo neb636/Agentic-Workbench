@@ -29,3 +29,7 @@ npm run qa:composer
 The Electron QA scripts run the real app in a hidden window by default, including renderer interactions and screenshot capture. Build first with `npm run build`. Set `QA_VISIBLE=1` before a QA command to show the window for interactive inspection, for example `QA_VISIBLE=1 npm run qa:composer`. Hidden-window QA still requires a graphical desktop; use visible mode for checks that depend on native window focus or manual visual inspection. Artifacts are saved to the temporary directory printed by each script. `qa:composer` uses a deterministic CLI fixture; `qa-electron.mjs` exercises installed CLIs and `--plan` runs a live planning smoke test.
 
 See [architecture and extension seams](docs/architecture.md) for provider, terminal, runtime, and prompt-contribution contracts and verification limits.
+
+## Security and releases
+
+Workbench remembers execution trust for source-control actions and AI change preparation. Reset trust and clean attachments for closed views in Settings. Native agent approval prompts remain authoritative. See [security controls and release prerequisites](docs/security-implementation.md) and [security reporting](SECURITY.md).

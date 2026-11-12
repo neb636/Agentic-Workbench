@@ -51,6 +51,7 @@ export class ClaudeUsageSource implements UsageSource {
         headers: { Authorization: `Bearer ${login.accessToken}`, "anthropic-beta": "oauth-2025-04-20", Accept: "application/json" },
         signal: withTimeout(signal, TIMEOUT_MS),
         credentials: "omit",
+        redirect: "error",
       });
     } catch { throw new UsageReadError("failed", "Couldn't reach Anthropic."); }
     const body = response.ok ? await response.json().catch(() => { throw new UsageReadError("failed", "Anthropic sent an unreadable reply."); }) : undefined;

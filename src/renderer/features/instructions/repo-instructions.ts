@@ -1,3 +1,4 @@
+import { assertInputBudget } from "../../../shared/input-budget";
 import { create } from "zustand";
 import { REPO_INSTRUCTIONS_PATH, serializeRepoInstructions } from "../../../shared/instruction-layers";
 import type { PromptOptionDefinition } from "../../../shared/prompt-options";
@@ -29,7 +30,7 @@ export function sharedOptionsOf(root: string | undefined): PromptOptionDefinitio
 
 function parse(content: string, hash: string): RepoInstructions {
   let json: unknown;
-  try { json = JSON.parse(content); } catch (error) { return { status: "invalid", error: (error as Error).message, hash }; }
+  try { json = JSON.parse(content); assertInputBudget(json); } catch (error) { return { status: "invalid", error: (error as Error).message, hash }; }
   const result = repoInstructionsFileSchema.safeParse(json);
   if (!result.success) {
     const issue = result.error.issues[0];

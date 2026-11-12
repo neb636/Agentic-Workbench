@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { services } from "../core/services";
 import { openPanel } from "../features/explorer/explorer-store";
@@ -24,6 +24,8 @@ function useCollapsible(collapsed: boolean) {
 }
 
 export function WorkbenchShell() {
+  const [startupError, setStartupError] = useState<string>();
+  const persistenceError = useWorkbenchStore((state) => state.persistenceError);
   const workspaces = useWorkbenchStore((state) => state.workspaces);
   const activeWorkspaceId = useWorkbenchStore((state) => state.activeWorkspaceId);
   const isHydrated = useWorkbenchStore((state) => state.isHydrated);
@@ -42,7 +44,7 @@ export function WorkbenchShell() {
       const { workspaces: restored, activeWorkspaceId: activeId } = useWorkbenchStore.getState();
       const workspace = restored.find((item) => item.id === activeId) ?? restored[0];
       if (workspace?.activeViewId) void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId: workspace.activeViewId });
-    });
+    }).catch((error: unknown) => setStartupError(error instanceof Error ? error.message : String(error)));
   }, [hydrate]);
   // Application-menu shortcuts (⌘P, ⇧⌘F) work wherever focus is, a terminal included.
   useEffect(() => window.workbench.app.onMenuCommand((command) => {
@@ -50,9 +52,11 @@ export function WorkbenchShell() {
     else if (command === "find-in-files") openPanel("files", { search: "contents" });
   }), []);
 
+  if (startupError) return <div className="launch-screen" role="alert"><h1>Could not open saved workbench</h1><p>{startupError}</p><p>Your saved profile has not been replaced. Resolve the saved profile error and reopen Workbench.</p></div>;
   if (!isHydrated) return <div className="launch-screen"><div className="brand-mark large"><span>AW</span></div><p>Opening workbench…</p></div>;
 
   return <div className={`app-shell ${layout.leftCollapsed ? "is-left-collapsed" : ""}`}>
+    {persistenceError && <p className="confirm-warning" role="alert">Changes could not be saved: {persistenceError}</p>}
     <PanelGroup direction="horizontal" className="shell-panels" onLayout={([left, , right]) => {
       const patch: { leftSize?: number; rightSize?: number } = {};
       if (left > 0 && Math.abs(left - (layout.leftSize ?? 0)) > 0.2) patch.leftSize = left;
