@@ -63,7 +63,7 @@ export function TerminalSurface({ controller, ref, root, onOpenPath }: {
     let followOutput = true;
     const write = (data: string) => terminal.write(data, () => { if (active && followOutput) terminal.scrollToBottom(); });
     const wheel = (event: WheelEvent) => { if (event.deltaY < 0) followOutput = false; };
-    const pointer = (event: PointerEvent) => { if ((event.target as HTMLElement).classList.contains("xterm-viewport")) followOutput = false; };
+    const pointer = (event: PointerEvent) => { if ((event.target as HTMLElement).closest(".xterm-viewport, .xterm .scrollbar")) followOutput = false; };
     host.addEventListener("wheel", wheel, { passive: true });
     host.addEventListener("pointerdown", pointer);
     const scroll = terminal.onScroll(() => {
