@@ -52,7 +52,7 @@ export function WorkbenchShell() {
     else if (command === "find-in-files") openPanel("files", { search: "contents" });
   }), []);
 
-  if (startupError) return <div className="launch-screen" role="alert"><h1>Could not open saved workbench</h1><p>{startupError}</p><p>Your saved profile has not been replaced. Reduce its size and reopen Workbench.</p></div>;
+  if (startupError) return <div className="launch-screen" role="alert"><h1>Could not open saved workbench</h1><p>{startupError}</p><p>Your saved profile has not been replaced. Resolve the saved profile error and reopen Workbench.</p></div>;
   if (!isHydrated) return <div className="launch-screen"><div className="brand-mark large"><span>AW</span></div><p>Opening workbench…</p></div>;
 
   return <div className={`app-shell ${layout.leftCollapsed ? "is-left-collapsed" : ""}`}>

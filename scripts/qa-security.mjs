@@ -1,5 +1,6 @@
 /* global window, fetch */
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
 import { mkdtemp, mkdir, writeFile, readFile, access } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
@@ -45,10 +46,31 @@ try {
   assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),beforeSave);
   await page.evaluate(async()=>{const state=await window.workbench.persistence.load(); state.workspaces[0].views.push({id:'large',workspaceId:'0',type:'agent',title:'Large',state:{draft:'あ'.repeat(12*1024*1024)}});window.workbench.persistence.saveNow(state);});
   assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),beforeSave);
+  const crowded = JSON.parse(beforeSave);
+  crowded.workspaces[0].views = Array.from({length:1001},(_,i)=>({id:`legacy-${i}`,workspaceId:'0',type:'agent',title:'Saved draft',state:{draft:`Draft ${i}`}}));
+  const crowdedSource = JSON.stringify(crowded);
+  assert.ok(Buffer.byteLength(crowdedSource)<32*1024*1024);
+  await writeFile(path.join(profile,'workbench-state.json'),crowdedSource);
+  assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.load();return false;}catch{return true;}}),true,'count-limit violations must reject loading instead of returning empty state');
+  assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.save({workspaces:[]});return false;}catch{return true;}}),true);
+  await page.evaluate(()=>window.workbench.persistence.saveNow({workspaces:[]}));
+  assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),crowdedSource);
   const oversized = JSON.parse(beforeSave); oversized.workspaces[0].views.push({id:'legacy',workspaceId:'0',type:'agent',title:'Legacy',state:{draft:'あ'.repeat(12*1024*1024)}});
   const legacy = JSON.stringify(oversized); await writeFile(path.join(profile,'workbench-state.json'),legacy);
   assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.load();return false;}catch{return true;}}),true);
   assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.save({workspaces:[]});return false;}catch{return true;}}),true);
   assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),legacy);
+  const tooManyWorkspaces = JSON.parse(beforeSave);
+  tooManyWorkspaces.workspaces = Array.from({length:1001},(_,i)=>({id:String(i),name:'Legacy',path:root,views:[]}));
+  for (const invalidSource of [JSON.stringify(tooManyWorkspaces), '{invalid JSON']) {
+    await writeFile(path.join(profile,'workbench-state.json'),invalidSource);
+    assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.load();return false;}catch{return true;}}),true);
+    assert.equal(await page.evaluate(async()=>{try{await window.workbench.persistence.save({workspaces:[]});return false;}catch{return true;}}),true);
+    await page.evaluate(()=>window.workbench.persistence.saveNow({workspaces:[]}));
+    assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),invalidSource);
+  }
+  await page.reload();
+  await page.getByRole('alert').filter({hasText:'Could not open saved workbench'}).waitFor();
+  assert.equal(await readFile(path.join(profile,'workbench-state.json'),'utf8'),'{invalid JSON');
   console.log('Security QA passed: sandbox, sender identity, root grants, passive Git execution, trust cancellation, CSP, reusable regex worker, UTF-8 save limits and oversized-profile preservation. Profile:',profile);
 } finally {await app.close();}

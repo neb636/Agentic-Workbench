@@ -25,7 +25,7 @@ class StateSizeError extends Error {}
 let preserveExistingState = false;
 
 function serializedState(state: PersistedState): string {
-  if (preserveExistingState) throw new Error("Existing saved state could not be safely loaded; it has been preserved. Resolve the saved-state size before saving.");
+  if (preserveExistingState) throw new Error("Existing saved state could not be safely loaded; it has been preserved. Resolve the saved-profile error before saving.");
   assertInputBudget(state);
   const serialized = JSON.stringify(state, null, 2);
   if (Buffer.byteLength(serialized, "utf8") > STATE_BYTE_LIMIT) throw new StateSizeError("Saved state exceeds 32 MB. Shorten drafts or close unused views before saving. The previous state was preserved.");
@@ -46,16 +46,20 @@ export async function loadState(strict = false): Promise<PersistedState> {
     const data: unknown = JSON.parse(source);
     assertInputBudget(data);
     const result = persistedStateSchema.safeParse(migratePersistedState(data));
-    if (!result.success && strict) throw new Error("Saved state did not validate.");
-    if (!result.success) console.error("Workbench state did not validate; starting fresh", result.error.issues.slice(0, 5));
-    return result.success ? result.data : emptyState;
-  } catch (error) {
-    if (error instanceof StateSizeError) { preserveExistingState = true; throw error; }
-    if (strict) throw error;
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.error("Could not load workbench state", error);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new Error(`Saved state failed validation at ${issue.path.join(".") || "profile"}: ${issue.message}`);
     }
-    return emptyState;
+    return result.data;
+  } catch (error) {
+    // Only a genuinely new profile may start empty. Never turn existing data we cannot load into an autosave.
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      if (strict) throw error;
+      return emptyState;
+    }
+    preserveExistingState = true;
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not load saved workbench at ${statePath()}. The existing profile was preserved. ${reason}`);
   }
 }
 
