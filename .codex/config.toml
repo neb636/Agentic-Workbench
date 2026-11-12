@@ -1,0 +1,11 @@
+# Codex in this repo, set up like Claude Code's auto mode: routine work runs without asking.
+#
+# - rules/commands.rules: the command allowlist (what Claude's permission allow list does).
+# - approvals_reviewer = "auto_review": commands the rules mark "prompt" go to Codex's automatic reviewer, not to
+#   your screen.
+# - danger-full-access: commands run outside Codex's macOS sandbox, so Electron and Playwright (used by the qa
+#   scripts) can reach the window server. The rules still gate force-push, merging, sudo, npm installs, rm and
+#   GitHub writes.
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
+sandbox_mode = "danger-full-access"
