@@ -1,0 +1,15 @@
+{
+  "name": "dimsum-docs",
+  "private": true,
+  "type": "module",
+  "description": "The DimSum documentation site, published to GitHub Pages",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "2.0.0-alpha.21",
+    "vue": "3.5.45"
+  }
+}

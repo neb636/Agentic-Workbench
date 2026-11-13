@@ -1,0 +1,101 @@
+/*
+ * A quiet, reading-first look: warm neutral paper and ink, one accent, a narrow text column, the table of contents in
+ * the sidebar under the open page rather than in a right-hand column.
+ */
+:root {
+  --dd-paper: #f5f5f4;
+  --dd-surface: #ffffff;
+  --dd-ink: #181d16;
+  --dd-soft: #181d16a3;
+  --dd-muted: #737b6f;
+  --dd-rule: #181d161f;
+  --dd-wash: #181d160d;
+  --dd-accent: #1f6fe0;
+  --dd-accent-hover: #1858b5;
+
+  --vp-c-bg: var(--dd-paper);
+  --vp-c-bg-alt: var(--dd-paper);
+  --vp-c-bg-elv: var(--dd-surface);
+  --vp-c-bg-soft: var(--dd-wash);
+  --vp-c-text-1: var(--dd-ink);
+  --vp-c-text-2: var(--dd-soft);
+  --vp-c-text-3: var(--dd-muted);
+  --vp-c-divider: var(--dd-rule);
+  --vp-c-border: var(--dd-rule);
+  --vp-c-gutter: var(--dd-rule);
+  --vp-c-brand-1: var(--dd-accent);
+  --vp-c-brand-2: var(--dd-accent-hover);
+  --vp-c-brand-3: var(--dd-accent);
+  --vp-c-brand-soft: color-mix(in srgb, var(--dd-accent) 12%, transparent);
+  --vp-code-bg: var(--dd-wash);
+  --vp-code-color: var(--dd-ink);
+  --vp-code-block-bg: var(--dd-surface);
+  --vp-font-family-base: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vp-font-family-mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  --vp-sidebar-bg-color: var(--dd-paper);
+  --vp-nav-bg-color: var(--dd-paper);
+  --vp-local-search-bg: var(--dd-surface);
+  --vp-local-search-result-bg: var(--dd-paper);
+  --vp-custom-block-tip-bg: var(--dd-wash);
+  --vp-custom-block-tip-border: transparent;
+  --vp-custom-block-info-bg: var(--dd-wash);
+  --vp-custom-block-warning-bg: color-mix(in srgb, #c27a00 10%, transparent);
+  --vp-layout-max-width: 1200px;
+}
+
+.dark {
+  --dd-paper: #10120f;
+  --dd-surface: #191c17;
+  --dd-ink: #ececea;
+  --dd-soft: #ececea9e;
+  --dd-muted: #a3a8a0;
+  --dd-rule: #ececea24;
+  --dd-wash: #ececea12;
+  --dd-accent: #7fb0ff;
+  --dd-accent-hover: #a6c8ff;
+}
+
+/* Reading column and type. */
+.VPDoc .content-container { max-width: 44rem; }
+.vp-doc { font-size: 1.0625rem; line-height: 1.7; }
+.vp-doc h1 { font-size: 2.25rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; }
+.vp-doc h2 { border-top: none; margin-top: 3rem; padding-top: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -0.01em; }
+.vp-doc h3 { font-size: 1.15rem; font-weight: 600; }
+.vp-doc p, .vp-doc li { color: var(--vp-c-text-1); }
+.vp-doc a { text-decoration: none; text-underline-offset: 3px; }
+.vp-doc a:hover { text-decoration: underline; }
+.vp-doc table { display: table; width: 100%; font-size: 0.95rem; }
+.vp-doc th { background: transparent; color: var(--vp-c-text-2); font-weight: 500; }
+.vp-doc tr { background: transparent !important; }
+.vp-doc td, .vp-doc th { border: none; border-bottom: 1px solid var(--vp-c-divider); padding: 10px 12px 10px 0; vertical-align: top; }
+.vp-doc kbd {
+  padding: 1px 6px; border: 1px solid var(--vp-c-divider); border-bottom-width: 2px; border-radius: 5px;
+  background: var(--vp-c-bg-elv); font-family: var(--vp-font-family-base); font-size: 0.85em;
+}
+
+/* Code blocks sit on the page as quiet cards. */
+.vp-doc div[class*="language-"] { border: 1px solid var(--vp-c-divider); border-radius: 10px; }
+.vp-doc :not(pre) > code { border-radius: 5px; font-size: 0.875em; }
+
+/* Calm chrome: no rules under the nav bar or beside the sidebar. */
+.VPNavBar, .VPNavBar.has-sidebar .content, .VPNavBar .divider-line { border-bottom: none !important; }
+.VPNavBar .divider { display: none; }
+.VPSidebar { border-right: none; }
+
+/* Sidebar: group headings small and muted, pages in ink, the open page's sections indented beneath it. */
+.VPSidebarItem.level-0 > .item .text { color: var(--vp-c-text-3); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.01em; }
+.VPSidebarItem.level-1 .text { color: var(--vp-c-text-2); font-weight: 400; }
+.VPSidebarItem.level-1.is-active > .item .text,
+.VPSidebarItem.level-1 .link:hover .text { color: var(--vp-c-text-1); }
+.VPSidebarItem.level-1.is-active > .item .text { font-weight: 500; }
+.VPSidebarItem .indicator { display: none; }
+.VPSidebarItem.level-1 > .items { display: none; padding-left: 12px; border-left: none; }
+.VPSidebarItem.level-1.is-active > .items,
+.VPSidebarItem.level-1.has-active > .items { display: block; }
+.VPSidebarItem.level-2 .text { font-size: 0.8125rem; line-height: 1.6; }
+.VPSidebarItem.level-2.is-active .text { color: var(--vp-c-text-1); }
+
+/* The open page reads in ink, like the text around it, instead of the link color. */
+.VPSidebarItem.is-active > .item .link > .text { color: var(--vp-c-text-1) !important; }
+.VPSidebar .group + .group { border-top: none !important; padding-top: 4px; }
+.VPSidebarItem.level-1 > .items { border-left: 1px solid var(--vp-c-divider); margin-left: 2px; }
