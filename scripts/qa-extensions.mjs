@@ -31,15 +31,18 @@ await writeFile(executable, `#!/bin/sh\nexec '${process.execPath}' '${resolve("s
 const hello = (folder) => Promise.all([
   mkdir(join(folder, ".dimsum", "extensions", "hello"), { recursive: true }).then(() => Promise.all([
     writeFile(join(folder, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hello";\n`),
+    // Code from elsewhere in the workspace, which the extension imports.
+    writeFile(join(folder, "shared-label.ts"), `export const shared = "shared-0";\n`),
     writeFile(join(folder, ".dimsum", "extensions", "hello", "index.tsx"), `import { useState } from "react";
 import { defineExtension, group, guard, harness, pattern, promptMenu, toggle, type ViewComponentProps } from "@dimsum/sdk";
 import { label } from "./label";
+import { shared } from "../../../shared-label";
 
 const Icon = ({ size = 16 }: { size?: number }) => <svg width={size} height={size} viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" /></svg>;
 
 function Board({ workspace }: ViewComponentProps) {
   const [count, setCount] = useState(0);
-  return <div className="qa-board"><h2>{label} board in {workspace.name}</h2><button type="button" onClick={() => setCount(count + 1)}>Count {count}</button></div>;
+  return <div className="qa-board"><h2>{label} board in {workspace.name}</h2><p className="qa-shared">{shared}</p><button type="button" onClick={() => setCount(count + 1)}>Count {count}</button></div>;
 }
 
 export default defineExtension({
@@ -47,12 +50,15 @@ export default defineExtension({
   description: "QA extension",
   activate(ctx) {
     ctx.views.register({ id: "hello.board", label: "Hello board", description: "A QA view.", icon: Icon, component: Board });
+    // An icon that fails: menus and tabs leave its spot empty instead of the workbench going down.
+    ctx.views.register({ id: "hello.fragile", label: "Fragile view", description: "Its icon throws.", icon: () => { throw new Error("Fragile icon"); }, component: () => <p>Fragile</p> });
     ctx.panels.register({ id: "hello.panel", label: "Hello panel", icon: Icon, order: 50, component: ({ workspace }) => <p className="qa-hello-panel">Hello panel for {workspace.name}</p> });
     ctx.promptMenus.register(promptMenu({ id: "hello.menu", label: "Hello", icon: Icon, items: [group("QA", [
       toggle("hello.codex", { label: "Codex only", text: "HELLO-CODEX", defaultOn: true, when: harness("codex.cli") }),
       toggle("hello.claude", { label: "Claude only", text: "HELLO-CLAUDE", defaultOn: true, when: harness("claude.cli") }),
     ])] }));
-    ctx.beforeSend(guard("hello.no-forbidden", pattern(/FORBIDDEN/, "Hello says no."), { onMatch: "block" }));
+    // A global regex: every check must still match, not resume from where the last one stopped.
+    ctx.beforeSend(guard("hello.no-forbidden", pattern(/FORBIDDEN/g, "Hello says no."), { onMatch: "block" }));
     ctx.events.on("prompt.sent", (event) => { (window as unknown as { helloSent?: string }).helloSent = event.prompt; });
     // Widgets in the slots that aren't tied to a view: they show while this workspace is the active one.
     ctx.widgets.register({ id: "hello.footer", slot: "sidebar.footer", component: ({ workspaceId }) => <span className="qa-hello-footer">Hello footer {workspaceId}</span> });
@@ -196,6 +202,14 @@ try {
   await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hello";\n`);
   await page.getByRole("heading", { name: "Hello board in Extensions QA" }).waitFor();
   await until(async () => (await row("Hello").locator(".extension-error-text").count()) === 0, "the error to clear");
+  // Saving a workspace file the extension imports (outside .dimsum) rebuilds it.
+  await page.locator(".qa-shared", { hasText: "shared-0" }).waitFor();
+  await writeFile(join(repo, "shared-label.ts"), `export const shared = "shared-1";\n`);
+  await page.locator(".qa-shared", { hasText: "shared-1" }).waitFor();
+  // The failing icon was drawn in the Create view menu and left nothing broken behind.
+  await page.getByRole("button", { name: "Create view" }).click();
+  await page.getByRole("menuitem", { name: /Fragile view/ }).waitFor();
+  await page.keyboard.press("Escape");
   // A second save while the first is still starting: the newer one wins.
   await page.locator(".qa-slow", { hasText: "slow-0" }).waitFor();
   await writeFile(join(repo, ".dimsum", "extensions", "slow", "label.ts"), `export const label = "slow-1";\n`);
@@ -210,6 +224,10 @@ try {
   await page.getByRole("tab", { name: "Agent" }).click();
   await prompt().fill("Please do the FORBIDDEN thing");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await feedback("Hello says no.");
+  // Trying again is blocked again.
+  await page.getByRole("button", { name: "Send prompt", exact: true }).click();
+  await page.waitForTimeout(500);
   await feedback("Hello says no.");
   await prompt().fill("/help");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();

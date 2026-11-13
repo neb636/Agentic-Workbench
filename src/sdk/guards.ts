@@ -39,9 +39,14 @@ export const guard = (id: string, detector: Detector, options: { onMatch: "block
 export const maxLength = (max: number): Detector => ({ composed }) =>
   composed.length > max ? `The composed prompt exceeds ${max.toLocaleString("en-US")} characters. Shorten the prompt or remove attachments.` : undefined;
 
-/** `expression` matches the draft (or the composed prompt with `in: "composed"`). */
-export const pattern = (expression: RegExp, message: string, options: { in?: "draft" | "composed" } = {}): Detector => (input) =>
-  expression.test(options.in === "composed" ? input.composed : input.draft) ? message : undefined;
+/**
+ * `expression` matches the draft (or the composed prompt with `in: "composed"`). A copy without the `g` and `y` flags
+ * is used, so a check never depends on the one before it (those flags make `test` resume from `lastIndex`).
+ */
+export const pattern = (expression: RegExp, message: string, options: { in?: "draft" | "composed" } = {}): Detector => {
+  const stateless = new RegExp(expression.source, expression.flags.replace(/[gy]/g, ""));
+  return (input) => (stateless.test(options.in === "composed" ? input.composed : input.draft) ? message : undefined);
+};
 
 /** The draft is a CLI's own slash or shell command, which belongs in its terminal. */
 export const nativeCommand = (): Detector => pattern(/^\s*[/!]/, "Use native commands directly in the terminal.");

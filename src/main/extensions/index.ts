@@ -40,7 +40,7 @@ export function registerDimsum(roots: WorkspaceRoots): void {
     const token = newBundleToken();
     const built = await bundleExtension(path.join(base, listing.entry), workspace && root ? root : dimsumHome(), token);
     if (!built.ok) return built;
-    return { ok: true, url: storeBundle(`${root ?? ""}|${id}`, token, built.code) };
+    return { ok: true, url: storeBundle(`${root ?? ""}|${id}`, token, built.code), inputs: built.inputs };
   });
   handle(DIMSUM_IPC.extensionsTrust, async (_event, input) => {
     const { root } = extensionsListSchema.parse(input);

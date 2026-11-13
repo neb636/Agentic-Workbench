@@ -76,7 +76,8 @@ export interface ExtensionListing {
   trusted: boolean;
 }
 
-export type ExtensionLoadResult = { ok: true; url: string } | { ok: false; error: string };
+/** `inputs`: the files the bundle was built from, relative to the workspace (or `~/.dimsum`), with `/` separators. */
+export type ExtensionLoadResult = { ok: true; url: string; inputs: string[] } | { ok: false; error: string };
 
 export const extensionsListSchema = z.object({ root: z.string().optional() });
 export const extensionLoadSchema = z.object({ id: z.string().regex(/^(user|workspace):[A-Za-z0-9][A-Za-z0-9._-]*$/), root: z.string().optional() });

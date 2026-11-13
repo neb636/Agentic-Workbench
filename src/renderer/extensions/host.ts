@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { Disposable, ExtensionContext, ExtensionDefinition, ExtensionInfo } from "@dimsum/sdk";
 import { services } from "../core/services";
 import { errorMessage } from "../core/errors";
-import { guarded } from "./ExtensionBoundary";
+import { guarded, guardedIcon, guardedNode } from "./ExtensionBoundary";
 
 /** One extension as the host knows it: running, or failed with the reason. */
 export interface ExtensionRecord {
@@ -32,6 +32,9 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
   };
   // A built-in feature failing is a bug to see; an extension's component failing must not take the workbench down.
   const component = <P extends object>(inner: import("react").ComponentType<P>) => (builtin ? inner : guarded(info.id, inner));
+  // Icons and ready-made content are drawn by the shell (tabs, menus, dialogs), outside the extension's own components.
+  const icon = <P extends object>(inner: import("react").ComponentType<P>) => (builtin ? inner : guardedIcon(info.id, inner));
+  const node = (inner: import("react").ReactNode) => (builtin ? inner : guardedNode(info.id, inner));
   const files = info.layer === "workspace" && info.root ? (() => {
     const root = info.root;
     return {
@@ -43,17 +46,41 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
   return {
     extension: info,
     subscriptions,
-    views: { register: (definition) => { owned(definition.id); return track(services.views.register({ ...definition, component: component(definition.component) }, scope)); } },
-    panels: { register: (definition) => { owned(definition.id); return track(services.panels.register({ ...definition, component: component(definition.component), badge: definition.badge && component(definition.badge) }, scope)); } },
+    views: { register: (definition) => {
+      owned(definition.id);
+      const { confirmClose } = definition;
+      return track(services.views.register({
+        ...definition, component: component(definition.component), icon: icon(definition.icon),
+        confirmClose: confirmClose && !builtin ? (view) => {
+          const confirmation = confirmClose(view);
+          return confirmation && { ...confirmation, warning: node(confirmation.warning), subject: { ...confirmation.subject, icon: node(confirmation.subject.icon) } };
+        } : confirmClose,
+      }, scope));
+    } },
+    panels: { register: (definition) => { owned(definition.id); return track(services.panels.register({ ...definition, icon: icon(definition.icon), component: component(definition.component), badge: definition.badge && component(definition.badge) }, scope)); } },
     widgets: { register: (definition) => { owned(definition.id); return track(services.widgets.register({ ...definition, component: component(definition.component) }, scope)); } },
     commands: {
       register: (id, handler) => track(services.commands.register(owned(id), handler, scope)),
       // The lookup uses the extension's own workspace whatever the arguments look like, so its commands are found.
       execute: (id, args) => services.commands.execute(id, scope && args === undefined ? { workspaceId: scope } : args, scope),
     },
-    promptMenus: { register: (menu) => { owned(menu.id); return track(services.promptMenus.register(menu.manage && !builtin ? { ...menu, manage: { ...menu.manage, component: guarded(info.id, menu.manage.component) } } : menu, scope)); } },
+    promptMenus: { register: (menu) => {
+      owned(menu.id);
+      if (builtin) return track(services.promptMenus.register(menu, scope));
+      const { optionTag } = menu;
+      return track(services.promptMenus.register({
+        ...menu, icon: icon(menu.icon),
+        optionTag: optionTag && ((optionId, context) => { const tag = optionTag(optionId, context); return tag && { ...tag, icon: icon(tag.icon) }; }),
+        manage: menu.manage && { ...menu.manage, component: guarded(info.id, menu.manage.component) },
+      }, scope));
+    } },
     promptContributors: { register: (contributor) => { owned(contributor.id); return track(services.promptContributors.register(contributor, scope)); } },
-    contextMenus: { register: (contribution) => { owned(contribution.id); return track(services.contextMenus.register(contribution, scope)); } },
+    contextMenus: { register: (contribution) => {
+      owned(contribution.id);
+      const items = builtin ? contribution.items : (context: Parameters<typeof contribution.items>[0]) =>
+        contribution.items(context).map((action) => (action.icon === undefined ? action : { ...action, icon: node(action.icon) }));
+      return track(services.contextMenus.register({ ...contribution, items }, scope));
+    } },
     beforeSend: (guards) => {
       // Each guard is tracked as soon as it is installed, so one failing registration can't leave the earlier ones behind.
       const added = (Array.isArray(guards) ? guards : [guards]).map((guard) => track(services.sendGuards.register({ ...guard, id: owned(guard.id) }, scope)));

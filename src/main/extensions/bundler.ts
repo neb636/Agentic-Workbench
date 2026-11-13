@@ -59,7 +59,7 @@ function loadEsbuild(): Promise<typeof import("esbuild")> {
  * Bundles one extension into a script that hands its default export to the window (`__dimsum.define`). esbuild is
  * loaded on first use, so starting the app costs nothing when no extension is installed.
  */
-export async function bundleExtension(entry: string, allowedFolder: string, token: string): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+export async function bundleExtension(entry: string, allowedFolder: string, token: string): Promise<{ ok: true; code: string; inputs: string[] } | { ok: false; error: string }> {
   const { build } = await loadEsbuild();
   const base = await fs.realpath(allowedFolder);
   try {
@@ -68,9 +68,12 @@ export async function bundleExtension(entry: string, allowedFolder: string, toke
       platform: "browser", target: "es2022", jsx: "automatic", sourcemap: "inline", logLevel: "silent",
       define: { "process.env.NODE_ENV": JSON.stringify("production") },
       footer: { js: `globalThis.__dimsum.define(${JSON.stringify(token)}, __dimsumExtension);` },
-      plugins: [hostModules(), confined(base)],
+      plugins: [hostModules(), confined(base)], metafile: true,
     });
-    return { ok: true, code: result.outputFiles[0].text };
+    // Every file it was built from, relative to the allowed folder, so saving any of them rebuilds it. esbuild names
+    // files from other namespaces (the app's own modules) with a `namespace:` prefix; those never change on disk.
+    const inputs = Object.keys(result.metafile.inputs).filter((input) => !/^[a-z-]+:/.test(input));
+    return { ok: true, code: result.outputFiles[0].text, inputs };
   } catch (error) {
     const failures = (error as { errors?: { text: string; location?: { file: string; line: number; column: number } | null }[] }).errors;
     if (!failures?.length) return { ok: false, error: (error as Error).message };

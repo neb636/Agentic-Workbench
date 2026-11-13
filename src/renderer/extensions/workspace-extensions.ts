@@ -51,6 +51,13 @@ const generationOf = (key: string) => generations.get(key) ?? 0;
 /** A reload asked for while that extension was still starting: it runs again once the start settles. */
 const reloadAfter = new Map<string, string | undefined>();
 const stopWanting = (key: string) => { generations.set(key, generationOf(key) + 1); reloadAfter.delete(key); };
+/** The workspace files each workspace extension was last built from (it may import code from anywhere in its workspace). */
+const builtFrom = new Map<string, Set<string>>();
+/** Whether a change touched a file one of this workspace's extensions was built from. */
+const touchesBuiltFiles = (workspaceId: string, paths: string[]) => {
+  for (const [key, inputs] of builtFrom) if (key.startsWith(`${workspaceId}|`) && paths.some((path) => inputs.has(path))) return true;
+  return false;
+};
 
 /** Starts one extension, and starts it once more if a reload came in meanwhile (a newer save, or Reload). */
 function launch(key: string, listing: ExtensionListing, workspace?: Workspace): void {
@@ -82,6 +89,7 @@ async function start(listing: ExtensionListing, workspace?: Workspace): Promise<
   };
   if (stale()) return;
   if (!loaded.ok) { fail(loaded.error); return; }
+  if (listing.layer === "workspace") builtFrom.set(key, new Set(loaded.inputs));
   let definition;
   try { definition = await loadExtensionScript(loaded.url); }
   catch (error) { fail(errorMessage(error)); return; }
@@ -200,17 +208,20 @@ export function startWorkspaceExtensions(): () => void {
       watches.delete(workspaceId);
       for (const record of Object.values(useActiveExtensions.getState().records)) if (record.info.workspaceId === workspaceId) deactivateExtension(record.key);
       for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) stopWanting(key);
+      for (const key of builtFrom.keys()) if (key.startsWith(`${workspaceId}|`)) builtFrom.delete(key);
       useInstalledExtensions.setState((state) => { const { [workspaceId]: _, ...byWorkspace } = state.byWorkspace; void _; return { byWorkspace }; });
     }
     for (const workspace of current) {
       if (watches.has(workspace.id)) continue;
       void reconcile(workspace, true);
       watches.set(workspace.id, watchWorkspace(workspace.path, (event) => {
-        if (!changedIn(event.paths)) return;
+        const imported = touchesBuiltFiles(workspace.id, event.paths);
+        if (!imported && !changedIn(event.paths)) return;
         const latest = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);
         if (!latest) return;
-        // Only files under extensions/ need a rebuild; settings changes just start or stop extensions.
-        const code = event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
+        // Files under extensions/, or ones an extension imports from elsewhere in the workspace, need a rebuild;
+        // settings changes just start or stop extensions.
+        const code = imported || event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
         later(workspace.id, () => (code ? reloadSlot(latest) : void reconcile(latest, false)));
       }));
     }
