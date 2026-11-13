@@ -77,6 +77,11 @@ const outside = join(directory, "outside");
 await mkdir(linked);
 await mkdir(outside);
 await symlink(outside, join(linked, ".dimsum"));
+// An ordinary .dimsum whose guide links outside the workspace: scaffolding refuses rather than overwrite it.
+const outsideGuide = join(directory, "outside-guide.md");
+await writeFile(outsideGuide, "KEEP ME\n");
+await mkdir(join(other, ".dimsum"), { recursive: true });
+await symlink(outsideGuide, join(other, ".dimsum", "AGENTS.md"));
 // The person's own extension: a status bar widget, in every workspace.
 await mkdir(join(home, "extensions", "greeter"), { recursive: true });
 await writeFile(join(home, "extensions", "greeter", "index.tsx"), `import { defineExtension } from "@dimsum/sdk";
@@ -201,6 +206,13 @@ try {
   assert.equal(await page.getByRole("menuitem", { name: /Hello board/ }).count(), 0);
   await page.keyboard.press("Escape");
   await shot("6-untrusted-workspace");
+  await panel.getByRole("button", { name: "New workspace extension" }).click();
+  await panel.getByRole("textbox", { name: "Folder name" }).fill("linked-guide");
+  await panel.getByRole("button", { name: "Create" }).click();
+  await panel.getByRole("alert").filter({ hasText: "symbolic link" }).waitFor();
+  assert.equal(await readFile(outsideGuide, "utf8"), "KEEP ME\n", "scaffolding never writes through a linked guide");
+  await assert.rejects(stat(join(other, ".dimsum", "extensions", "linked-guide")), "nothing is scaffolded when the guide is linked");
+  await page.keyboard.press("Escape");
 
   // Turning it off is the person's own setting for this workspace.
   await selectWorkspace("Extensions QA");
@@ -223,6 +235,12 @@ try {
   await page.getByRole("menuitem", { name: /Qa Made/ }).click();
   await page.getByRole("heading", { name: "Qa Made" }).waitFor();
   await shot("7-scaffolded");
+
+  // A name that starts with a digit still makes a valid component name.
+  await panel.getByRole("button", { name: "New workspace extension" }).click();
+  await panel.getByRole("textbox", { name: "Folder name" }).fill("2d-board");
+  await panel.getByRole("button", { name: "Create" }).click();
+  await row("2d Board").getByText("Running").waitFor();
 
   assert.deepEqual(errors, []);
   console.log(`Extensions QA passed. Screenshots: ${shots}`);

@@ -45,11 +45,14 @@ export default defineExtension({
 function title(name: string): string {
   return name.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
 }
+/** A valid JS identifier: names may start with a digit (`123-board`), identifiers may not. */
 function pascal(name: string): string {
-  return title(name).replaceAll(" ", "");
+  const joined = title(name).replaceAll(" ", "");
+  return /^[0-9]/.test(joined) ? `Ext${joined}` : joined;
 }
 
-async function writeIfMissing(file: string, text: string): Promise<void> {
+async function writeIfMissing(root: string, file: string, text: string): Promise<void> {
+  await assertInsideRoot(root, file);
   await fs.mkdir(path.dirname(file), { recursive: true });
   try { await fs.writeFile(file, text, { flag: "wx" }); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
@@ -68,20 +71,26 @@ export async function scaffoldExtension(root: string, name: string): Promise<{ e
   if (await fs.stat(folder).then(() => true, () => false)) throw new Error(`${APP_DIR}/${EXTENSIONS_DIR}/${name} already exists.`);
   const sdk = sdkFolder();
   const guide = await fs.readFile(path.join(sdk, "GUIDE.md"), "utf8").catch(() => undefined);
-  if (guide) await fs.writeFile(path.join(await ensure(base), AGENT_GUIDE_FILE), guide);
+  if (guide) {
+    const guideFile = path.join(base, AGENT_GUIDE_FILE);
+    await assertInsideRoot(root, guideFile);
+    await ensure(base);
+    await fs.writeFile(guideFile, guide);
+  }
   const types = path.join(sdk, "types");
   if (await fs.stat(types).then(() => true, () => false)) {
+    await assertInsideRoot(root, path.join(base, ".sdk"));
     await fs.rm(path.join(base, ".sdk"), { recursive: true, force: true });
     await copyTree(types, path.join(base, ".sdk"));
   }
-  await writeIfMissing(path.join(base, "tsconfig.json"), `${JSON.stringify({
+  await writeIfMissing(root, path.join(base, "tsconfig.json"), `${JSON.stringify({
     compilerOptions: {
       target: "ES2022", module: "ESNext", moduleResolution: "Bundler", jsx: "react-jsx", strict: true, noEmit: true, skipLibCheck: true,
       paths: { [SDK_MODULE]: ["./.sdk/sdk/index.d.ts"] },
     },
     include: [`${EXTENSIONS_DIR}/**/*`],
   }, null, 2)}\n`);
-  await writeIfMissing(path.join(base, "package.json"), `${JSON.stringify({
+  await writeIfMissing(root, path.join(base, "package.json"), `${JSON.stringify({
     private: true,
     description: `Type checking for this workspace's ${APP_DIR} extensions. The app bundles them itself; installing is optional.`,
     scripts: { typecheck: "tsc -p ." },
@@ -89,7 +98,7 @@ export async function scaffoldExtension(root: string, name: string): Promise<{ e
   }, null, 2)}\n`);
   await ignoreLocalFiles(base, root);
   const entry = path.join(folder, "index.tsx");
-  await writeIfMissing(entry, starter(name));
+  await writeIfMissing(root, entry, starter(name));
   return { entry: path.relative(root, entry).split(path.sep).join("/") };
 }
 
