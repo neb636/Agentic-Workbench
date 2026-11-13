@@ -1,0 +1,26 @@
+# Data and privacy
+
+DimSum runs on your computer and has no account. It sends no telemetry.
+
+## Network use
+
+DimSum itself connects to the network only to read your [plan usage](/guide/ai-usage-resources), using the credentials the CLI already has. Everything else on the network is done by the agent CLIs, under their own settings and terms.
+
+## What is stored where
+
+| Data | Location |
+| --- | --- |
+| Workspaces, open views, layout, drafts, prompt history and personas | `workbench-state.json` in your DimSum profile |
+| Attachments | `attachments/<view>/` in your profile |
+| Workspaces you trusted | `execution-trust.json` in your profile |
+| Your instructions, settings and extensions | `~/.dimsum/` |
+| A workspace's shared and local configuration | `<workspace>/.dimsum/` |
+| Agent conversations | Wherever each CLI keeps them, managed by the CLI |
+
+On macOS the profile is a folder named after the app in `~/Library/Application Support/` (`agent-workbench` when you run from source). Set `WORKBENCH_USER_DATA_DIR` to use a different folder.
+
+## Cleaning up
+
+- **Settings ▸ General ▸ Remove attachments for closed views** deletes attachment copies you no longer need.
+- **Settings ▸ General ▸ Reset workspace execution trust** forgets the workspaces you trusted.
+- Quit DimSum and delete the profile folder to start over completely.

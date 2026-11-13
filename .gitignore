@@ -6,4 +6,5 @@ test-results
 .DS_Store
 *.log
 release
-rebuild-sources/
+rebuild-sources/site/.vitepress/dist
+site/.vitepress/cache

@@ -12,6 +12,7 @@
 - Product styling consumes semantic `--wb-*` theme variables. Feature components must not add literal product colors.
 - `src/sdk` (`@dimsum/sdk`) is the contract between the workbench and everything that extends it. It holds types and pure builders only, and may import only `react` types and pure `src/shared` modules (ESLint enforces this). Implementations belong to `src/renderer/core`, `src/renderer/extensions` and `src/main`. First-party features register through the same `ExtensionContext` that workspace extensions get.
 - Configuration and extensions are layered: `~/.dimsum/` (the person's own), `<workspace>/.dimsum/` (checked in) and `<workspace>/.dimsum/*.local.json` (personal, never committed). Folder and file names come from `src/shared/app-identity.ts`. Workspace extensions run only in a trusted workspace. `src/sdk/GUIDE.md` is the agent-facing guide: update it whenever the SDK changes.
+- `site/` is the user documentation (VitePress, published to GitHub Pages). Update its pages when a user-visible feature, setting, shortcut or config format changes. Its SDK page includes `src/sdk/GUIDE.md` directly; don't copy that text.
 - Prefer the smallest abstraction supported by current needs or explicitly planned consumers. Do not create speculative plugin frameworks or future infrastructure; leave a clean extension seam instead.
 - Keep the application local-first unless a feature explicitly requires an external service.
 - Preserve working architectural boundaries. Refactor only when a concrete requirement makes the current boundary inadequate.
