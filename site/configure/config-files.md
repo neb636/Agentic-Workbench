@@ -12,7 +12,9 @@ Each configuration file can exist in three places:
 | Workspace | `<workspace>/.dimsum/<name>.json` | Settings for everyone in the repository. Check this file in. |
 | Local | `<workspace>/.dimsum/<name>.local.json` | Your own settings for one workspace. Never commit this file. |
 
-DimSum creates a `.dimsum/.gitignore` that keeps the `*.local.json` files out of Git.
+The first time DimSum writes a local file, it makes sure `.dimsum/.gitignore` keeps `*.local.json` files out of Git. If you already have that `.gitignore`, the rule is added to it.
+
+Workspace files must be ordinary files inside the workspace. If `.dimsum`, or anything inside it, is a symbolic link, DimSum won't read from it or write to it.
 
 There are two configuration files: `instructions` and `settings`. The extensions folders `~/.dimsum/extensions/` and `<workspace>/.dimsum/extensions/` follow the same split. See [Extensions](/extend/).
 
