@@ -58,7 +58,7 @@ Open the workspace's + menu. **Level Editor** is now one of the view types.
 
 ## Change it
 
-Edit the file and save. DimSum reloads the extension, and the open view picks up the change.
+Edit the file and save. DimSum reloads the extension, and the open view picks up the change. The same happens when you save any other workspace file the extension imports, so you can split it into several files.
 
 Some rules to keep in mind:
 

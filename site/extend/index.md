@@ -1,6 +1,6 @@
 # Extensions
 
-An extension is a TypeScript file that adds to DimSum. You write it in the workspace or in your own `~/.dimsum` folder, and the app loads it as soon as you save. You don't need to build, install or restart anything.
+An extension is a TypeScript file that adds to DimSum. You write it in the workspace or in your own `~/.dimsum` folder, and the app loads it as soon as you save it, or any file it imports. You don't need to build, install or restart anything.
 
 DimSum's own features use the same API, so an extension can do what the built-in panels and menus do.
 
@@ -23,13 +23,13 @@ DimSum's own features use the same API, so an extension can do what the built-in
 | `<workspace>/.dimsum/extensions/<name>/index.tsx` | Everyone who works in the workspace. Check it in. | Only after you [trust the workspace](/guide/trust). |
 | `~/.dimsum/extensions/<name>/index.tsx` | You, in every workspace. | Always. |
 
-A workspace extension's contributions appear only in its own workspace. Two worktrees of the same repository each run their own copy.
+A workspace extension's contributions appear only in its own workspace, and its section in Settings shows while that workspace is the active one. Two worktrees of the same repository each run their own copy.
 
 ## The Extensions panel
 
 The Extensions panel in the right sidebar lists **Built in**, **Yours everywhere** and the workspace's own extensions. From it you can:
 
-- turn any extension on or off, which is saved in [`settings.json`](/configure/config-files#settings-json);
+- turn any extension on or off, which is saved in [`settings.json`](/configure/config-files#settings-json). Your own extensions are turned off in `~/.dimsum/settings.json`, which covers every workspace;
 - **Trust workspace**, to let its extensions run;
 - **Reload extensions**;
 - create a **New workspace extension**. See [Your first extension](/extend/first-extension).

@@ -20,6 +20,8 @@ There are two configuration files: `instructions` and `settings`. The extensions
 
 DimSum watches these files. Edits you make in an editor, or that come in with `git pull`, show up straight away. A file that isn't valid JSON, or doesn't match the format, is reported in the app and isn't used until it is fixed.
 
+Each file can be up to 2 MB. If a save from the app would make a file larger than that, DimSum refuses the save and keeps the existing file as it was.
+
 ## instructions.json
 
 The [instructions](/guide/personas-instructions#instructions) the composer offers.
@@ -88,7 +90,9 @@ A choice is `{ "id", "label", "text", "description"? }`. Its `text` is what it a
 | `{ "kind": "any", "conditions": [ ... ] }` | At least one holds. |
 | `{ "kind": "not", "condition": { ... } }` | The condition doesn't hold. |
 
-Older versions of DimSum kept shared instructions in `.workbench/instructions.json`. That file is still read until `.dimsum/instructions.json` exists.
+Older versions of DimSum kept your own instructions in the app's profile, and DimSum moves them into these files when it starts. If a file can't take them yet, for example because it is invalid or its folder is read-only, they stay in your profile and still show in the composer. DimSum tries again on the next start.
+
+Older versions also kept shared instructions in `.workbench/instructions.json`. That file is still read until `.dimsum/instructions.json` exists.
 
 ## settings.json
 
@@ -103,7 +107,12 @@ Small switches that layer the same way.
 }
 ```
 
-`extensions.disabled` lists extensions to turn off, by id: `user:<folder name>` for yours and `workspace:<folder name>` for a workspace's. Each layer can only add to the list, so turning an extension off in your local file never turns it back on for anyone else. The Extensions panel writes this file for you.
+`extensions.disabled` lists extensions to turn off, by id: `user:<folder name>` for yours and `workspace:<folder name>` for a workspace's. A layer can only add to the list, never take an entry away.
+
+- A **workspace extension** can be turned off in any of the three files. Use the local file to turn it off just for yourself.
+- **Your own extension** (`user:<name>`) runs in every workspace, so only `~/.dimsum/settings.json` turns it off. Listing it in a workspace's file has no effect.
+
+The Extensions panel writes the right file for you.
 
 ## Other data
 
