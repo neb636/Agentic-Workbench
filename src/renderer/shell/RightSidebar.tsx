@@ -3,6 +3,7 @@ import { ToggleButton, ToggleButtonGroup, Tooltip, TooltipTrigger } from "react-
 import type { Workspace } from "../../shared/models";
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
+import { isFilesWorkspace } from "../../shared/files-workspace";
 import { IconButton } from "../ui/controls";
 import { useGuardedTooltip } from "../ui/use-guarded-tooltip";
 import { SidebarRightIcon } from "../ui/icons";
@@ -13,6 +14,8 @@ export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace;
   const updateLayout = useWorkbenchStore((state) => state.updateLayout);
   const active = panels.find((panel) => panel.id === selected) ?? panels[0];
   const Panel = active?.component;
+  // The Files workspace has no folder to browse or track: its panels would have nothing to show.
+  const folder = workspace && !isFilesWorkspace(workspace) ? workspace : undefined;
 
   return <aside className="sidebar-card right-sidebar" aria-label="Side panels">
     <div className="activity-bar">
@@ -22,12 +25,14 @@ export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace;
         {panels.map((panel) => {
           const Icon = panel.icon;
           const Badge = panel.badge;
-          return <PanelButton key={panel.id} id={panel.id} label={panel.label}><Icon size={16} />{workspace && Badge && <Badge workspace={workspace} />}</PanelButton>;
+          return <PanelButton key={panel.id} id={panel.id} label={panel.label}><Icon size={16} />{folder && Badge && <Badge workspace={folder} />}</PanelButton>;
         })}
       </ToggleButtonGroup>
     </div>
     <div className="side-panel-region">
-      {workspace && active && Panel ? <Panel key={`${active.id}-${workspace.id}`} workspace={workspace} /> : <p className="panel-empty">Add a workspace to browse its files and changes.</p>}
+      {folder && active && Panel ? <Panel key={`${active.id}-${folder.id}`} workspace={folder} />
+        : workspace ? <p className="panel-empty">Files opened on their own have no folder here. Use Open Folder as Workspace on a tab to browse its folder.</p>
+        : <p className="panel-empty">Add a workspace to browse its files and changes.</p>}
     </div>
   </aside>;
 }

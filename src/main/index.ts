@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, MenuItem, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, MenuItem, shell, type WebContents } from "electron";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { AgentModelCatalogue } from "./agent-model-catalogue";
@@ -7,7 +7,7 @@ import { CommitMessages } from "./internal-ai/commit-message";
 import { InternalAiService } from "./internal-ai/internal-ai-service";
 import { isWorkspaceTrusted, loadExecutionTrust } from "./workspace-trust";
 import { executablePath } from "./executables";
-import { APP_URL, registerAppWindow, developmentUrl, configureSecurity } from "./security";
+import { APP_URL, assertAppSender, registerAppWindow, developmentUrl, configureSecurity } from "./security";
 import { registerIpc } from "./ipc";
 import { ClaudeAgentProvider } from "./providers/claude-agent-provider";
 import { CodexAgentProvider } from "./providers/codex-agent-provider";
@@ -42,6 +42,65 @@ const workspaceServices = {
   sourceControl,
   commitMessages: new CommitMessages(sourceControl, internalAi),
 };
+
+/**
+ * Files the system asks the app to open: Finder's Open With or a default-app double click, a file dropped on the dock
+ * icon, `open -a`, a path on the command line, or File ▸ Open File…. Each is granted on its own (never its folder) and
+ * handed to the renderer, which opens it in the workspace that holds it or in the built-in Files workspace.
+ * macOS can ask before the app is ready (a cold launch from Finder) and before the page listens, so paths wait here.
+ */
+const pendingFiles: string[] = [];
+const listeningForFiles = new Set<WebContents>();
+
+async function openFiles(paths: string[]): Promise<void> {
+  for (const requested of paths) {
+    try {
+      const absolute = await fs.realpath(path.resolve(requested));
+      if (!(await fs.stat(absolute)).isFile()) continue;
+      roots.grantFiles([absolute]);
+      pendingFiles.push(absolute);
+    } catch (error) { console.warn("Could not open file", String(error)); }
+  }
+  deliverFiles();
+}
+
+function deliverFiles(): void {
+  if (!pendingFiles.length || !app.isReady()) return;
+  const windows = BrowserWindow.getAllWindows();
+  if (!windows.length) { createWindow(); return; }
+  const target = [BrowserWindow.getFocusedWindow(), ...windows].find((window) => window && listeningForFiles.has(window.webContents));
+  if (!target) return;
+  target.webContents.send(IPC.openFiles, pendingFiles.splice(0));
+  if (process.env.WORKBENCH_QA_HIDDEN === "1") return;
+  if (target.isMinimized()) target.restore();
+  target.show();
+  target.focus();
+}
+
+/** File paths given on the command line (`electron . notes.md`, or the packaged binary with a path). */
+function commandLineFiles(argv: string[]): string[] {
+  return argv.slice(process.defaultApp ? 2 : 1).filter((arg) => arg && !arg.startsWith("-") && arg !== ".");
+}
+
+app.on("open-file", (event, file) => {
+  event.preventDefault();
+  void openFiles([file]);
+});
+
+async function chooseFilesToOpen(): Promise<void> {
+  const result = await dialog.showOpenDialog({ title: "Open File", properties: ["openFile", "multiSelections"], buttonLabel: "Open" });
+  if (!result.canceled) await openFiles(result.filePaths);
+}
+
+/** File ▸ Open File… (⌘O), added to Electron's default File menu. */
+function addFileMenuItems(): void {
+  const menu = Menu.getApplicationMenu();
+  const file = menu?.items.find((item) => item.role === "fileMenu" || item.label === "File")?.submenu;
+  if (!menu || !file) return;
+  file.insert(0, new MenuItem({ type: "separator" }));
+  file.insert(0, new MenuItem({ id: "workbench-open-file", label: "Open File…", accelerator: "CmdOrCtrl+O", click: () => void chooseFilesToOpen() }));
+  Menu.setApplicationMenu(menu);
+}
 
 /**
  * View ▸ Go to File (⌘P) and Find in Files (⇧⌘F) as menu accelerators, so they work wherever focus is
@@ -95,9 +154,11 @@ function createWindow(): BrowserWindow {
   });
   // Sessions belong to the page that started them. A reload or a crashed renderer loses every view that showed them,
   // and the webContents outlives both, so they end then too: nothing could reach or close them afterwards.
+  const contents = window.webContents;
   const endSessions = () => {
-    ptyManager.terminateForOwner(window.webContents);
-    agentSessionManager.terminateForOwner(window.webContents);
+    listeningForFiles.delete(contents);
+    ptyManager.terminateForOwner(contents);
+    agentSessionManager.terminateForOwner(contents);
   };
   window.webContents.on("destroyed", endSessions);
   window.webContents.on("render-process-gone", endSessions);
@@ -121,8 +182,16 @@ app.whenReady().then(async () => {
   if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments, resources);
   registerAiUsage(aiUsage);
+  // The page says when it listens for files to open; anything that arrived before then is delivered at that point.
+  ipcMain.on(IPC.openFiles, (event) => {
+    try { assertAppSender(event); } catch (error) { console.warn(`Rejected ${IPC.openFiles}:`, String(error)); return; }
+    listeningForFiles.add(event.sender);
+    deliverFiles();
+  });
   addMenuItems();
+  addFileMenuItems();
   createWindow();
+  void openFiles(commandLineFiles(process.argv));
   agentModels.start(() => {
     const providers = agentSessionManager.discover();
     for (const window of BrowserWindow.getAllWindows()) window.webContents.send(IPC.agentProvidersChanged, providers);

@@ -36,6 +36,7 @@ import { canSendToRemote, confirmAndRunAction, runAction } from "./source-contro
 import { SourceControlMoreMenu, SourceControlToolbar } from "./SourceControlActions";
 import { SourceControlHistory, SourceControlStashes } from "./SourceControlHistory";
 import { activeRoot, CHANGE_LETTERS, dismissSourceControlError, refreshSourceControl, reloadSourceControl, runSourceControlTask, useSourceControlActivity, useSourceControlStatus } from "./source-control-store";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 
 function folderName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
@@ -307,7 +308,7 @@ export function SourceControlBadge({ workspace }: PanelProps) {
 
 /** Branch name for a workspace row in the sidebar. */
 export function WorkspaceBranch({ workspaceId }: WidgetProps) {
-  const path = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === workspaceId)?.path);
+  const path = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === workspaceId)?.path || undefined);
   const branch = useSourceControlStatus(path, false)?.status?.branch;
   return branch ? <span className="workspace-branch">{branch}</span> : null;
 }
@@ -315,7 +316,7 @@ export function WorkspaceBranch({ workspaceId }: WidgetProps) {
 /** Branch of the active view's folder in the status bar. */
 export function StatusBranch() {
   const workspace = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId) ?? state.workspaces[0]);
-  const status = useSourceControlStatus(workspace ? activeRoot(workspace) : undefined, true)?.status;
+  const status = useSourceControlStatus(workspace && !isFilesWorkspace(workspace) ? activeRoot(workspace) : undefined, true)?.status;
   if (!status) return null;
   return <span className="status-item"><BranchIcon size={12} />{status.branch ?? "detached"}{status.changes.length > 0 && <span className="status-muted">· {status.changes.length} changed</span>}</span>;
 }

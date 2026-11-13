@@ -29,6 +29,7 @@ export const IPC = {
   resourcesSummary: "resources:summary",
   resourcesEnd: "resources:end",
   menuCommand: "app:menu-command",
+  openFiles: "app:open-files",
   attachmentsSave: "attachments:save",
   attachmentsThumbnail: "attachments:thumbnail",
   attachmentsImage: "attachments:image",

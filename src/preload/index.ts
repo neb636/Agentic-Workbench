@@ -32,7 +32,7 @@ const api: WorkbenchApi = {
     saveNow: (state) => { ipcRenderer.sendSync(IPC.persistenceSaveNow, state); },
   },
   workspace: {
-    chooseDirectory: () => ipcRenderer.invoke(IPC.workspaceChooseDirectory) as Promise<string | null>,
+    chooseDirectory: (startIn) => ipcRenderer.invoke(IPC.workspaceChooseDirectory, startIn) as Promise<string | null>,
     chooseIcon: () => ipcRenderer.invoke(IPC.workspaceChooseIcon) as Promise<string | null>,
   },
   app: {
@@ -43,6 +43,15 @@ const api: WorkbenchApi = {
       const wrapped = (_event: Electron.IpcRendererEvent, command: MenuCommand) => listener(command);
       ipcRenderer.on(IPC.menuCommand, wrapped);
       return () => ipcRenderer.removeListener(IPC.menuCommand, wrapped);
+    },
+    onOpenFiles: (listener) => {
+      const wrapped = (_event: Electron.IpcRendererEvent, paths: unknown) => {
+        if (Array.isArray(paths)) listener(paths.filter((item): item is string => typeof item === "string"));
+      };
+      ipcRenderer.on(IPC.openFiles, wrapped);
+      // Files the system asked to open before this page listened are delivered now.
+      ipcRenderer.send(IPC.openFiles);
+      return () => ipcRenderer.removeListener(IPC.openFiles, wrapped);
     },
   },
   attachments: {

@@ -5,6 +5,7 @@ import { openPanel } from "../features/explorer/explorer-store";
 import { QuickOpen } from "../features/files/QuickOpen";
 import { ConfirmDialogHost } from "../ui/ConfirmDialog";
 import { useWorkbenchStore } from "../state/workbench-store";
+import { isFilesWorkspace } from "../../shared/files-workspace";
 import { AgentIcon, FolderIcon, PlusIcon, TerminalIcon } from "../ui/icons";
 import { Button } from "../ui/controls";
 import { LeftSidebar } from "./LeftSidebar";
@@ -46,6 +47,8 @@ export function WorkbenchShell() {
       if (workspace?.activeViewId) void services.commands.execute("view.activate", { workspaceId: workspace.id, viewId: workspace.activeViewId });
     }).catch((error: unknown) => setStartupError(error instanceof Error ? error.message : String(error)));
   }, [hydrate]);
+  // Files the system asked the app to open (Finder, the dock, File ▸ Open File…), once the saved workspaces are known.
+  useEffect(() => isHydrated ? window.workbench.app.onOpenFiles((paths) => void services.commands.execute("file.openFromSystem", paths)) : undefined, [isHydrated]);
   // Application-menu shortcuts (⌘P, ⇧⌘F) work wherever focus is, a terminal included.
   useEffect(() => window.workbench.app.onMenuCommand((command) => {
     if (command === "quick-open") void services.commands.execute("file.quickOpen");
@@ -85,6 +88,8 @@ export function WorkbenchShell() {
               <definition.component key={activeView.id} view={activeView} workspace={activeWorkspace} />
             ) : activeView ? (
               <div className="missing-view"><h2>View unavailable</h2><p>No view is registered for <code>{activeView.type}</code>.</p></div>
+            ) : isFilesWorkspace(activeWorkspace) ? (
+              <div className="empty-workspace"><h2>No files open</h2><p>Files you open from Finder appear here.</p></div>
             ) : (
               <div className="empty-workspace">
                 <h2>Open a view</h2><p>Nothing is open in {activeWorkspace.name}.</p>

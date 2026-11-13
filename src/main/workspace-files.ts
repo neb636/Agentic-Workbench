@@ -56,6 +56,29 @@ export function worktreeContainer(root: string): string {
  */
 export class WorkspaceRoots {
   private roots = new Set<string>();
+  /**
+   * Single files opened from outside every workspace (Finder, the dock, File ▸ Open File…). Each grants that one file,
+   * never its folder: it is read, saved and watched as `<its folder>` + `<its name>`, and nothing else there.
+   */
+  private readonly files = new Set<string>();
+
+  /** Grants only grow while the app runs: a file opened before the saved state loads stays granted after it does. */
+  grantFiles(absolutes: string[]): void {
+    for (const absolute of absolutes) this.files.add(path.resolve(absolute));
+  }
+
+  /** True when `relative` names a granted file directly inside `root`. */
+  isGrantedFile(root: string, relative: string): boolean {
+    if (!root || path.isAbsolute(relative) || relative.includes("/") || relative.includes(path.sep)) return false;
+    return this.files.has(path.resolve(root, relative));
+  }
+
+  /** True when some granted file lives directly in `root` (so that one file in it may be watched). */
+  holdsGrantedFile(root: string): boolean {
+    if (!root) return false;
+    const folder = path.resolve(root);
+    return [...this.files].some((file) => path.dirname(file) === folder);
+  }
 
   replace(paths: string[]): void {
     this.roots = new Set(paths.map((item) => path.resolve(item)));
@@ -160,8 +183,17 @@ export class WorkspaceFiles {
       a.kind === b.kind ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }) : a.kind === "directory" ? -1 : 1);
   }
 
+  /**
+   * The folder a single-file request resolves against: a workspace root, or the folder of a file the person opened from
+   * outside every workspace (granted one file at a time, so a sibling is refused).
+   */
+  private async fileBase(root: string, relative: string): Promise<string> {
+    if (!this.roots.isAllowed(root) && this.roots.isGrantedFile(root, relative)) return fs.realpath(path.resolve(root));
+    return this.roots.resolve(root);
+  }
+
   async read(root: string, relative: string): Promise<FileContent> {
-    const base = await this.roots.resolve(root);
+    const base = await this.fileBase(root, relative);
     const file = await resolveInside(base, relative);
     const stats = await fs.stat(file);
     if (!stats.isFile()) throw new Error("Only files can be opened.");
@@ -189,7 +221,7 @@ export class WorkspaceFiles {
   }
 
   private async writeNow(root: string, relative: string, content: string, expectedHash: string | null): Promise<FileWriteResult> {
-    const base = await this.roots.resolve(root);
+    const base = await this.fileBase(root, relative);
     const bytes = Buffer.from(content, "utf8");
     if (bytes.length > WRITE_LIMIT) throw new Error("Files over 2 MB can't be saved here.");
     if (bytes.subarray(0, 8000).includes(0)) throw new Error("Only text files can be saved here.");
@@ -224,7 +256,7 @@ export class WorkspaceFiles {
 
   /** A picture inside the root as a data URL. */
   async image(root: string, relative: string): Promise<string> {
-    const base = await this.roots.resolve(root);
+    const base = await this.fileBase(root, relative);
     const file = await resolveInside(base, relative);
     const type = imageType(file);
     if (!type) throw new Error("That file isn't a picture.");
@@ -273,7 +305,7 @@ export class WorkspaceFiles {
 
   /** A validated display path, including a deleted entry whose ancestor still exists. */
   async absolutePath(root: string, relative: string): Promise<string> {
-    const base = await this.roots.resolve(root);
+    const base = await this.fileBase(root, relative);
     if (path.isAbsolute(relative)) throw new Error("Paths must be relative to the workspace.");
     const target = path.resolve(base, relative);
     if (target !== base && !isInside(target, base)) throw new Error("Path is outside the workspace.");
@@ -290,7 +322,7 @@ export class WorkspaceFiles {
 
   /** The absolute path of something inside the root (to reveal it in the system file manager). */
   async locate(root: string, relative: string): Promise<string> {
-    return resolveInside(await this.roots.resolve(root), relative);
+    return resolveInside(await this.fileBase(root, relative), relative);
   }
 
   invalidate(): void { this.indexes.clear(); }
@@ -334,14 +366,19 @@ export class WorkspaceFiles {
     return scored.sort((a, b) => b.score - a.score || a.file.length - b.file.length).slice(0, limit).map((item) => item.file);
   }
 
-  /** Watches a workspace root; listeners for the same root share one recursive watcher. */
+  /**
+   * Watches a workspace root; listeners for the same root share one recursive watcher. The folder of a file opened
+   * from outside every workspace is watched only at its top level, and only its granted files are reported.
+   */
   async watch(root: string, listener: (paths: string[]) => void): Promise<() => void> {
-    const base = await this.roots.resolve(root);
-    let entry = this.watches.get(base);
+    const loose = !this.roots.isAllowed(root) && this.roots.holdsGrantedFile(root);
+    const base = loose ? await fs.realpath(path.resolve(root)) : await this.roots.resolve(root);
+    const key = loose ? `file:${base}` : base;
+    let entry = this.watches.get(key);
     if (!entry) {
-      const created: Watch = { listeners: new Set(), pending: new Set(), watcher: watch(base, { recursive: true }, (_type, name) => {
+      const created: Watch = { listeners: new Set(), pending: new Set(), watcher: watch(base, { recursive: !loose }, (_type, name) => {
         const changed = name ? toPortable(String(name)) : "";
-        if (!isWatchedChange(changed)) return;
+        if (loose ? !this.roots.isGrantedFile(root, changed) : !isWatchedChange(changed)) return;
         created.pending.add(changed.startsWith(".git/") ? ".git" : changed);
         this.indexes.delete(base);
         clearTimeout(created.timer);
@@ -351,7 +388,7 @@ export class WorkspaceFiles {
         }, 150);
       }) };
       created.watcher.on("error", (error) => console.warn("Workspace watcher failed", String(error)));
-      this.watches.set(base, created);
+      this.watches.set(key, created);
       entry = created;
     }
     const active = entry;
@@ -359,7 +396,7 @@ export class WorkspaceFiles {
     return () => {
       active.listeners.delete(listener);
       if (active.listeners.size) return;
-      clearTimeout(active.timer); active.watcher.close(); this.watches.delete(base);
+      clearTimeout(active.timer); active.watcher.close(); this.watches.delete(key);
     };
   }
 

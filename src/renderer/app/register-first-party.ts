@@ -2,6 +2,7 @@ import { copyPath, terminalAt, revealFile, registerFileActionContributions } fro
 import { services } from "../core/services";
 import { useWorkbenchStore } from "../state/workbench-store";
 import type { FileViewState } from "../../shared/models";
+import { isFilesWorkspace } from "../../shared/files-workspace";
 import { AgentView } from "../features/agent/AgentView";
 import { AgentViewIcon } from "../features/agent/AgentViewIcon";
 import { ClaudeCodeMark, CodexMark } from "../features/agent/harness-marks";
@@ -80,11 +81,16 @@ export function registerFirstPartyContributions(): void {
     tabMenu: (view) => {
       const { root, path, preview } = (view.state ?? {}) as FileViewState;
       const keep = preview ? [{ id: "keep", label: "Keep open", run: () => useWorkbenchStore.getState().updateViewState(view.workspaceId, view.id, { preview: false }) }] : [];
+      const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === view.workspaceId);
+      // A file opened on its own has no workspace folder to show it in; its own folder can become one.
+      const inFolder = workspace && !isFilesWorkspace(workspace)
+        ? [{ id: "copy-relative-path", label: "Copy Relative Path", run: () => copyPath({ root, path }, true) },
+          { id: "reveal", label: "Reveal in files", run: () => revealFile(workspace, { root, path }) }]
+        : [{ id: "open-folder", label: "Open Folder as Workspace…", run: () => services.commands.execute("file.openFolderAsWorkspace", { viewId: view.id }) }];
       return [
         ...keep,
-        { id: "copy-relative-path", label: "Copy Relative Path", run: () => copyPath({ root, path }, true) },
+        ...inFolder,
         { id: "copy-path", label: "Copy Path", run: () => copyPath({ root, path }) },
-        { id: "reveal", label: "Reveal in files", run: () => { const workspace = useWorkbenchStore.getState().workspaces.find((w) => w.id === view.workspaceId); if (workspace) revealFile(workspace, { root, path }); } },
         { id: "reveal-system", label: "Reveal in system file manager", run: () => window.workbench.files.reveal(root, path) },
       ];
     },
@@ -131,7 +137,9 @@ export function registerFirstPartyContributions(): void {
   services.commands.register<{ workspaceId: string }>("workspace.removeIcon", ({ workspaceId }) => {
     useWorkbenchStore.getState().setWorkspaceIcon(workspaceId, undefined);
   });
-  services.contextMenus.register({ id: "workspace.actions", kind: "workspace", items: (context) => context.kind !== "workspace" ? [] : [
+  services.contextMenus.register({ id: "workspace.actions", kind: "workspace", items: (context) => context.kind !== "workspace" ? [] : isFilesWorkspace(context.workspace) ? [
+    { id: "remove", label: "Close All Files", destructive: true, section: "remove", run: () => services.commands.execute("workspace.remove", context.workspace.id) },
+  ] : [
     ...services.views.list().filter((d) => d.creatable !== false).map((d) => ({ id: `new-${d.id}`, label: `New ${d.label}`, section: "create", run: () => services.commands.execute("view.create", { workspaceId: context.workspace.id, viewType: d.id }) })),
     ...[{ id: "reveal", label: "Reveal Folder", command: "workspace.reveal" }, { id: "terminal", label: "Open in Terminal", command: "workspace.terminal" }, { id: "copy", label: "Copy Path", command: "workspace.copyPath" }].map((item) => ({ ...item, section: "workspace", run: () => services.commands.execute(item.command, { workspaceId: context.workspace.id }) })),
     { id: "choose-icon", label: context.workspace.icon ? "Change Custom Icon…" : "Set Custom Icon…", section: "icon", run: () => services.commands.execute("workspace.chooseIcon", { workspaceId: context.workspace.id }) },
@@ -144,6 +152,19 @@ export function registerFirstPartyContributions(): void {
   services.commands.register("workspace.add", async () => {
     const path = await window.workbench.workspace.chooseDirectory();
     if (path) useWorkbenchStore.getState().addWorkspace(path);
+  });
+  // A file opened on its own: its folder (or one above it) becomes a workspace, and the tab moves into it.
+  services.commands.register<{ viewId: string }>("file.openFolderAsWorkspace", async ({ viewId }) => {
+    const view = useWorkbenchStore.getState().workspaces.flatMap((w) => w.views).find((v) => v.id === viewId);
+    const { root, path } = (view?.state ?? {}) as Partial<FileViewState>;
+    if (!view || !root || !path) return;
+    const folder = await window.workbench.workspace.chooseDirectory(root);
+    if (!folder) return;
+    const store = useWorkbenchStore.getState();
+    const workspaceId = store.addWorkspace(folder);
+    const base = folder.replace(/[\\/]+$/, "");
+    const absolute = `${root}/${path}`;
+    if (absolute.startsWith(`${base}/`)) store.transferView(viewId, workspaceId, { root: base, path: absolute.slice(base.length + 1), preview: false });
   });
   services.commands.register<string>("workspace.select", (workspaceId) => {
     useWorkbenchStore.getState().selectWorkspace(workspaceId);
@@ -160,6 +181,8 @@ export function registerFirstPartyContributions(): void {
   services.commands.register<{ workspaceId: string; viewType: string }>("view.create", ({ workspaceId, viewType }) => {
     const definition = services.views.get(viewType);
     if (!definition) throw new Error(`Unknown view type: ${viewType}`);
+    const workspace = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
+    if (workspace && isFilesWorkspace(workspace)) throw new Error("Files opened on their own have no folder for a session. Open the folder as a workspace first.");
     return useWorkbenchStore.getState().createView(workspaceId, definition.id, definition.defaultTitle ?? definition.label, definition.createState?.());
   });
   services.commands.register<{ workspaceId: string; viewId: string }>("view.activate", ({ workspaceId, viewId }) => {

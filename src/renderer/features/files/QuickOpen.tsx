@@ -4,11 +4,14 @@ import { services } from "../../core/services";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { FileIcon, SearchIcon } from "../../ui/icons";
 import { useQuickOpen } from "./file-commands";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 
 /** ⌘P: type part of a file's name; Enter opens it as a preview tab in the workspace on screen. */
 export function QuickOpen() {
   const open = useQuickOpen((state) => state.open);
-  const workspace = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId) ?? state.workspaces[0]);
+  const active = useWorkbenchStore((state) => state.workspaces.find((item) => item.id === state.activeWorkspaceId) ?? state.workspaces[0]);
+  // The Files workspace has no folder to search.
+  const workspace = active && !isFilesWorkspace(active) ? active : undefined;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<string[]>([]);
   const close = () => { useQuickOpen.setState({ open: false }); setQuery(""); setResults([]); };
