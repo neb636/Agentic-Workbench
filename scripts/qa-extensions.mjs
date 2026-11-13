@@ -1,7 +1,7 @@
 /* global window */
 import { _electron as electron } from "playwright";
 import { execFileSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, realpath, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import assert from "node:assert/strict";
@@ -69,6 +69,14 @@ await mkdir(join(repo, ".workbench"));
 await writeFile(join(repo, ".workbench", "instructions.json"), JSON.stringify({ version: 1, instructions: [
   { id: "team-style", kind: "toggle", label: "Team style", category: "Team", defaultOn: false, text: "TEAM-STYLE" },
 ] }));
+// An ignore file the team already has: the local-file exclusion is added to it, nothing is lost.
+await writeFile(join(repo, ".dimsum", ".gitignore"), "node_modules/\n");
+// A workspace whose .dimsum links outside it: nothing is ever read or written through the link.
+const linked = join(directory, "linked");
+const outside = join(directory, "outside");
+await mkdir(linked);
+await mkdir(outside);
+await symlink(outside, join(linked, ".dimsum"));
 // The person's own extension: a status bar widget, in every workspace.
 await mkdir(join(home, "extensions", "greeter"), { recursive: true });
 await writeFile(join(home, "extensions", "greeter", "index.tsx"), `import { defineExtension } from "@dimsum/sdk";
@@ -82,12 +90,14 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
     { id: "qa", name: "Extensions QA", path: repo, activeViewId: "board", views: [{ id: "board", workspaceId: "qa", type: "hello.board", title: "Board" }, agent] },
     { id: "copy", name: "Copy", path: copy, views: [] },
     { id: "other", name: "Other", path: other, views: [] },
+    { id: "linked", name: "Linked", path: linked, views: [] },
   ],
   activeWorkspaceId: "qa", personas: [], seededInstructionIds: [],
   // An older profile: instructions in the saved state, one everywhere and one for this workspace only.
   instructionOptions: [
     { scope: "global", option: { id: "mine-everywhere", kind: "toggle", label: "Mine everywhere", defaultOn: false, text: "MINE-EVERYWHERE" } },
     { scope: "workspace", workspaceId: "qa", option: { id: "mine-here", kind: "toggle", label: "Mine here", defaultOn: false, text: "MINE-HERE" } },
+    { scope: "workspace", workspaceId: "linked", option: { id: "mine-linked", kind: "toggle", label: "Mine linked", defaultOn: false, text: "MINE-LINKED" } },
   ],
   layout: { leftCollapsed: false, rightCollapsed: false, rightPanel: "extensions" },
 }));
@@ -125,7 +135,10 @@ try {
   assert.ok(everywhere.instructions.some((option) => option.id === "mine-everywhere"));
   assert.ok(everywhere.instructions.some((option) => option.id === "app-extension-guide"));
   assert.deepEqual((await json(join(repo, ".dimsum", "instructions.local.json"))).instructions.map((option) => option.id), ["mine-here"]);
-  assert.match(await readFile(join(repo, ".dimsum", ".gitignore"), "utf8"), /\*\.local\.\*/);
+  const ignore = await readFile(join(repo, ".dimsum", ".gitignore"), "utf8");
+  assert.match(ignore, /^node_modules\/\n/);
+  assert.match(ignore, /^\*\.local\.\*$/m);
+  assert.deepEqual(await readdir(outside), [], "nothing is written through a .dimsum symlink");
 
   // Trust: the dialog is answered as the person would, then the extension starts.
   await app.evaluate(({ dialog }) => { dialog.showMessageBox = async () => ({ response: 1, checkboxChecked: false }); });

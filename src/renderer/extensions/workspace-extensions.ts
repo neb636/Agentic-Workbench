@@ -45,6 +45,9 @@ export function setExtensionEnabled(listing: ExtensionListing, enabled: boolean)
 }
 
 const inflight = new Map<string, Promise<void>>();
+/** Bumped when an extension stops being wanted, so a start still bundling for it never activates. */
+const generations = new Map<string, number>();
+const generationOf = (key: string) => generations.get(key) ?? 0;
 
 async function start(listing: ExtensionListing, workspace?: Workspace): Promise<void> {
   const info: ExtensionInfo = {
@@ -52,16 +55,21 @@ async function start(listing: ExtensionListing, workspace?: Workspace): Promise<
     ...(listing.layer === "workspace" && workspace ? { workspaceId: workspace.id, root: workspace.path } : {}),
   };
   const key = extensionKey(info);
+  const generation = generationOf(key);
+  const stale = () => generationOf(key) !== generation;
   const loaded = await window.workbench.extensions.load(listing.id, listing.root).catch((error: unknown) => ({ ok: false as const, error: errorMessage(error) }));
   // A reload that fails keeps the version already running, and says why.
   const fail = (error: string) => {
     const running = useActiveExtensions.getState().records[key];
     useActiveExtensions.setState((state) => ({ records: { ...state.records, [key]: { key, info, title: running?.title ?? listing.name, description: running?.description, status: running?.status === "active" ? "active" : "failed", error } } }));
   };
+  if (stale()) return;
   if (!loaded.ok) { fail(loaded.error); return; }
   let definition;
   try { definition = await loadExtensionScript(loaded.url); }
   catch (error) { fail(errorMessage(error)); return; }
+  // Trust was reset, it was turned off, or its workspace closed while it was loading.
+  if (stale()) return;
   await activateExtension(definition, info);
 }
 
@@ -101,6 +109,10 @@ async function reconcile(workspace: Workspace | undefined, relist: boolean, relo
   for (const record of Object.values(useActiveExtensions.getState().records)) {
     if (record.info.layer === "builtin" || (record.info.workspaceId ?? USER) !== slot) continue;
     if (!wanted.has(record.key)) deactivateExtension(record.key);
+  }
+  for (const listing of listings) {
+    const key = listingKey(listing, workspace?.id);
+    if (!wanted.has(key) && inflight.has(key)) generations.set(key, generationOf(key) + 1);
   }
   await Promise.all([...inflight.values()]);
 }
@@ -167,6 +179,7 @@ export function startWorkspaceExtensions(): () => void {
       stop();
       watches.delete(workspaceId);
       for (const record of Object.values(useActiveExtensions.getState().records)) if (record.info.workspaceId === workspaceId) deactivateExtension(record.key);
+      for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) generations.set(key, generationOf(key) + 1);
       useInstalledExtensions.setState((state) => { const { [workspaceId]: _, ...byWorkspace } = state.byWorkspace; void _; return { byWorkspace }; });
     }
     for (const workspace of current) {
