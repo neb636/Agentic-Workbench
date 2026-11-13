@@ -1,0 +1,18 @@
+.extension-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.extension-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 6px; border-radius: 8px; }
+.extension-row:hover { background: var(--wb-bg-hover); }
+.extension-row-copy { display: grid; flex: 1; gap: 2px; min-width: 0; }
+.extension-row-title { overflow: hidden; color: var(--wb-text-primary); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.extension-row-copy small { overflow: hidden; color: var(--wb-text-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.extension-state.is-active::before, .extension-state.is-failed::before { display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; content: ""; vertical-align: 1px; }
+.extension-state.is-active::before { background: var(--wb-status-ready); }
+.extension-state.is-failed::before { background: var(--wb-status-error); }
+.extension-error-text { margin: 4px 0 0; padding: 6px 8px; overflow: auto; border-radius: 6px; background: var(--wb-danger-soft); color: var(--wb-danger-strong-text); font: 11px/15px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.extension-trust { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--wb-border); border-radius: 10px; background: var(--wb-bg-raised); color: var(--wb-text-primary); line-height: 17px; }
+.extension-trust .primary-button { justify-self: start; }
+.extension-new { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--wb-border); border-radius: 10px; background: var(--wb-bg-raised); }
+.extension-new .react-aria-TextField { display: grid; gap: 4px; }
+.extension-new input { height: 28px; padding: 0 8px; border: 1px solid var(--wb-border); border-radius: 6px; background: var(--wb-bg-field); color: var(--wb-text-primary); }
+.extension-new-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.extension-error { display: grid; align-content: start; gap: 8px; margin: 16px; padding: 12px; border: 1px solid var(--wb-danger-soft-edge); border-radius: 10px; background: var(--wb-danger-soft); color: var(--wb-danger-strong-text); }
+.extension-error p { margin: 0; white-space: pre-wrap; }

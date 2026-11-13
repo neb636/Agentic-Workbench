@@ -57,9 +57,21 @@ Composer menus are declared with the prompt-option DSL in `shared/prompt-options
 
 Instructions come in three layers (`shared/instruction-layers.ts`), and the composer offers them in this order:
 
-- Everywhere: the person's own instructions in every workspace (`instructionOptions` with `scope: "global"`). The defaults in `shared/default-instructions.ts` are seeded here once, and `seededInstructionIds` records them, so a deleted default stays deleted until "Restore default instructions".
-- Shared in the repo: `.workbench/instructions.json` at the workspace root (`{ "version": 1, "instructions": [...] }`, validated by `repoInstructionsFileSchema`). It is checked in, so everyone who works in the repo gets these. The renderer reads and writes it through the ordinary `files` API: it saves only over the version it read, and it reloads when the workspace watch reports a change under `.workbench/`. It is read from the workspace path, not from a view's worktree. A file that doesn't validate is reported in the manager and contributes nothing. A shared instruction replaces a stored one with the same id in that repo.
-- Only me in the repo: `instructionOptions` with `scope: "workspace"`. Never written to the repo.
+Each layer is one of the layered `.dimsum` documents (see "Layered configuration" below). Each file has the shape `{ "version": 1, "instructions": [...] }` and is validated by `repoInstructionsFileSchema`.
+
+- **Everywhere** is the person's own instructions, offered in every workspace, in `~/.dimsum/instructions.json`. The defaults in `shared/default-instructions.ts` are seeded there once. `seededInstructionIds` records them, so a deleted default stays deleted until "Restore default instructions".
+- **Shared in the repo** is `.dimsum/instructions.json`, checked in, so everyone who works in the repo gets these. Until that file exists, the older `.workbench/instructions.json` is read in its place. The first save writes the new file, and the old file is left alone after that.
+  - It is read from the workspace path, not from a view's worktree.
+  - A shared instruction replaces a stored one with the same id in that repo.
+- **Only me in the repo** is `.dimsum/instructions.local.json`. It is ignored by version control through `.dimsum/.gitignore`, which the first `.local` write creates.
+
+All three layers follow the same rules:
+
+- Writes only replace the version that was read.
+- A file reloads when it changes on disk.
+- A file that doesn't validate is reported in the manager and contributes nothing.
+
+Older profiles kept the everywhere and only-me layers in the app's saved state (`instructionOptions`). On load, the main process moves them into these files, merged by id, and never replaces an entry a file already has (`main/instruction-migration.ts`). Anything it can't write stays in the saved state and is tried again on the next start.
 
 `Workspace.disabledInstructionIds` turns global or shared instructions off for one workspace without changing them anywhere else. The manager lists the three layers with a per-repo switch, and its "Who gets it" control moves an instruction between layers (the id is kept, so selections and conditions still apply). The composer marks shared and personal options with their layer's icon. Copy composed prompt and Send use the same assembly path. TerminalSurface exposes a focus handle without leaking xterm to the composer.
 
@@ -92,7 +104,86 @@ Process lifecycle (`starting/alive/exited/failed`) is separate from inferred act
 
 Status includes the detector rule, observation time, input-editor state, and reason. Diagnostics are available through the typed snapshot; the toolbar exposes the current rule in its tooltip. Detection is heuristic and CLI UI changes can require rule updates. No global hooks or CLI configuration edits are installed. A later provider can supply complete native lifecycle signals behind the same generic status interface.
 
-To add a harness, implement AgentProviderAdapter in main, register it at the composition root, and register its generic renderer provider. Do not add harness checks to AgentView or Workbench core. To add composer behavior, register a prompt menu, a prompt contributor, or a widget in the `agent.composer.toolbar` slot.
+To add a harness, implement AgentProviderAdapter in main, register it at the composition root, and register its generic renderer provider. Do not add harness checks to AgentView or Workbench core. To add composer behavior, register a prompt menu, a prompt contributor, a send guard, or a widget in the `agent.composer.toolbar` slot.
+
+## SDK, extensions and layered configuration
+
+### The SDK boundary (`src/sdk`, imported as `@dimsum/sdk`)
+
+The SDK is the contract between the workbench and everything that extends it. It holds:
+
+- **contribution types:** views, panels, widgets, prompt menus and contributors, context menus, commands;
+- **the event map**;
+- **the extension context;**
+- **pure builders:** `defineExtension`, the prompt DSL with `harness()`, `group()` and `promptMenu()`, and `guard()` with its detectors.
+
+It imports only `react` types and pure `src/shared` modules. ESLint enforces that, so the folder can later become its own package unchanged. `src/renderer/core` implements the contracts.
+
+First-party features are extensions too: `app/register-first-party.ts` activates the built-ins (`workbench`, `send-guards`, `ai-usage`, `extensions`) through the same host and context a workspace extension gets.
+
+### The extension host (`renderer/extensions/host.ts`)
+
+The host builds an `ExtensionContext` per extension. Every registration goes through it and is tracked, so deactivating or reloading removes all of it.
+
+User and workspace extensions follow three extra rules:
+
+- They must prefix their ids with their folder name.
+- Their components render inside an error boundary.
+- A workspace extension's contributions are scoped to its workspace: registries key on `(workspaceId, id)`, and consumers pass the active workspace. That way each worktree of a repo runs its own copy.
+
+If `activate` throws, everything it registered is removed.
+
+### Events and before-send guards
+
+Events (`core/event-bus.ts`) are notifications only: `workspace.*`, `view.*`, `prompt.sent` and `extension.*`. A handler that throws is reported and skipped.
+
+The one interception point is send guards (`core/send-guard-registry.ts`). They run after the CLI can take input and before delivery:
+
+- one `block` result refuses the send;
+- `warn` results ask once in a caution dialog.
+
+The built-in 500,000-character cap, the native-command refusal and a small secrets warning are guards registered by the `send-guards` built-in.
+
+### Workspace and user extensions
+
+Extensions live in two places:
+
+- `<workspace>/.dimsum/extensions/<name>/index.tsx`, checked in;
+- `~/.dimsum/extensions/<name>/index.tsx`, the person's own.
+
+`DIMSUM_HOME` overrides `~/.dimsum`. Loading an extension works like this:
+
+1. **Listing.** Main lists extensions (`main/extensions/catalog.ts`). Listing runs nothing.
+2. **Bundling.** On load, main bundles the extension with esbuild (`bundler.ts`).
+   - `react`, `react-dom` and `@dimsum/sdk` map to modules the window provides, so there is one React.
+   - Imports must stay inside the workspace, or inside `~/.dimsum` for a user extension.
+3. **Serving.** The bundle is served from memory at `workbench://ext/<token>.js`, which the CSP allows. Nothing on disk is served.
+4. **Activation.** The renderer runs the script and activates the extension.
+
+**Trust.** Workspace extensions are bundled only for a workspace the person trusts, through the same execution trust that source-control hooks use (the dialog names both). User extensions always run.
+
+**Reloading.** A change under `.dimsum/` reloads that workspace's extensions. A build error keeps the version already running and shows the error in the Extensions panel.
+
+**Turning off.** The Extensions panel lists each extension's state and turns it off or on in `settings.json`: the `local` layer for a workspace extension, the `user` layer for a user one.
+
+**Scaffolding.** It writes:
+
+- a starter extension;
+- `.dimsum/AGENTS.md`, the guide agents read, from `src/sdk/GUIDE.md`;
+- `.dimsum/.sdk`, the SDK's types (emitted by `scripts/build-sdk.mjs`);
+- a `tsconfig.json`.
+
+Terminals and agent CLIs get `DIMSUM_HOME` and `DIMSUM_GUIDE` in their environment.
+
+### Layered configuration (`main/config-layers.ts`)
+
+Named documents from an allowlist (`instructions`, `settings`), each with its own schema, are read and written in three scopes:
+
+- `user`: `~/.dimsum/<name>.json`;
+- `workspace`: `<workspace>/.dimsum/<name>.json`;
+- `local`: `<workspace>/.dimsum/<name>.local.json`.
+
+Writes are hash-checked, written beside the file and renamed into place. The renderer keeps the documents it has read current (`core/config-layers.ts`): `~/.dimsum` is watched by main, and workspace folders through the files API. App state that isn't configuration (workspaces, views, layout, personas) stays in the profile's `workbench-state.json`.
 
 ## Workspace files and source control
 
@@ -136,7 +227,7 @@ After `npm run build`, `npm run qa:composer` runs deterministic Electron checks 
 - the three-pane shell and nested sessions;
 - the launcher with a new worktree;
 - the Persona and Instructions menus, including a conditional option and a migrated instruction;
-- the three instruction layers: a checked-in shared instruction and its tag, turning a global off for the repo, editing a former built-in, moving one into `.workbench/instructions.json`, a personal one, restoring a deleted default, and an unreadable shared file;
+- the three instruction layers: a checked-in shared instruction and its tag, turning a global off for the repo, editing a former built-in, moving one into `.dimsum/instructions.json` (read from `.workbench/` until then), a personal one, restoring a deleted default, and an unreadable shared file;
 - the exact composed prompt, the folder it was delivered in, and the model and effort it launched with;
 - restarting with a different model after a prompt;
 - the title taken from the first prompt;
@@ -170,4 +261,4 @@ A `selection` target is text selected in a file tab (its location, text, and 1-b
 
 Folder search carries a relative directory scope through provider search options, with a local filesystem fallback for folders without a search provider. Terminal views persist an optional working directory and continue to acquire/dispose terminal controllers through the provider registry.
 
-Run `npm run qa:send-selection` for the simulated-CLI checks of sending selected code to an existing and a new session. Run `npm run qa:context-menus` for the hidden Electron interaction checks against temporary workspaces. It requires no real agent CLI or model calls. `npm run qa:composer` remains the broader simulated-CLI regression suite. Finder/Explorer file-clipboard interoperability, persistent history, and undoing Trash are intentionally outside this release.
+Run `npm run qa:extensions` for the extension and layered-configuration checks: instruction migration into `.dimsum` files, trust, reload and build errors, worktree scoping, the `harness()` condition, send guards, turning an extension off, and scaffolding. It uses the simulated CLI. Run `npm run qa:send-selection` for the simulated-CLI checks of sending selected code to an existing and a new session. Run `npm run qa:context-menus` for the hidden Electron interaction checks against temporary workspaces. It requires no real agent CLI or model calls. `npm run qa:composer` remains the broader simulated-CLI regression suite. Finder/Explorer file-clipboard interoperability, persistent history, and undoing Trash are intentionally outside this release.

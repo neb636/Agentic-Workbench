@@ -9,7 +9,10 @@ import { errorMessage } from "../../core/errors";
 import { services } from "../../core/services";
 import { closeAgentRuntime, isUnusedConversation, markAgentPrompted, startAgentRuntime, untilSubmittable, useAgentRuntimes, type AgentRuntime } from "../../core/agent-runtimes";
 import { useWorkbenchStore } from "../../state/workbench-store";
-import { modelSettings, needsModelChoice, rememberAgentModels } from "./agent-models";
+import { modelSettings, needsModelChoice, rememberAgentModels, useDefaultHarness } from "./agent-models";
+import { confirmDestructive } from "../../ui/confirm";
+import { SendIcon } from "../../ui/icons";
+import { createElement } from "react";
 
 export interface ComposerTarget { workspaceId: string; viewId: string; }
 export interface PromptPreview extends AssembledPrompt { intent: AgentPromptRequest["intent"]; }
@@ -49,6 +52,14 @@ export function patchComposer(target: ComposerTarget, patch: Pick<AgentViewState
 export function setPromptSelections(target: ComposerTarget, promptSelections: PromptSelections): void {
   patchView(target, { promptSelections });
 }
+/** The agent harness this composer sends to: the running CLI's, else the one chosen for the view, else the default. */
+export function harnessOf(target: ComposerTarget): string | undefined {
+  return useAgentRuntimes.getState().sessions[target.viewId]?.providerId ?? stateFor(target)?.providerId ?? useDefaultHarness.getState().id;
+}
+/** The composer menus for this view, with what their conditions may ask about. */
+export function promptMenusFor(target: ComposerTarget) {
+  return services.promptMenus.resolve({ ...target, providerId: harnessOf(target) });
+}
 function exists({ workspaceId, viewId }: ComposerTarget): boolean {
   return Boolean(useWorkbenchStore.getState().workspaces.find((w) => w.id === workspaceId)?.views.some((v) => v.id === viewId));
 }
@@ -85,7 +96,7 @@ function notSent(viewId: string, message: string): void {
 /** Persona-style menus clear after a send; options may keep or clear themselves regardless of their menu. */
 function resetMenusAfterSend(target: ComposerTarget): void {
   let selections = stateFor(target)?.promptSelections ?? {};
-  for (const { menu, options } of services.promptMenus.resolve(target)) selections = resetSelections(options, selections, menu.resetAfterSend);
+  for (const { menu, options } of promptMenusFor(target)) selections = resetSelections(options, selections, menu.resetAfterSend);
   setPromptSelections(target, selections);
 }
 
@@ -177,7 +188,8 @@ function titleFromPrompt(draft: string): string {
 }
 
 /** After the CLI takes a prompt: menus reset, the view is titled, and the composer clears unless edited meanwhile. */
-function finishSubmitted(target: ComposerTarget, draft: string, revision: number): void {
+function finishSubmitted(target: ComposerTarget, draft: string, revision: number, prompt: string): void {
+  services.events.emit("prompt.sent", { ...target, providerId: useAgentRuntimes.getState().sessions[target.viewId]?.providerId, prompt });
   resetMenusAfterSend(target);
   if (stateFor(target)?.autoTitle && draft.trim()) {
     useWorkbenchStore.getState().renameView(target.workspaceId, target.viewId, titleFromPrompt(draft));
@@ -198,7 +210,7 @@ function confirmLate(target: ComposerTarget): void {
   const history = composer.history.map((item) => item.id === pending.entryId ? { ...item, outcome: "submitted" as const, message } : item);
   const entry = history.find((item) => item.id === pending.entryId);
   updateRuntime(target.viewId, { unconfirmed: undefined, history, result: { outcome: "submitted", stage: "enter", message } });
-  if (exists(target)) finishSubmitted(target, entry?.draft ?? "", pending.revision);
+  if (exists(target)) finishSubmitted(target, entry?.draft ?? "", pending.revision, entry?.preview.content ?? "");
 }
 function confirmLateDeliveries(): void {
   useAgentRuntimes.subscribe((state, previous) => {
@@ -217,9 +229,10 @@ export function registerComposerContributions(): void {
   window.workbench.agent.onProvidersChanged(rememberAgentModels);
   services.promptContributors.register({ id: "prompt-menus", contributions: (target) => {
     const selections = stateFor(target)?.promptSelections ?? {};
-    const menus = services.promptMenus.resolve(target);
+    const menus = promptMenusFor(target);
     const everyOption = menus.flatMap((item) => item.options);
-    return menus.flatMap(({ menu, options }) => resolveOptions(options, selections, everyOption).map((resolved) => ({
+    const conditions = { providerId: harnessOf(target) };
+    return menus.flatMap(({ menu, options }) => resolveOptions(options, selections, everyOption, conditions).map((resolved) => ({
       id: `${menu.id}:${resolved.id}`, source: `${menu.label}: ${resolved.summary}`, kind: menu.kind,
       content: resolved.text, enabled: true, placement: menu.placement,
     })));
@@ -268,15 +281,20 @@ export function registerComposerContributions(): void {
     const state = stateFor(target);
     if (!state?.draft?.trim()) return;
     const entry = entryFor(target, "not-sent", "");
-    if (entry.preview.content.length > 500_000) {
-      notSent(target.viewId, "The composed prompt exceeds 500,000 characters. Shorten the prompt or remove attachments.");
-      return;
-    }
-    if (/^\s*[/!]/.test(entry.draft)) {
-      notSent(target.viewId, "Use native commands directly in the terminal.");
-      return;
-    }
     const revision = state.composerRevision ?? 0;
+    // Before-send guards (built-in and extensions'): one block refuses the send; warnings ask once.
+    const findings = services.sendGuards.check({ draft: entry.draft, composed: entry.preview.content, ...target, providerId: runtime.providerId });
+    const blocked = findings.find((finding) => finding.severity === "block");
+    if (blocked) { notSent(target.viewId, blocked.message); return; }
+    const warnings = findings.filter((finding) => finding.severity === "warn");
+    if (warnings.length) {
+      const send = await confirmDestructive({
+        title: "Send this prompt?", message: "Something in this prompt may need a second look before it goes to the agent.",
+        warning: warnings.map((warning) => warning.message).join(" "), subject: { icon: createElement(SendIcon, { size: 16 }), name: entry.draft.trim().split("\n")[0].slice(0, 80) },
+        confirmLabel: "Send anyway", tone: "caution",
+      });
+      if (!send || !exists(target) || (stateFor(target)?.composerRevision ?? 0) !== revision) return;
+    }
     updateRuntime(target.viewId, { sending: true, result: undefined, unconfirmed: undefined });
     const confirmedBefore = useAgentRuntimes.getState().sessions[target.viewId]?.status?.confirmedDeliveries ?? 0;
     let result: AgentDeliveryResult;
@@ -290,7 +308,7 @@ export function registerComposerContributions(): void {
     // The CLI may already have taken it while the result was on its way.
     if (unconfirmed) confirmLate(target);
     if (result.outcome !== "submitted") return;
-    finishSubmitted(target, entry.draft, revision);
+    finishSubmitted(target, entry.draft, revision, entry.preview.content);
   });
   // The CLI starts when the first prompt is sent: prepare its folder, launch it, wait for its input, then deliver.
   // `providerId` is the harness shown as selected, which may be a default that was never saved to the view.

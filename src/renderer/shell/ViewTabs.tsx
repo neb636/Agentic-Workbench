@@ -5,6 +5,7 @@ import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Tab, TabLis
 import type { WorkbenchView, Workspace } from "../../shared/models";
 import { useDirtyViews } from "../core/dirty-views";
 import { services } from "../core/services";
+import { useContributions } from "../core/registry";
 import { useViewStatuses, viewStatus } from "../core/view-status";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
@@ -30,6 +31,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
   onShowLeft: () => void;
   onShowRight: () => void;
 }) {
+  const contributions = useContributions();
   const statuses = useViewStatuses();
   const dirty = useDirtyViews();
   const selectView = useWorkbenchStore((state) => state.selectView);
@@ -69,9 +71,9 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
     }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropBefore(undefined); }}>
       {workspace && <Tabs className="view-tabs" selectedKey={workspace.activeViewId}
         onSelectionChange={(key) => selectView(workspace.id, String(key))}>
-        <TabList aria-label="Open views" className="view-tab-list" items={visible} dependencies={[statuses, dirty, dropBefore]}>
+        <TabList aria-label="Open views" className="view-tab-list" items={visible} dependencies={[statuses, dirty, dropBefore, contributions]}>
           {(view) => {
-            const definition = services.views.get(view.type);
+            const definition = services.views.of(view);
             const Icon = definition?.icon;
             const status = viewStatus(view, statuses);
             const unsaved = dirty[view.id];
@@ -109,7 +111,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
       <Popover className="wb-popover" placement="bottom end">
         <Menu aria-label="More views" items={hidden} onAction={(key) => activate(String(key))}>
           {(view) => {
-            const Icon = services.views.get(view.type)?.icon;
+            const Icon = services.views.of(view)?.icon;
             return <MenuItem id={view.id} textValue={view.title}>{Icon && <Icon size={14} view={view} />}<span>{view.title}</span></MenuItem>;
           }}
         </Menu>
@@ -119,7 +121,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
       <AriaButton className="new-view-button" aria-label="Create view"><PlusIcon size={15} /></AriaButton>
       <Popover className="wb-popover view-menu-popover" placement="bottom end">
         <Menu aria-label="View type" onAction={(key) => void services.commands.execute("view.create", { workspaceId: workspace.id, viewType: String(key) })}>
-          {services.views.list().filter((definition) => definition.creatable !== false).map((definition) => {
+          {services.views.list(workspace.id).filter((definition) => definition.creatable !== false).map((definition) => {
             const Icon = definition.icon;
             return <MenuItem id={definition.id} key={definition.id} textValue={definition.label}><Icon size={16} /><div><span>{definition.label}</span><small>{definition.description}</small></div></MenuItem>;
           })}

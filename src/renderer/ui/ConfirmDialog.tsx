@@ -31,7 +31,9 @@ export function ConfirmDialogHost() {
         <div className="dialog-actions confirm-actions">
           {/* Focus starts on Cancel, so Enter never removes anything by accident. */}
           <Button autoFocus className="wb-button confirm-cancel" onPress={() => finish(false)}>Cancel</Button>
-          <Button className="wb-button danger-button" onPress={() => finish(true)}><TrashIcon size={14} />{request.confirmLabel}</Button>
+          {request.tone === "caution"
+            ? <Button className="wb-button primary-button" onPress={() => finish(true)}>{request.confirmLabel}</Button>
+            : <Button className="wb-button danger-button" onPress={() => finish(true)}><TrashIcon size={14} />{request.confirmLabel}</Button>}
         </div>
       </Dialog>
     </Modal>

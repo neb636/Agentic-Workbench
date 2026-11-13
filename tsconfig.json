@@ -15,7 +15,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": { "@dimsum/sdk": ["./src/sdk/index.ts"] }
   },
-  "include": ["src/renderer", "src/shared", "vite.config.ts"]
+  "include": ["src/renderer", "src/shared", "src/sdk", "vite.config.ts"]
 }

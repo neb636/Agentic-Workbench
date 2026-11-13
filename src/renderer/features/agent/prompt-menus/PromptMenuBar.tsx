@@ -31,7 +31,9 @@ import type { PromptMenuDefinition, PromptMenuOptions, PromptOptionTag } from ".
 import { services } from "../../../core/services";
 import { Button } from "../../../ui/controls";
 import { CheckIcon, ChevronDownIcon } from "../../../ui/icons";
-import { setPromptSelections, type ComposerTarget } from "../composer-state";
+import { harnessOf, promptMenusFor, setPromptSelections, type ComposerTarget } from "../composer-state";
+import { useContributions } from "../../../core/registry";
+import type { PromptConditionContext } from "../../../../shared/prompt-options";
 
 function groupByCategory(options: PromptOptionDefinition[]): [string, PromptOptionDefinition[]][] {
   const groups = new Map<string, PromptOptionDefinition[]>();
@@ -115,37 +117,38 @@ function MenuOptions({ options, evaluator, onChange, tagOf }: {
   </section>)}</>;
 }
 
-function menuSummary(options: PromptOptionDefinition[], selections: PromptSelections, everyOption: PromptOptionDefinition[]): string | undefined {
-  const resolved = resolveOptions(options, selections, everyOption);
+function menuSummary(options: PromptOptionDefinition[], selections: PromptSelections, everyOption: PromptOptionDefinition[], conditions: PromptConditionContext): string | undefined {
+  const resolved = resolveOptions(options, selections, everyOption, conditions);
   if (!resolved.length) return undefined;
   return options.length === 1 ? resolved[0].summary : String(resolved.length);
 }
 
 /** Re-renders when any menu says its options may have changed. */
-function useMenuUpdates() {
+function useMenuUpdates(workspaceId: string) {
+  // Any registration change (a menu added, removed, or replaced under the same id by a reload) subscribes again.
+  const revision = useContributions();
   const [, refresh] = useReducer((count: number) => count + 1, 0);
-  // Re-subscribe only when menus are added or removed.
-  const key = services.promptMenus.ordered().map((menu) => menu.id).join("\0");
   useEffect(() => {
-    const unsubscribes = services.promptMenus.ordered().map((menu) => menu.subscribe?.(refresh));
+    const unsubscribes = services.promptMenus.ordered(workspaceId).map((menu) => menu.subscribe?.(refresh));
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe?.());
-  }, [key]);
+  }, [revision, workspaceId]);
 }
 
 /** Renders every registered prompt menu as a composer button with an options popover. */
 export function PromptMenuBar({ target, selections }: { target: ComposerTarget; selections: PromptSelections }) {
-  useMenuUpdates();
+  useMenuUpdates(target.workspaceId);
   const [managing, setManaging] = useState<PromptMenuDefinition>();
-  const menus: PromptMenuOptions[] = services.promptMenus.resolve(target);
+  const menus: PromptMenuOptions[] = promptMenusFor(target);
   const everyOption = menus.flatMap((item) => item.options);
-  const evaluator = createEvaluator(everyOption, selections);
+  const conditions = { providerId: harnessOf(target) };
+  const evaluator = createEvaluator(everyOption, selections, conditions);
   const change = (option: PromptOptionDefinition, value: PromptOptionValue) => setPromptSelections(target, { ...selections, [option.id]: value });
   const Manager = managing?.manage?.component;
 
   return <div className="prompt-menu-bar">
     {menus.map(({ menu, options }) => {
       const Icon = menu.icon;
-      const summary = menuSummary(options, selections, everyOption);
+      const summary = menuSummary(options, selections, everyOption, conditions);
       return <DialogTrigger key={menu.id}>
         <AriaButton className={`composer-chip ${summary ? "is-active" : ""}`} aria-label={summary ? `${menu.label}: ${summary}` : menu.label}>
           <Icon size={14} /><span>{menu.label}</span>{summary && <span className="composer-chip-value">{summary}</span>}<ChevronDownIcon size={12} />

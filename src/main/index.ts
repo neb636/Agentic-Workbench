@@ -22,6 +22,7 @@ import type { MenuCommand } from "../shared/models";
 import { SourceControlService } from "./source-control/source-control-provider";
 import { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
 import { createAiUsage, registerAiUsage } from "./ai-usage";
+import { registerDimsum } from "./extensions";
 
 if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
 if (app.isPackaged) adoptLoginShellPath();
@@ -182,6 +183,7 @@ app.whenReady().then(async () => {
   if (process.env.WORKBENCH_QA_HIDDEN === "1") app.dock?.hide();
   registerIpc(ptyManager, agentSessionManager, workspaceServices, attachments, resources);
   registerAiUsage(aiUsage);
+  registerDimsum(roots);
   // The page says when it listens for files to open; anything that arrived before then is delivered at that point.
   ipcMain.on(IPC.openFiles, (event) => {
     try { assertAppSender(event); } catch (error) { console.warn(`Rejected ${IPC.openFiles}:`, String(error)); return; }

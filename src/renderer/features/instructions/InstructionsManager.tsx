@@ -19,7 +19,7 @@ import {
 } from "react-aria-components";
 import { useShallow } from "zustand/react/shallow";
 import { defaultInstructions } from "../../../shared/default-instructions";
-import { REPO_INSTRUCTIONS_PATH, layerInstructions, type InstructionLayer, type LayeredInstruction } from "../../../shared/instruction-layers";
+import { INSTRUCTION_FILES, LEGACY_REPO_INSTRUCTIONS_PATH, layerInstructions, type InstructionLayer, type LayeredInstruction } from "../../../shared/instruction-layers";
 import { choice, select, textInput, toggle, type PromptOptionChoice, type PromptOptionDefinition } from "../../../shared/prompt-options";
 import { createId } from "../../core/id";
 import { services } from "../../core/services";
@@ -28,7 +28,7 @@ import { useChoiceDialog } from "../../ui/ChoiceDialog";
 import { CheckIcon, ChevronDownIcon, PlusIcon, TrashIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/controls";
 import { layerCopy } from "./layer-copy";
-import { saveRepoInstructions, useRepoInstructions, type RepoInstructions } from "./repo-instructions";
+import { fileHolds, saveInstructions, storedOptionsOf, useInstructionFiles } from "./repo-instructions";
 
 type Kind = "toggle" | "select" | "text";
 
@@ -41,14 +41,13 @@ function Picker<T extends string>({ label, value, onChange, items }: { label: st
 }
 
 const LAYERS: InstructionLayer[] = ["global", "shared", "personal"];
-const LOADING: RepoInstructions = { status: "loading" };
 
 /** What saving in a layer does, in one sentence. */
 function consequence(layer: InstructionLayer, repo: string): string {
   switch (layer) {
-    case "global": return "Saved in your Workbench settings and offered in every repo. You can still turn it off for one repo.";
-    case "shared": return `Saved to ${REPO_INSTRUCTIONS_PATH} in ${repo}. Commit it to share it with everyone who works there.`;
-    case "personal": return `Saved in your Workbench settings for ${repo} only. Never written to the repo.`;
+    case "global": return `Saved to ${INSTRUCTION_FILES.global} and offered in every repo. You can still turn it off for one repo.`;
+    case "shared": return `Saved to ${INSTRUCTION_FILES.shared} in ${repo}. Commit it to share it with everyone who works there.`;
+    case "personal": return `Saved to ${INSTRUCTION_FILES.personal} in ${repo}, for you only. It is ignored by version control, never shared.`;
   }
 }
 
@@ -172,13 +171,17 @@ function rowStatus(item: LayeredInstruction, repo: string): string | undefined {
 type Editing = { layer: InstructionLayer; id?: string };
 
 export function InstructionsManager({ workspaceId, close }: { workspaceId: string; close?: () => void }) {
-  const [stored, workspace] = useWorkbenchStore(useShallow((state) => [state.instructionOptions, state.workspaces.find((w) => w.id === workspaceId)]));
-  const upsert = useWorkbenchStore((state) => state.upsertInstructionOption);
-  const remove = useWorkbenchStore((state) => state.deleteInstructionOption);
+  const [workspace] = useWorkbenchStore(useShallow((state) => [state.workspaces.find((w) => w.id === workspaceId)]));
+  const forgetSettings = useWorkbenchStore((state) => state.forgetInstructionSettings);
   const setDisabled = useWorkbenchStore((state) => state.setInstructionDisabled);
-  const restoreDefaults = useWorkbenchStore((state) => state.restoreDefaultInstructions);
+  const dropStored = useWorkbenchStore((state) => state.dropStoredInstruction);
+  const retained = useWorkbenchStore((state) => state.instructionOptions);
   const root = workspace?.path ?? "";
-  const repoFile = useRepoInstructions((state) => state[root] ?? LOADING);
+  const files = useInstructionFiles(root || undefined);
+  const repoFile = files.shared;
+  const stored = storedOptionsOf(files, workspaceId, retained);
+  // Until its first save in `.dimsum/`, a workspace's shared instructions still come from the old file.
+  const sharedPath = files.legacyShared ? LEGACY_REPO_INSTRUCTIONS_PATH : INSTRUCTION_FILES.shared;
   const repo = workspace?.name ?? "this repo";
   const layered = layerInstructions({
     stored,
@@ -192,23 +195,21 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
   const missingDefaults = defaultInstructions.filter((option) => !layered.some((item) => item.option.id === option.id));
   const sharedAvailable = repoFile.status === "ok" || repoFile.status === "missing";
   const { choose, dialog } = useChoiceDialog();
+  // An instruction that is still only in the saved state (its file couldn't take it yet) is changed there, not in a file.
+  const retainedOnly = (item: typeof current): item is NonNullable<typeof current> & { layer: "global" | "personal" } =>
+    Boolean(item && item.layer !== "shared" && !fileHolds(files, item.layer, item.option.id));
 
-  const writeLayer = async (layer: InstructionLayer, option: PromptOptionDefinition): Promise<string | undefined> => {
-    if (layer === "shared") {
-      return saveRepoInstructions(root, (options) => options.some((item) => item.id === option.id)
-        ? options.map((item) => (item.id === option.id ? option : item))
-        : [...options, option]);
-    }
-    upsert({ scope: layer === "global" ? "global" : "workspace", workspaceId: layer === "personal" ? workspaceId : undefined, option });
-    return undefined;
-  };
+  const writeLayer = (layer: InstructionLayer, option: PromptOptionDefinition): Promise<string | undefined> =>
+    saveInstructions(layer, root, (options) => options.some((item) => item.id === option.id)
+      ? options.map((item) => (item.id === option.id ? option : item))
+      : [...options, option]);
 
   const save = async (layer: InstructionLayer, edited: PromptOptionDefinition, original?: PromptOptionDefinition): Promise<string | undefined> => {
     const moving = Boolean(current && current.layer !== layer);
     if (original && !current) return "This instruction was removed while you were editing, so your edits weren't saved.";
     // Another writer (an agent, an editor, a teammate's pull) changed this shared instruction while the form was open.
     if (current?.layer === "shared" && original && JSON.stringify(current.option) !== JSON.stringify(original)) {
-      return `This instruction changed in ${REPO_INSTRUCTIONS_PATH} while you were editing, so your edits weren't saved. Select it again to see the new version.`;
+      return `This instruction changed in ${sharedPath} while you were editing, so your edits weren't saved. Select it again to see the new version.`;
     }
     // Moving onto an id the destination already holds (a shared instruction replacing a stored one, or the reverse)
     // would overwrite that other copy, so the moved one gets a new id instead.
@@ -217,15 +218,16 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
     const option = taken ? { ...edited, id: createId("instruction") } : edited;
     const failure = await writeLayer(layer, option);
     if (failure) return failure;
-    // A move: the new copy is saved, so take it out of the old place. Stored-to-stored moves replace in place.
+    // Saved to a file: a copy kept only in the saved state is no longer needed.
+    if (retainedOnly(current)) dropStored(current.layer, workspaceId, current.option.id);
+    // A move: the new copy is saved, so take it out of the old place.
     if (current && moving) {
-      if (current.layer === "shared") {
-        const removed = await saveRepoInstructions(root, (options) => options.filter((item) => item.id !== current.option.id));
-        if (removed) return `Saved, but it is still in ${REPO_INSTRUCTIONS_PATH}: ${removed}`;
-      } else if (layer === "shared") {
-        // Same id in the new place, so where it was turned off still applies.
-        remove(current.option.id, { keepWorkspaceSettings: !taken });
+      if (!retainedOnly(current)) {
+        const removed = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
+        if (removed) return `Saved, but it is still in ${current.layer === "shared" ? sharedPath : INSTRUCTION_FILES[current.layer]}: ${removed}`;
       }
+      // With the same id in the new place, where it was turned off still applies.
+      if (taken) forgetSettings(current.option.id);
     }
     setEditing({ layer, id: option.id });
     return undefined;
@@ -235,17 +237,26 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
     if (!current) return;
     if (current.layer === "shared") {
       const answer = await choose(`Delete “${current.option.label}”?`,
-        `It is removed from ${REPO_INSTRUCTIONS_PATH}, so everyone in ${repo} loses it once the change is committed.`, ["Cancel", "Delete"]);
+        `It is removed from ${sharedPath}, so everyone in ${repo} loses it once the change is committed.`, ["Cancel", "Delete"]);
       if (answer !== "Delete") return;
-      const failure = await saveRepoInstructions(root, (options) => options.filter((item) => item.id !== current.option.id));
+    }
+    if (retainedOnly(current)) dropStored(current.layer, workspaceId, current.option.id);
+    else {
+      const failure = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
       if (failure) { await choose("Couldn't delete the instruction", failure, ["OK"]); return; }
-    } else remove(current.option.id);
+    }
+    if (current.layer !== "shared") forgetSettings(current.option.id);
     setEditing({ layer: current.layer });
   };
 
   const revealFile = () => {
     close?.();
-    void services.commands.execute("file.open", { workspaceId, root, path: REPO_INSTRUCTIONS_PATH, preview: false });
+    void services.commands.execute("file.open", { workspaceId, root, path: sharedPath, preview: false });
+  };
+  const restoreDefaults = async (ids: string[]) => {
+    const failure = await saveInstructions("global", root, (options) => [
+      ...defaultInstructions.filter((option) => ids.includes(option.id) && !options.some((item) => item.id === option.id)), ...options]);
+    if (failure) await choose("Couldn't restore the defaults", failure, ["OK"]);
   };
 
   return <div className="instructions-manager">
@@ -264,7 +275,10 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
               <IconButton label={`Add to ${title}`} isDisabled={layer === "shared" && !sharedAvailable} onPress={() => setEditing({ layer })}><PlusIcon size={14} /></IconButton>
             </header>
             {layer === "shared" && repoFile.status === "invalid" && <p role="alert" className="instruction-file-error">
-              Couldn’t read {REPO_INSTRUCTIONS_PATH}: {repoFile.error}. Fix the file to edit shared instructions.
+              Couldn’t read {sharedPath}: {repoFile.error}. Fix the file to edit shared instructions.
+            </p>}
+            {layer !== "shared" && files[layer].status === "invalid" && <p role="alert" className="instruction-file-error">
+              Couldn’t read {INSTRUCTION_FILES[layer]}: {(files[layer] as { error: string }).error}. Fix the file to change these.
             </p>}
             {layer !== "personal" && items.some((item) => !item.replaced) &&
               <span className="instruction-list-caption" aria-hidden="true">On here</span>}
@@ -293,9 +307,9 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
               }}
             </GridList>
             {layer === "shared" && repoFile.status !== "missing" && repoFile.status !== "loading" &&
-              <Button className="link-button instruction-file-link" onPress={revealFile}>Open {REPO_INSTRUCTIONS_PATH}</Button>}
+              <Button className="link-button instruction-file-link" onPress={revealFile}>Open {sharedPath}</Button>}
             {layer === "global" && missingDefaults.length > 0 &&
-              <Button className="link-button instruction-file-link" onPress={() => restoreDefaults(missingDefaults.map((option) => option.id))}>Restore {plural(missingDefaults.length, "default instruction")}</Button>}
+              <Button className="link-button instruction-file-link" onPress={() => void restoreDefaults(missingDefaults.map((option) => option.id))}>Restore {plural(missingDefaults.length, "default instruction")}</Button>}
           </section>;
         })}
       </div>
@@ -306,7 +320,7 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
         </div>
         {current?.replaced && <p className="instruction-consequence">{repo} shares an instruction with the same id, so the shared version is used here. Your copy still applies in other repos.</p>}
         {current?.layer === "shared" && !sharedAvailable
-          ? <p className="empty-copy">Fix {REPO_INSTRUCTIONS_PATH} to edit shared instructions.</p>
+          ? <p className="empty-copy">Fix {sharedPath} to edit shared instructions.</p>
           : <InstructionForm key={`${editing.layer}:${editing.id ?? "new"}`} option={current?.option} layer={editing.layer} repo={repo}
             sharedAvailable={sharedAvailable} onSave={save} />}
       </div>

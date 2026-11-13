@@ -1,24 +1,32 @@
-export type CommandHandler<TArgs = unknown, TResult = unknown> = (args: TArgs) => TResult | Promise<TResult>;
+import type { CommandHandler } from "@dimsum/sdk";
+import { Registry } from "./registry";
 
+export type { CommandHandler } from "@dimsum/sdk";
+
+/**
+ * Commands by id. A workspace extension's commands belong to its workspace: `execute` finds them when its arguments
+ * name that workspace (`{ workspaceId }`), which every workbench command does, or when the caller passes its scope.
+ */
 export class CommandRegistry {
-  private readonly handlers = new Map<string, CommandHandler>();
+  private readonly handlers = new Registry<{ id: string; handler: CommandHandler }>();
 
-  register<TArgs = unknown, TResult = unknown>(
-    id: string,
-    handler: CommandHandler<TArgs, TResult>,
-  ): () => void {
-    if (this.handlers.has(id)) throw new Error(`Command already exists: ${id}`);
-    this.handlers.set(id, handler as CommandHandler);
-    return () => this.handlers.delete(id);
+  register<TArgs = unknown, TResult = unknown>(id: string, handler: CommandHandler<TArgs, TResult>, scope?: string): () => void {
+    try { return this.handlers.register({ id, handler: handler as CommandHandler }, scope); }
+    catch { throw new Error(`Command already exists: ${id}`); }
   }
 
-  async execute<TResult = unknown>(id: string, args?: unknown): Promise<TResult> {
-    const handler = this.handlers.get(id);
+  async execute<TResult = unknown>(id: string, args?: unknown, scope?: string): Promise<TResult> {
+    const handler = this.handlers.get(id, scopeOf(args) ?? scope)?.handler;
     if (!handler) throw new Error(`Unknown command: ${id}`);
     return handler(args) as TResult;
   }
 
-  has(id: string): boolean {
-    return this.handlers.has(id);
+  has(id: string, scope?: string): boolean {
+    return Boolean(this.handlers.get(id, scope));
   }
+}
+
+function scopeOf(args: unknown): string | undefined {
+  const workspaceId = (args as { workspaceId?: unknown } | null | undefined)?.workspaceId;
+  return typeof workspaceId === "string" ? workspaceId : undefined;
 }

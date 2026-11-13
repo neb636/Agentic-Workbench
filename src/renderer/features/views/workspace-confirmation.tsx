@@ -5,7 +5,7 @@ import { FolderIcon } from "../../ui/icons";
 
 /** "2 agent sessions · 1 terminal", in view registration order. */
 function viewSummary(workspace: Workspace): string {
-  const parts = services.views.list().flatMap((definition) => {
+  const parts = services.views.list(workspace.id).flatMap((definition) => {
     const count = workspace.views.filter((view) => view.type === definition.id).length;
     const label = definition.label.toLowerCase();
     return count ? [`${count} ${count === 1 ? label : `${label}s`}`] : [];

@@ -1,15 +1,23 @@
+import { APP_DIR, LOCAL_SUFFIX } from "./app-identity";
 import type { StoredPromptOption } from "./models";
 import type { PromptOptionDefinition } from "./prompt-options";
 
 /**
  * Where an instruction lives:
- * - global: the person's own, in every workspace (app state);
- * - shared: checked into the workspace (`.workbench/instructions.json`), for everyone who works there;
- * - personal: the person's own, in one workspace only (app state, never committed).
+ * - global: the person's own, in every workspace (`~/.dimsum/instructions.json`);
+ * - shared: checked into the workspace (`.dimsum/instructions.json`), for everyone who works there;
+ * - personal: the person's own, in one workspace only (`.dimsum/instructions.local.json`, never committed).
  */
 export type InstructionLayer = "global" | "shared" | "personal";
 
-export const REPO_INSTRUCTIONS_PATH = ".workbench/instructions.json";
+export const INSTRUCTION_FILES: Record<InstructionLayer, string> = {
+  global: `~/${APP_DIR}/instructions.json`,
+  shared: `${APP_DIR}/instructions.json`,
+  personal: `${APP_DIR}/instructions${LOCAL_SUFFIX}.json`,
+};
+export const REPO_INSTRUCTIONS_PATH = INSTRUCTION_FILES.shared;
+/** Where shared instructions were kept before `.dimsum/`; read until the workspace has the new file. */
+export const LEGACY_REPO_INSTRUCTIONS_PATH = ".workbench/instructions.json";
 
 export interface LayeredInstruction {
   layer: InstructionLayer;
@@ -59,9 +67,4 @@ export function layerInstructions(input: {
 /** The options the composer offers in a workspace: everything not turned off or replaced. */
 export function activeInstructions(layered: LayeredInstruction[]): LayeredInstruction[] {
   return layered.filter((item) => !item.disabled && !item.replaced);
-}
-
-/** The text of a shared instructions file: stable and pretty, so its diffs are easy to review. */
-export function serializeRepoInstructions(options: PromptOptionDefinition[]): string {
-  return `${JSON.stringify({ version: 1, instructions: options }, null, 2)}\n`;
 }

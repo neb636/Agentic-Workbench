@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { IPC } from "../shared/ipc";
 import { AI_USAGE_IPC, type UsageSnapshot } from "../shared/ai-usage";
+import { DIMSUM_IPC } from "../shared/dimsum";
 import type {
   AgentProviderInfo,
   AgentSessionCreateOptions,
@@ -25,6 +26,21 @@ const api: WorkbenchApi = {
       ipcRenderer.on(AI_USAGE_IPC.changed, wrapped);
       return () => ipcRenderer.removeListener(AI_USAGE_IPC.changed, wrapped);
     },
+  },
+  config: {
+    read: (name, root) => ipcRenderer.invoke(DIMSUM_IPC.configRead, { name, root }),
+    write: (name, scope, root, value, expectedHash) => ipcRenderer.invoke(DIMSUM_IPC.configWrite, { name, scope, root, value, expectedHash }),
+    onUserChanged: (listener) => {
+      const wrapped = () => listener();
+      ipcRenderer.on(DIMSUM_IPC.userChanged, wrapped);
+      return () => ipcRenderer.removeListener(DIMSUM_IPC.userChanged, wrapped);
+    },
+  },
+  extensions: {
+    list: (root) => ipcRenderer.invoke(DIMSUM_IPC.extensionsList, { root }),
+    load: (id, root) => ipcRenderer.invoke(DIMSUM_IPC.extensionsLoad, { id, root }),
+    trust: (root) => ipcRenderer.invoke(DIMSUM_IPC.extensionsTrust, { root }),
+    scaffold: (root, name) => ipcRenderer.invoke(DIMSUM_IPC.extensionsScaffold, { root, name }),
   },
   persistence: {
     load: () => ipcRenderer.invoke(IPC.persistenceLoad) as Promise<PersistedState>,

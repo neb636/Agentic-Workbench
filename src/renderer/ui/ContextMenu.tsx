@@ -2,13 +2,8 @@ import { useEffect, useRef, useState, type MouseEvent, type KeyboardEvent, type 
 import { Button, Menu, MenuItem, MenuTrigger, Popover, Separator } from "react-aria-components";
 import { MoreIcon } from "./icons";
 
-export interface ContextAction {
-  id: string; label: string; run: () => void | Promise<unknown>; disabled?: boolean; destructive?: boolean; section?: string; shortcut?: string;
-  /** Shown before the label; menus without room for it ignore it. */
-  icon?: ReactNode;
-  /** A second line under the label. */
-  detail?: string;
-}
+import type { ContextAction } from "@dimsum/sdk";
+export type { ContextAction } from "@dimsum/sdk";
 /** Shared pointer/keyboard menu. The caller's row remains the focus owner. */
 export function useContextMenu(label: string) {
   const [menu, setMenu] = useState<{ x: number; y: number; actions: ContextAction[]; owner: HTMLElement }>();

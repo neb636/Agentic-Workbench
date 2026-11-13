@@ -11,7 +11,7 @@ import { CloseIcon } from "../../ui/icons";
 export function ActiveViewsPanel({ workspace }: PanelProps) {
   const menu = useContextMenu("View actions");
   const statuses = useViewStatuses();
-  const groups = services.views.list()
+  const groups = services.views.list(workspace.id)
     .map((definition) => ({ definition, views: workspace.views.filter((view) => view.type === definition.id) }))
     .filter((group) => group.views.length);
 

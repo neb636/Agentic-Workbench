@@ -12,7 +12,7 @@ export function viewActions(workspace: Workspace, view: WorkbenchView): ContextA
     { id: "close-others", label: "Close Others", section: "close", disabled: workspace.views.length < 2, run: () => close("others") },
     { id: "close-right", label: "Close to the Right", section: "close", disabled: workspace.views.at(-1)?.id === view.id, run: () => close("right") },
     { id: "close-all", label: "Close All", section: "close", run: () => close("all") },
-    ...(services.views.get(view.type)?.tabMenu?.(view) ?? []).map((a) => ({ ...a, section: "view" })),
+    ...(services.views.of(view)?.tabMenu?.(view) ?? []).map((a) => ({ ...a, section: "view" })),
     ...services.contextMenus.forTarget({ kind: "view", workspace, view }),
   ];
 }

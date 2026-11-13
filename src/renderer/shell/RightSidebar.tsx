@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { ToggleButton, ToggleButtonGroup, Tooltip, TooltipTrigger } from "react-aria-components";
 import type { Workspace } from "../../shared/models";
 import { services } from "../core/services";
+import { useContributions } from "../core/registry";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { isFilesWorkspace } from "../../shared/files-workspace";
 import { IconButton } from "../ui/controls";
@@ -9,7 +10,8 @@ import { useGuardedTooltip } from "../ui/use-guarded-tooltip";
 import { SidebarRightIcon } from "../ui/icons";
 
 export function RightSidebar({ workspace, onCollapse }: { workspace?: Workspace; onCollapse: () => void }) {
-  const panels = services.panels.ordered();
+  useContributions();
+  const panels = services.panels.ordered(workspace?.id);
   const selected = useWorkbenchStore((state) => state.layout.rightPanel);
   const updateLayout = useWorkbenchStore((state) => state.updateLayout);
   const active = panels.find((panel) => panel.id === selected) ?? panels[0];

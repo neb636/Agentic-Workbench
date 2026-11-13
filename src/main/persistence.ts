@@ -4,6 +4,7 @@ import { mkdirSync, promises as fs, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { PersistedState } from "../shared/models";
 import { migratePersistedState, persistedStateSchema, seedDefaultInstructions } from "../shared/schemas";
+import { moveInstructionsToFiles } from "./instruction-migration";
 
 const unseededEmptyState: PersistedState = {
   workspaces: [],
@@ -50,12 +51,12 @@ export async function loadState(strict = false): Promise<PersistedState> {
       const issue = result.error.issues[0];
       throw new Error(`Saved state failed validation at ${issue.path.join(".") || "profile"}: ${issue.message}`);
     }
-    return result.data;
+    return await moveInstructionsToFiles(result.data);
   } catch (error) {
     // Only a genuinely new profile may start empty. Never turn existing data we cannot load into an autosave.
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       if (strict) throw error;
-      return emptyState;
+      return moveInstructionsToFiles(emptyState);
     }
     preserveExistingState = true;
     const reason = error instanceof Error ? error.message : String(error);

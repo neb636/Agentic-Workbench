@@ -215,7 +215,7 @@ export function AgentComposer({ workspaceId, viewId, agentLabel, state, session,
           <PromptMenuBar target={target} selections={state.promptSelections ?? {}} />
         </div>
         <div className="composer-toolbar-end">
-          {services.widgets.forSlot("agent.composer.toolbar").map((widget) => {
+          {services.widgets.forSlot("agent.composer.toolbar", workspaceId).map((widget) => {
             const Widget = widget.component;
             return <Widget key={widget.id} workspaceId={workspaceId} viewId={viewId} />;
           })}
