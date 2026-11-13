@@ -91,6 +91,40 @@ class FileWatchOwners {
   }
 }
 
+type SavedState = ReturnType<typeof persistedStateSchema.parse>;
+
+/** The folders of the saved workspaces; the Files workspace has none. */
+function folderPaths(state: SavedState): string[] {
+  return state.workspaces.filter((item) => item.kind !== "files").map((item) => item.path);
+}
+
+/** The files open in the Files workspace: each one was granted when it was opened, and stays granted while its tab does. */
+function grantedFiles(state: SavedState): string[] {
+  return state.workspaces.filter((item) => item.kind === "files").flatMap((item) => item.views.flatMap((view) => {
+    const location = fileLocationSchema.safeParse(view.state);
+    return view.type === "file" && location.success && location.data.root ? [join(location.data.root, location.data.path)] : [];
+  }));
+}
+
+/**
+ * The renderer can't widen what the main process lets it read by saving state: a new folder comes only from Choose
+ * Directory, and a file in the Files workspace only from the system opening it (Finder, File ▸ Open File…).
+ */
+function assertKnownLocations(roots: WorkspaceRoots, state: SavedState): void {
+  for (const item of state.workspaces) {
+    if (item.kind !== "files") {
+      if (!roots.isAllowed(item.path)) throw new Error("Add new workspaces using Choose Directory.");
+      continue;
+    }
+    for (const view of item.views) {
+      const location = fileLocationSchema.safeParse(view.state);
+      if (view.type !== "file" || !location.success || !roots.isGrantedFile(location.data.root, location.data.path)) {
+        throw new Error("Only files opened from the system can be kept in Files.");
+      }
+    }
+  }
+}
+
 /** Twice the sidebar tile, and small enough to live in the persisted state. */
 const WORKSPACE_ICON_SIDE = 64;
 
@@ -163,7 +197,8 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   const allowedRoot = async (root: string) => { await workspace.roots.resolve(root); return root; };
   handle(IPC.persistenceLoad, async () => {
     const state = await loadState();
-    workspace.roots.replace(state.workspaces.map((item) => item.path));
+    workspace.roots.replace(folderPaths(state));
+    workspace.roots.grantFiles(grantedFiles(state));
     // Nothing listed can also mean the state file couldn't be read: only tidy up against a real list of views.
     if (state.workspaces.length) {
       void attachments.retain(state.workspaces.flatMap((item) => item.views.map((view) => view.id)))
@@ -173,9 +208,9 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
   });
   handle(IPC.persistenceSave, async (_event, input: unknown) => {
     const state = persistedStateSchema.parse(input);
-    for (const item of state.workspaces) if (!workspace.roots.isAllowed(item.path)) throw new Error("Add new workspaces using Choose Directory.");
+    assertKnownLocations(workspace.roots, state);
     await saveState(state);
-    workspace.roots.replace(state.workspaces.map((item) => item.path));
+    workspace.roots.replace(folderPaths(state));
   });
   // Synchronous on purpose: the closing window waits here, so the write finishes before the app can exit.
   ipcMain.on(IPC.persistenceSaveNow, (event, input: unknown) => {
@@ -183,15 +218,17 @@ export function registerIpc(ptyManager: PtyManager, agentSessionManager: AgentSe
       assertAppSender(event);
       assertInputBudget(input);
       const state = persistedStateSchema.parse(input);
-      for (const item of state.workspaces) if (!workspace.roots.isAllowed(item.path)) throw new Error("Add new workspaces using Choose Directory.");
+      assertKnownLocations(workspace.roots, state);
       saveStateNow(state);
-      workspace.roots.replace(state.workspaces.map((item) => item.path));
+      workspace.roots.replace(folderPaths(state));
     } catch (error) { console.error("Could not save workbench state on close", error); }
     event.returnValue = null;
   });
-  handle(IPC.workspaceChooseDirectory, async () => {
+  handle(IPC.workspaceChooseDirectory, async (_event, input: unknown) => {
+    const startIn = typeof input === "string" && input.length <= 4096 ? input : undefined;
     const result = await dialog.showOpenDialog({
       title: "Add workspace",
+      ...(startIn ? { defaultPath: startIn } : {}),
       properties: ["openDirectory", "createDirectory"],
       buttonLabel: "Add workspace",
     });

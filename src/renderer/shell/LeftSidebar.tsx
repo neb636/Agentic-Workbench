@@ -7,7 +7,8 @@ import { services } from "../core/services";
 import { useViewStatuses, viewStatus } from "../core/view-status";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
-import { ChevronRightIcon, FolderIcon, PlusIcon, SidebarLeftIcon } from "../ui/icons";
+import { ChevronRightIcon, FileIcon, FolderIcon, PlusIcon, SidebarLeftIcon } from "../ui/icons";
+import { isFilesWorkspace } from "../../shared/files-workspace";
 
 function sidebarViews(workspace: Workspace) {
   return workspace.views.filter((view) => services.views.get(view.type)?.listInSidebar);
@@ -15,7 +16,11 @@ function sidebarViews(workspace: Workspace) {
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
   const menu = useContextMenu("Workspace and view actions");
-  const workspaces = useWorkbenchStore((state) => state.workspaces);
+  const stored = useWorkbenchStore((state) => state.workspaces);
+  // Files opened on their own sit below every folder workspace.
+  const folderWorkspaces = stored.filter((item) => !isFilesWorkspace(item));
+  const workspaces = [...folderWorkspaces, ...stored.filter(isFilesWorkspace)];
+  const folders = folderWorkspaces.length;
   const activeWorkspaceId = useWorkbenchStore((state) => state.activeWorkspaceId ?? state.workspaces[0]?.id);
   const statuses = useViewStatuses();
   const [collapsed, setCollapsed] = useState<Set<Key>>(new Set());
@@ -40,7 +45,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
       <IconButton label="Hide sidebar" onPress={onCollapse}><SidebarLeftIcon size={16} /></IconButton>
     </div>
     <div className="sidebar-section-header">
-      <span>Workspaces <span className="count-muted">{workspaces.length}</span></span>
+      <span>Workspaces <span className="count-muted">{folders}</span></span>
       <IconButton label="Add workspace" onPress={() => void services.commands.execute("workspace.add")}><PlusIcon size={15} /></IconButton>
     </div>
     <Tree aria-label="Workspaces" className="workspace-tree" expandedKeys={expanded}
@@ -56,13 +61,15 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
               {hasChildItems
                 ? <AriaButton slot="chevron" className={`tree-chevron ${isExpanded ? "is-expanded" : ""}`} aria-label={isExpanded ? `Collapse ${workspace.name}` : `Expand ${workspace.name}`}><ChevronRightIcon size={11} /></AriaButton>
                 : <span className="tree-chevron-spacer" />}
-              <span className="workspace-icon">{workspace.icon ? <img src={workspace.icon} alt="" draggable={false} /> : <FolderIcon size={15} />}</span>
+              <span className="workspace-icon">{workspace.icon ? <img src={workspace.icon} alt="" draggable={false} /> : isFilesWorkspace(workspace) ? <FileIcon size={15} /> : <FolderIcon size={15} />}</span>
               <span className="workspace-copy">
                 <strong>{workspace.name}</strong>
-                <small>{sessions.length} {sessions.length === 1 ? "session" : "sessions"}{services.widgets.forSlot("sidebar.workspace.meta").map((widget) => {
-                  const Widget = widget.component;
-                  return <Widget key={widget.id} workspaceId={workspace.id} />;
-                })}</small>
+                {isFilesWorkspace(workspace)
+                  ? <small>Opened on their own</small>
+                  : <small>{sessions.length} {sessions.length === 1 ? "session" : "sessions"}{services.widgets.forSlot("sidebar.workspace.meta").map((widget) => {
+                    const Widget = widget.component;
+                    return <Widget key={widget.id} workspaceId={workspace.id} />;
+                  })}</small>}
               </span>
               <span className="count-badge">{workspace.views.length}</span>
               {menu.overflow(workspaceActions(workspace), workspace.name)}
@@ -87,7 +94,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
         </TreeItem>;
       })}
     </Tree>
-    {workspaces.length === 0 && <p className="sidebar-empty">Local folders you add will appear here.</p>}
+    {folders === 0 && <p className="sidebar-empty">Local folders you add will appear here.</p>}
     <nav className="sidebar-footer" aria-label="App">
       {services.widgets.forSlot("sidebar.footer").map((widget) => {
         const Widget = widget.component;

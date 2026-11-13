@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { FileViewState } from "../../../shared/models";
+import type { FileViewState, Workspace } from "../../../shared/models";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 import { isViewDirty } from "../../core/dirty-views";
 import { services } from "../../core/services";
 import { useWorkbenchStore } from "../../state/workbench-store";
@@ -12,6 +13,44 @@ export interface OpenFileArgs extends FileViewState {
 export const useQuickOpen = create<{ open: boolean }>(() => ({ open: false }));
 
 const fileState = (state: unknown) => state as FileViewState | undefined;
+
+const SEPARATOR = /[\\/]/;
+const trimEnd = (folder: string) => folder.replace(/[\\/]+$/, "");
+
+/** Where an absolute path lives: the workspace (or one of its worktrees) holding it, and the path inside that root. */
+function locate(workspaces: Workspace[], absolute: string): { workspaceId: string; root: string; path: string } | undefined {
+  let best: { workspaceId: string; root: string; path: string } | undefined;
+  for (const workspace of workspaces) {
+    if (isFilesWorkspace(workspace) || !workspace.path) continue;
+    const base = trimEnd(workspace.path);
+    let root: string | undefined;
+    if (absolute.startsWith(`${base}-worktrees`) && SEPARATOR.test(absolute.charAt(base.length + 10))) {
+      // A worktree beside the workspace: `<workspace>-worktrees/<name>/…`.
+      const name = absolute.slice(base.length + 11).split(SEPARATOR)[0];
+      if (name) root = `${base}-worktrees${absolute.charAt(base.length + 10)}${name}`;
+    } else if (absolute.startsWith(base) && SEPARATOR.test(absolute.charAt(base.length))) root = base;
+    if (!root || absolute.length <= root.length + 1) continue;
+    if (!best || root.length > best.root.length) best = { workspaceId: workspace.id, root, path: absolute.slice(root.length + 1).split(SEPARATOR).join("/") };
+  }
+  return best;
+}
+
+/**
+ * Opens files the system handed the app (Finder, the dock, File ▸ Open File…), given as absolute paths. A file inside a
+ * workspace opens there with everything the workspace offers; any other file opens on its own in the Files workspace.
+ */
+function openFromSystem(paths: string[]): void {
+  for (const absolute of paths) {
+    const store = useWorkbenchStore.getState();
+    const found = locate(store.workspaces, absolute);
+    const cut = Math.max(absolute.lastIndexOf("/"), absolute.lastIndexOf("\\"));
+    if (!found && cut <= 0) continue;
+    const target = found ?? { workspaceId: store.ensureFilesWorkspace(), root: absolute.slice(0, cut), path: absolute.slice(cut + 1) };
+    void services.commands.execute<void>("file.open", { ...target, preview: false } satisfies OpenFileArgs);
+    const view = useWorkbenchStore.getState().workspaces.find((item) => item.id === target.workspaceId)?.activeViewId;
+    if (view) void services.commands.execute("view.activate", { workspaceId: target.workspaceId, viewId: view });
+  }
+}
 
 /**
  * Opens a file in a tab: the tab already showing it comes forward; otherwise a preview tab (one click) takes the place
@@ -45,5 +84,6 @@ export function registerFileCommands(): void {
     }
     store.createView(workspaceId, "file", title, state);
   });
+  services.commands.register<string[]>("file.openFromSystem", openFromSystem);
   services.commands.register("file.quickOpen", () => useQuickOpen.setState({ open: true }));
 }

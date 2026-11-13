@@ -15,7 +15,13 @@ export interface WorkbenchView {
 export interface Workspace {
   id: string;
   name: string;
+  /** The folder; empty for the Files workspace, which has none. */
   path: string;
+  /**
+   * "files": the built-in Files workspace, holding single files opened from outside every workspace (Finder, ⌘O).
+   * It has no folder, so only file views live in it. Missing means an ordinary folder workspace.
+   */
+  kind?: "folder" | "files";
   /** A PNG data URL shown instead of the folder icon. */
   icon?: string;
   /** Global or shared instructions the person turned off in this workspace. */
@@ -442,7 +448,8 @@ export interface WorkbenchApi {
     saveNow: (state: PersistedState) => void;
   };
   workspace: {
-    chooseDirectory: () => Promise<string | null>;
+    /** `startIn`: the folder the dialog opens on. Only the folder the person picks becomes a workspace root. */
+    chooseDirectory: (startIn?: string) => Promise<string | null>;
     /** Asks for a picture and returns it as a small PNG data URL; null if none was chosen or it couldn't be read. */
     chooseIcon: () => Promise<string | null>;
   };
@@ -452,6 +459,8 @@ export interface WorkbenchApi {
     revokeExecutionTrust: () => Promise<void>;
     /** Returns unsubscribe. */
     onMenuCommand: (listener: (command: MenuCommand) => void) => () => void;
+    /** Files the system asked the app to open (Finder, the dock, File ▸ Open File…), as absolute paths. Returns unsubscribe. */
+    onOpenFiles: (listener: (paths: string[]) => void) => () => void;
   };
   attachments: {
     /** Stores a file for this view's prompts in a folder the app owns. */

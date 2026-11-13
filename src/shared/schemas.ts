@@ -16,6 +16,7 @@ export const workspaceSchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
+  kind: z.enum(["folder", "files"]).optional(),
   // A bad icon falls back to the folder rather than failing validation, which would discard the whole saved state.
   icon: z.string().max(64 * 1024).regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/).optional().catch(undefined),
   disabledInstructionIds: z.array(z.string()).optional(),

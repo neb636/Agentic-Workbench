@@ -22,6 +22,7 @@ import { codeTheme } from "./code-theme";
 import type { TextSelection } from "../../core/context-menu-registry";
 import { SelectionActions } from "./SelectionActions";
 import { sendShortcut, takesSelections } from "./selection-target";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 
 const PICTURE = /\.(png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i;
 const DIFF_BASES: Record<DiffBase, string> = { head: "Last commit", default: "Default branch" };
@@ -326,8 +327,9 @@ function FileEditor({ view, workspace }: ViewComponentProps) {
         <nav aria-label="File path">{segments.map((segment, index) => <span key={`${segment}-${index}`} className={index === segments.length - 1 ? "is-current" : ""}>{segment}</span>)}</nav>
         {badge && <span className={`code-badge ${dirty ? "is-dirty" : ""}`}>{badge}</span>}
         {!picture && <span className="code-actions">
-          <ToggleButton className="code-tool" isSelected={Boolean(state.diff)} onChange={(diff) => update({ diff })}>Diff</ToggleButton>
-          {state.diff && <ToggleButtonGroup aria-label="Compare with" className="segmented code-segmented" selectionMode="single" disallowEmptySelection
+          {/* A file opened on its own has no workspace history to compare against. */}
+          {!isFilesWorkspace(workspace) && <ToggleButton className="code-tool" isSelected={Boolean(state.diff)} onChange={(diff) => update({ diff })}>Diff</ToggleButton>}
+          {state.diff && !isFilesWorkspace(workspace) && <ToggleButtonGroup aria-label="Compare with" className="segmented code-segmented" selectionMode="single" disallowEmptySelection
             selectedKeys={[diffBase]} onSelectionChange={(keys) => { const key = [...keys][0]; if (key) update({ diffBase: key as DiffBase }); }}>
             {(Object.keys(DIFF_BASES) as DiffBase[]).map((base) => <ToggleButton key={base} id={base} className="segment">{DIFF_BASES[base]}</ToggleButton>)}
           </ToggleButtonGroup>}

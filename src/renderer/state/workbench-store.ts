@@ -8,6 +8,7 @@ import type {
   Workspace,
 } from "../../shared/models";
 import { defaultInstructions } from "../../shared/default-instructions";
+import { FILES_WORKSPACE_ID, isFilesWorkspace } from "../../shared/files-workspace";
 import { createId } from "../core/id";
 
 interface WorkbenchStore extends PersistedState {
@@ -15,6 +16,10 @@ interface WorkbenchStore extends PersistedState {
   persistenceError?: string;
   hydrate: () => Promise<void>;
   addWorkspace: (path: string) => string;
+  /** The built-in Files workspace (files opened from outside every workspace), created the first time it's needed. */
+  ensureFilesWorkspace: () => string;
+  /** Moves a view to another workspace, as its active tab. */
+  transferView: (viewId: string, toWorkspaceId: string, patch?: Record<string, unknown>) => void;
   removeWorkspace: (workspaceId: string) => void;
   selectWorkspace: (workspaceId: string) => void;
   setWorkspaceIcon: (workspaceId: string, icon: string | undefined) => void;
@@ -51,6 +56,11 @@ function workspaceName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 }
 
+/** The Files workspace exists only while it holds a file: closing its last tab removes it from the sidebar. */
+function dropEmptyFiles(workspaces: Workspace[]): Workspace[] {
+  return workspaces.filter((workspace) => !isFilesWorkspace(workspace) || workspace.views.length > 0);
+}
+
 function mapWorkspace(workspaces: Workspace[], workspaceId: string, update: (workspace: Workspace) => Workspace): Workspace[] {
   return workspaces.map((workspace) => (workspace.id === workspaceId ? update(workspace) : workspace));
 }
@@ -63,7 +73,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
     set({ ...persisted, isHydrated: true });
   },
   addWorkspace: (path) => {
-    const existing = get().workspaces.find((workspace) => workspace.path === path);
+    const existing = get().workspaces.find((workspace) => !isFilesWorkspace(workspace) && workspace.path === path);
     if (existing) {
       set({ activeWorkspaceId: existing.id });
       return existing.id;
@@ -89,6 +99,27 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
     }));
     return workspaceId;
   },
+  ensureFilesWorkspace: () => {
+    if (get().workspaces.some((workspace) => workspace.id === FILES_WORKSPACE_ID)) return FILES_WORKSPACE_ID;
+    const workspace: Workspace = { id: FILES_WORKSPACE_ID, kind: "files", name: "Files", path: "", views: [] };
+    set((state) => ({ workspaces: [...state.workspaces, workspace] }));
+    return FILES_WORKSPACE_ID;
+  },
+  transferView: (viewId, toWorkspaceId, patch) =>
+    set((state) => {
+      const from = state.workspaces.find((workspace) => workspace.views.some((view) => view.id === viewId));
+      const moving = from?.views.find((view) => view.id === viewId);
+      if (!from || !moving || from.id === toWorkspaceId) return {};
+      const moved: WorkbenchView = { ...moving, workspaceId: toWorkspaceId, state: patch ? { ...(moving.state as object | undefined), ...patch } : moving.state };
+      const workspaces = state.workspaces.map((workspace) => {
+        if (workspace.id === from.id) {
+          const views = workspace.views.filter((view) => view.id !== viewId);
+          return { ...workspace, views, activeViewId: workspace.activeViewId === viewId ? views.at(-1)?.id : workspace.activeViewId };
+        }
+        return workspace.id === toWorkspaceId ? { ...workspace, views: [...workspace.views, moved], activeViewId: viewId } : workspace;
+      });
+      return { workspaces: dropEmptyFiles(workspaces), activeWorkspaceId: toWorkspaceId };
+    }),
   removeWorkspace: (workspaceId) =>
     set((state) => {
       const workspaces = state.workspaces.filter((workspace) => workspace.id !== workspaceId);
@@ -125,8 +156,8 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
       workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => ({ ...workspace, activeViewId: viewId })),
     })),
   closeView: (workspaceId, viewId) =>
-    set((state) => ({
-      workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => {
+    set((state) => {
+      const workspaces = dropEmptyFiles(mapWorkspace(state.workspaces, workspaceId, (workspace) => {
         const index = workspace.views.findIndex((view) => view.id === viewId);
         const views = workspace.views.filter((view) => view.id !== viewId);
         const replacement = views[Math.min(Math.max(index, 0), views.length - 1)];
@@ -135,8 +166,10 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
           views,
           activeViewId: workspace.activeViewId === viewId ? replacement?.id : workspace.activeViewId,
         };
-      }),
-    })),
+      }));
+      const active = workspaces.some((workspace) => workspace.id === state.activeWorkspaceId) ? state.activeWorkspaceId : workspaces[0]?.id;
+      return { workspaces, activeWorkspaceId: active };
+    }),
   moveView: (workspaceId, viewId, beforeViewId) =>
     set((state) => ({
       workspaces: mapWorkspace(state.workspaces, workspaceId, (workspace) => {

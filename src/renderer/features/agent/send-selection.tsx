@@ -8,6 +8,7 @@ import { NewChatIcon } from "../../ui/icons";
 import { useDefaultHarness } from "./agent-models";
 import { SessionMark } from "./SessionMark";
 import { patchComposer } from "./composer-state";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 
 /** A composer to focus the next time it is drawn, with the caret after its text. */
 export const useComposerFocus = create<{ viewId?: string }>(() => ({}));
@@ -65,6 +66,8 @@ export function registerSendSelection(): void {
   services.contextMenus.register({ id: "agent.send-selection", kind: "selection", items: (context) => {
     if (context.kind !== "selection") return [];
     const { workspace, selection } = context;
+    // A file opened on its own has no folder for a session to work in.
+    if (isFilesWorkspace(workspace)) return [];
     const statuses = useViewStatuses.getState();
     const harness = services.sessions.get(useDefaultHarness.getState().id ?? "")?.label;
     return [

@@ -5,6 +5,7 @@ import type { PromptOptionDefinition } from "../../../shared/prompt-options";
 import { repoInstructionsFileSchema } from "../../../shared/schemas";
 import { watchWorkspace } from "../../core/workspace-watch";
 import { useWorkbenchStore } from "../../state/workbench-store";
+import { isFilesWorkspace } from "../../../shared/files-workspace";
 
 /** The shared instructions file of one workspace root, as last read from disk. */
 export type RepoInstructions =
@@ -108,7 +109,7 @@ export function startRepoInstructions(): () => void {
       }));
     }
   };
-  const rootsOf = () => [...new Set(useWorkbenchStore.getState().workspaces.map((workspace) => workspace.path))];
+  const rootsOf = () => [...new Set(useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace)).map((workspace) => workspace.path))];
   let last = "";
   const onChange = () => {
     if (!useWorkbenchStore.getState().isHydrated) return;

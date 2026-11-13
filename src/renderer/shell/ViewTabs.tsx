@@ -9,6 +9,7 @@ import { useViewStatuses, viewStatus } from "../core/view-status";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
 import { ChevronDownIcon, CloseIcon, PlusIcon, SidebarLeftIcon, SidebarRightIcon } from "../ui/icons";
+import { isFilesWorkspace } from "../../shared/files-workspace";
 
 const TAB_WIDTH = 176;
 const DRAG_TYPE = "application/x-workbench-tab";
@@ -114,7 +115,7 @@ export function ViewTabs({ workspace, showLeftToggle, showRightToggle, onShowLef
         </Menu>
       </Popover>
     </MenuTrigger>}
-    {workspace && <MenuTrigger>
+    {workspace && !isFilesWorkspace(workspace) && <MenuTrigger>
       <AriaButton className="new-view-button" aria-label="Create view"><PlusIcon size={15} /></AriaButton>
       <Popover className="wb-popover view-menu-popover" placement="bottom end">
         <Menu aria-label="View type" onAction={(key) => void services.commands.execute("view.create", { workspaceId: workspace.id, viewType: String(key) })}>
