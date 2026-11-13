@@ -2,7 +2,7 @@ import { INSTRUCTION_FILES, type InstructionLayer } from "../../../shared/instru
 import type { ConfigLayers, ConfigScope } from "../../../shared/dimsum";
 import type { StoredPromptOption } from "../../../shared/models";
 import type { PromptOptionDefinition } from "../../../shared/prompt-options";
-import { layersOf, loadConfig, saveConfig, useConfigLayers } from "../../core/config-layers";
+import { forgetConfig, layersOf, loadConfig, saveConfig, useConfigLayers } from "../../core/config-layers";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { isFilesWorkspace } from "../../../shared/files-workspace";
 
@@ -93,12 +93,16 @@ export function saveInstructions(layer: InstructionLayer, root: string, update: 
 export function startRepoInstructions(): () => void {
   const roots = () => [...new Set(useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace)).map((workspace) => workspace.path))];
   let last = "";
+  let loaded: string[] = [];
   const onChange = () => {
     if (!useWorkbenchStore.getState().isHydrated) return;
     const current = roots();
     const key = current.join("\0");
     if (key === last) return;
     last = key;
+    // A removed workspace's documents stop being kept current: its watcher closes and its reads stop.
+    for (const root of loaded) if (!current.includes(root)) forgetConfig(root);
+    loaded = current;
     void loadConfig("instructions");
     for (const root of current) layersOf("instructions", root);
   };

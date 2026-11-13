@@ -190,6 +190,8 @@ export function startWorkspaceExtensions(): () => void {
   const watches = new Map<string, () => void>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const later = (slot: string, run: () => void) => { clearTimeout(timers.get(slot)); timers.set(slot, setTimeout(run, 200)); };
+  // A code change waiting out the debounce still needs its rebuild when a settings-only change follows it.
+  const rebuildDue = new Set<string>();
   const folders = () => useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace));
   const changedIn = (paths: string[]) => paths.some((path) => path === "" || path === APP_DIR || path.startsWith(`${APP_DIR}/`));
   const reloadSlot = (workspace: Workspace | undefined) => {
@@ -208,6 +210,9 @@ export function startWorkspaceExtensions(): () => void {
       if (current.some((workspace) => workspace.id === workspaceId)) continue;
       stop();
       watches.delete(workspaceId);
+      clearTimeout(timers.get(workspaceId));
+      timers.delete(workspaceId);
+      rebuildDue.delete(workspaceId);
       for (const record of Object.values(useActiveExtensions.getState().records)) if (record.info.workspaceId === workspaceId) deactivateExtension(record.key);
       for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) stopWanting(key);
       for (const key of builtFrom.keys()) if (key.startsWith(`${workspaceId}|`)) builtFrom.delete(key);
@@ -224,7 +229,13 @@ export function startWorkspaceExtensions(): () => void {
         // Files under extensions/, or ones an extension imports from elsewhere in the workspace, need a rebuild;
         // settings changes just start or stop extensions.
         const code = imported || event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
-        later(workspace.id, () => (code ? reloadSlot(latest) : void reconcile(latest, false)));
+        if (code) rebuildDue.add(workspace.id);
+        later(workspace.id, () => {
+          const current = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);
+          if (!current) return;
+          if (rebuildDue.delete(workspace.id)) reloadSlot(current);
+          else void reconcile(current, false);
+        });
       }));
     }
   };
@@ -243,5 +254,8 @@ export function startWorkspaceExtensions(): () => void {
     offStore(); offUser(); offSettings();
     for (const stop of watches.values()) stop();
     watches.clear();
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    rebuildDue.clear();
   };
 }

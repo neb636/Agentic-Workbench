@@ -212,6 +212,15 @@ try {
   await page.locator(".qa-shared", { hasText: "shared-0" }).waitFor();
   await writeFile(join(repo, "shared-label.ts"), `export const shared = "shared-1";\n`);
   await page.locator(".qa-shared", { hasText: "shared-1" }).waitFor();
+  // A settings save landing in the same debounce window as a code save doesn't cancel the rebuild.
+  const settingsPath = join(repo, ".dimsum", "settings.json");
+  const settings = await readFile(settingsPath, "utf8");
+  await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hiya";\n`);
+  await page.waitForTimeout(170);
+  await writeFile(settingsPath, `${settings}\n`);
+  await page.getByRole("heading", { name: "Hiya board in Extensions QA" }).waitFor();
+  await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hello";\n`);
+  await page.getByRole("heading", { name: "Hello board in Extensions QA" }).waitFor();
   // The failing icon was drawn in the Create view menu and left nothing broken behind.
   await page.getByRole("button", { name: "Create view" }).click();
   await page.getByRole("menuitem", { name: /Fragile view/ }).waitFor();
