@@ -70,6 +70,9 @@ export default defineExtension({
       seen[event.viewId] = (seen[event.viewId] ?? 0) + 1;
       void ctx.commands.execute("view.activate", { workspaceId: event.workspaceId, viewId: event.viewId });
     });
+    // A menu whose options can't be computed: the composer leaves it empty and keeps working.
+    ctx.promptMenus.register({ id: "hello.broken", label: "Broken menu", description: "Its options throw.", icon: Icon, kind: "instruction",
+      placement: "append", resetAfterSend: false, options: () => { throw new Error("Broken options"); } });
     // Its own command, called with arguments of its own shape.
     ctx.commands.register("hello.double", (args: { value: number }) => args.value * 2);
     void ctx.commands.execute("hello.double", { value: 3 }).then((result) => { (window as unknown as { helloDoubled?: unknown }).helloDoubled = result; },
@@ -118,6 +121,8 @@ const outsideGuide = join(directory, "outside-guide.md");
 await writeFile(outsideGuide, "KEEP ME\n");
 await mkdir(join(other, ".dimsum"), { recursive: true });
 await symlink(outsideGuide, join(other, ".dimsum", "AGENTS.md"));
+// A workspace's shared settings can't turn off the person's own extension (it runs once, for every workspace).
+await writeFile(join(repo, ".dimsum", "settings.json"), JSON.stringify({ version: 1, extensions: { disabled: ["user:greeter"] } }));
 // The person's own extension: a status bar widget, in every workspace.
 await mkdir(join(home, "extensions", "greeter"), { recursive: true });
 await writeFile(join(home, "extensions", "greeter", "index.tsx"), `import { defineExtension } from "@dimsum/sdk";
@@ -166,6 +171,7 @@ const feedback = (text) => page.waitForFunction((value) => document.querySelecto
 try {
   // Before trust: the user extension runs, the workspace one waits, and its saved view keeps its place.
   await page.locator(".qa-greeter", { hasText: "Greeter ready" }).waitFor();
+  await row("Greeter").getByText("Running").waitFor();
   await row("hello").getByText("Waiting for trust").waitFor();
   await page.getByRole("heading", { name: "View unavailable" }).waitFor();
   await page.getByRole("button", { name: "Show extensions" }).waitFor();

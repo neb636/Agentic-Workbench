@@ -150,12 +150,14 @@ export function installedFor(workspace: Workspace | undefined): InstalledExtensi
   const { byWorkspace } = useInstalledExtensions.getState();
   const records = useActiveExtensions.getState().records;
   const disabled = disabledExtensions(workspace && !isFilesWorkspace(workspace) ? workspace.path : undefined);
+  // A user extension runs once for every workspace, so only `~/.dimsum/settings.json` turns it off (as `reconcile` does).
+  const userDisabled = disabledExtensions(undefined);
   const listings = [...(byWorkspace[USER] ?? []), ...(workspace ? byWorkspace[workspace.id] ?? [] : [])];
   return listings.map((listing) => {
     const workspaceId = listing.layer === "workspace" ? workspace?.id : undefined;
     const key = listingKey(listing, workspaceId);
     const record = records[key];
-    const isDisabled = disabled.has(listing.id);
+    const isDisabled = (listing.layer === "user" ? userDisabled : disabled).has(listing.id);
     const state: InstalledExtension["state"] = !listing.trusted ? "needs-trust" : isDisabled ? "disabled"
       : record?.status === "active" ? "active" : record?.status === "failed" ? "failed" : "loading";
     return { ...listing, key, workspaceId, disabled: isDisabled, state, error: record?.error };

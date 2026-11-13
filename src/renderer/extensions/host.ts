@@ -35,6 +35,15 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
   // Icons and ready-made content are drawn by the shell (tabs, menus, dialogs), outside the extension's own components.
   const icon = <P extends object>(inner: import("react").ComponentType<P>) => (builtin ? inner : guardedIcon(info.id, inner));
   const node = (inner: import("react").ReactNode) => (builtin ? inner : guardedNode(info.id, inner));
+  /**
+   * An extension's callback that the shell calls while drawing (a menu's options, a view's status) runs outside any of
+   * the extension's components: a throw is reported and `fallback` used instead, so the shell keeps working.
+   */
+  const safe = <A extends unknown[], R>(what: string, callback: ((...args: A) => R) | undefined, fallback: (...args: A) => R): ((...args: A) => R) | undefined =>
+    !callback || builtin ? callback : (...args: A) => {
+      try { return callback(...args); }
+      catch (error) { console.error(`Extension ${info.id}: ${what} failed:`, error); return fallback(...args); }
+    };
   const files = info.layer === "workspace" && info.root ? (() => {
     const root = info.root;
     return {
@@ -51,10 +60,19 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
       const { confirmClose } = definition;
       return track(services.views.register({
         ...definition, component: component(definition.component), icon: icon(definition.icon),
-        confirmClose: confirmClose && !builtin ? (view) => {
+        createState: safe(`${definition.id} createState`, definition.createState, () => undefined),
+        isPreview: safe(`${definition.id} isPreview`, definition.isPreview, () => false),
+        tabMenu: safe(`${definition.id} tabMenu`, definition.tabMenu, () => []),
+        onActivate: safe(`${definition.id} onActivate`, definition.onActivate, () => undefined),
+        idleStatus: safe(`${definition.id} idleStatus`, definition.idleStatus, () => undefined),
+        // When it can't say what closing loses, ask anyway rather than close without asking.
+        confirmClose: safe(`${definition.id} confirmClose`, confirmClose && !builtin ? (view) => {
           const confirmation = confirmClose(view);
           return confirmation && { ...confirmation, warning: node(confirmation.warning), subject: { ...confirmation.subject, icon: node(confirmation.subject.icon) } };
-        } : confirmClose,
+        } : confirmClose, (view) => ({
+          title: `Close ${view.title}?`, message: `${definition.label} couldn't say what closing this view loses.`,
+          warning: "Anything not yet saved in it may be lost.", subject: { icon: null, name: view.title }, confirmLabel: "Close view",
+        })),
       }, scope));
     } },
     panels: { register: (definition) => { owned(definition.id); return track(services.panels.register({ ...definition, icon: icon(definition.icon), component: component(definition.component), badge: definition.badge && component(definition.badge) }, scope)); } },
@@ -70,15 +88,21 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
       const { optionTag } = menu;
       return track(services.promptMenus.register({
         ...menu, icon: icon(menu.icon),
-        optionTag: optionTag && ((optionId, context) => { const tag = optionTag(optionId, context); return tag && { ...tag, icon: icon(tag.icon) }; }),
+        options: safe(`${menu.id} options`, menu.options, () => []) ?? menu.options,
+        subscribe: safe(`${menu.id} subscribe`, menu.subscribe, () => () => undefined),
+        optionTag: safe(`${menu.id} optionTag`, optionTag && ((optionId, context) => { const tag = optionTag(optionId, context); return tag && { ...tag, icon: icon(tag.icon) }; }), () => undefined),
         manage: menu.manage && { ...menu.manage, component: guarded(info.id, menu.manage.component) },
       }, scope));
     } },
-    promptContributors: { register: (contributor) => { owned(contributor.id); return track(services.promptContributors.register(contributor, scope)); } },
+    promptContributors: { register: (contributor) => {
+      owned(contributor.id);
+      const contributions = safe(`${contributor.id} contributions`, contributor.contributions, () => []) ?? contributor.contributions;
+      return track(services.promptContributors.register({ ...contributor, contributions }, scope));
+    } },
     contextMenus: { register: (contribution) => {
       owned(contribution.id);
-      const items = builtin ? contribution.items : (context: Parameters<typeof contribution.items>[0]) =>
-        contribution.items(context).map((action) => (action.icon === undefined ? action : { ...action, icon: node(action.icon) }));
+      const items = builtin ? contribution.items : safe(`${contribution.id} items`, (context: Parameters<typeof contribution.items>[0]) =>
+        contribution.items(context).map((action) => (action.icon === undefined ? action : { ...action, icon: node(action.icon) })), () => []) ?? contribution.items;
       return track(services.contextMenus.register({ ...contribution, items }, scope));
     } },
     beforeSend: (guards) => {
