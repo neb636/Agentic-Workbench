@@ -34,6 +34,8 @@ interface WorkbenchStore extends PersistedState {
   forgetInstructionSettings: (optionId: string) => void;
   /** Turns a global or shared instruction off (or back on) in one workspace only. */
   setInstructionDisabled: (workspaceId: string, optionId: string, disabled: boolean) => void;
+  /** Removes an instruction still kept in the saved state (one that couldn't move to its file). */
+  dropStoredInstruction: (layer: "global" | "personal", workspaceId: string, optionId: string) => void;
   updateLayout: (patch: Partial<LayoutState>) => void;
   setDefaultAgentProvider: (providerId: string) => void;
   /** Replaces one feature's settings; the feature owns their shape. */
@@ -193,6 +195,11 @@ export const useWorkbenchStore = create<WorkbenchStore>((set, get) => ({
       workspaces: state.workspaces.map((workspace) => workspace.disabledInstructionIds?.includes(optionId)
         ? { ...workspace, disabledInstructionIds: workspace.disabledInstructionIds.filter((id) => id !== optionId) }
         : workspace),
+    })),
+  dropStoredInstruction: (layer, workspaceId, optionId) =>
+    set((state) => ({
+      instructionOptions: state.instructionOptions.filter((item) => item.option.id !== optionId
+        || (layer === "global" ? item.scope !== "global" : item.scope !== "workspace" || item.workspaceId !== workspaceId)),
     })),
   setInstructionDisabled: (workspaceId, optionId, disabled) =>
     set((state) => ({

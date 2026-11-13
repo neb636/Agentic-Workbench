@@ -16,6 +16,10 @@ The app ships this guide. Each new version of the app refreshes it, so trust it 
 | `<workspace>/.dimsum/<name>.local.json` | The person's own settings for this workspace, never committed | n/a |
 | `~/.dimsum/<name>.json` | The person's own settings everywhere | n/a |
 
+`settings.json` turns extensions off with `{ "version": 1, "extensions": { "disabled": ["workspace:hello"] } }`. A
+workspace extension can be turned off in any of the three files; a user extension (`user:<name>`) runs once for every
+workspace, so only `~/.dimsum/settings.json` turns it off.
+
 Inside a terminal or agent session the app sets `DIMSUM_HOME` (the `~/.dimsum` folder) and `DIMSUM_GUIDE` (this
 file).
 

@@ -45,6 +45,33 @@ export function setExtensionEnabled(listing: ExtensionListing, enabled: boolean)
 }
 
 const inflight = new Map<string, Promise<void>>();
+/** Bumped when an extension stops being wanted, so a start still bundling for it never activates. */
+const generations = new Map<string, number>();
+const generationOf = (key: string) => generations.get(key) ?? 0;
+/** A reload asked for while that extension was still starting: it runs again once the start settles. */
+const reloadAfter = new Map<string, string | undefined>();
+const stopWanting = (key: string) => { generations.set(key, generationOf(key) + 1); reloadAfter.delete(key); };
+/** The workspace files each workspace extension was last built from (it may import code from anywhere in its workspace). */
+const builtFrom = new Map<string, Set<string>>();
+/** Whether a change touched a file one of this workspace's extensions was built from. */
+const touchesBuiltFiles = (workspaceId: string, paths: string[]) => {
+  for (const [key, inputs] of builtFrom) if (key.startsWith(`${workspaceId}|`) && paths.some((path) => inputs.has(path))) return true;
+  return false;
+};
+
+/** Starts one extension, and starts it once more if a reload came in meanwhile (a newer save, or Reload). */
+function launch(key: string, listing: ExtensionListing, workspace?: Workspace): void {
+  const run = start(listing, workspace).finally(() => {
+    inflight.delete(key);
+    if (!reloadAfter.has(key)) return;
+    const workspaceId = reloadAfter.get(key);
+    reloadAfter.delete(key);
+    const latest = workspaceId === undefined ? undefined : useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
+    if (workspaceId !== undefined && !latest) return;
+    void reconcile(latest, false, new Set([listing.id]));
+  });
+  inflight.set(key, run);
+}
 
 async function start(listing: ExtensionListing, workspace?: Workspace): Promise<void> {
   const info: ExtensionInfo = {
@@ -52,16 +79,22 @@ async function start(listing: ExtensionListing, workspace?: Workspace): Promise<
     ...(listing.layer === "workspace" && workspace ? { workspaceId: workspace.id, root: workspace.path } : {}),
   };
   const key = extensionKey(info);
+  const generation = generationOf(key);
+  const stale = () => generationOf(key) !== generation;
   const loaded = await window.workbench.extensions.load(listing.id, listing.root).catch((error: unknown) => ({ ok: false as const, error: errorMessage(error) }));
   // A reload that fails keeps the version already running, and says why.
   const fail = (error: string) => {
     const running = useActiveExtensions.getState().records[key];
     useActiveExtensions.setState((state) => ({ records: { ...state.records, [key]: { key, info, title: running?.title ?? listing.name, description: running?.description, status: running?.status === "active" ? "active" : "failed", error } } }));
   };
+  if (stale()) return;
   if (!loaded.ok) { fail(loaded.error); return; }
+  if (listing.layer === "workspace") builtFrom.set(key, new Set(loaded.inputs));
   let definition;
   try { definition = await loadExtensionScript(loaded.url); }
   catch (error) { fail(errorMessage(error)); return; }
+  // Trust was reset, it was turned off, or its workspace closed while it was loading.
+  if (stale()) return;
   await activateExtension(definition, info);
 }
 
@@ -93,14 +126,21 @@ async function reconcile(workspace: Workspace | undefined, relist: boolean, relo
     const record = useActiveExtensions.getState().records[key];
     if (record && !reload.has(listing.id) && record.status === "active") continue;
     if (record && !reload.has(listing.id) && record.status === "failed" && !relist) continue;
-    if (inflight.has(key)) continue;
-    const run = start(listing, workspace).finally(() => inflight.delete(key));
-    inflight.set(key, run);
+    if (inflight.has(key)) {
+      // The running start may have bundled an older revision: build again when it is done.
+      if (reload.has(listing.id)) reloadAfter.set(key, workspace?.id);
+      continue;
+    }
+    launch(key, listing, workspace);
   }
   // Removed, turned off, or no longer trusted: stop it.
   for (const record of Object.values(useActiveExtensions.getState().records)) {
     if (record.info.layer === "builtin" || (record.info.workspaceId ?? USER) !== slot) continue;
     if (!wanted.has(record.key)) deactivateExtension(record.key);
+  }
+  for (const listing of listings) {
+    const key = listingKey(listing, workspace?.id);
+    if (!wanted.has(key) && inflight.has(key)) stopWanting(key);
   }
   await Promise.all([...inflight.values()]);
 }
@@ -110,12 +150,14 @@ export function installedFor(workspace: Workspace | undefined): InstalledExtensi
   const { byWorkspace } = useInstalledExtensions.getState();
   const records = useActiveExtensions.getState().records;
   const disabled = disabledExtensions(workspace && !isFilesWorkspace(workspace) ? workspace.path : undefined);
+  // A user extension runs once for every workspace, so only `~/.dimsum/settings.json` turns it off (as `reconcile` does).
+  const userDisabled = disabledExtensions(undefined);
   const listings = [...(byWorkspace[USER] ?? []), ...(workspace ? byWorkspace[workspace.id] ?? [] : [])];
   return listings.map((listing) => {
     const workspaceId = listing.layer === "workspace" ? workspace?.id : undefined;
     const key = listingKey(listing, workspaceId);
     const record = records[key];
-    const isDisabled = disabled.has(listing.id);
+    const isDisabled = (listing.layer === "user" ? userDisabled : disabled).has(listing.id);
     const state: InstalledExtension["state"] = !listing.trusted ? "needs-trust" : isDisabled ? "disabled"
       : record?.status === "active" ? "active" : record?.status === "failed" ? "failed" : "loading";
     return { ...listing, key, workspaceId, disabled: isDisabled, state, error: record?.error };
@@ -148,6 +190,8 @@ export function startWorkspaceExtensions(): () => void {
   const watches = new Map<string, () => void>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const later = (slot: string, run: () => void) => { clearTimeout(timers.get(slot)); timers.set(slot, setTimeout(run, 200)); };
+  // A code change waiting out the debounce still needs its rebuild when a settings-only change follows it.
+  const rebuildDue = new Set<string>();
   const folders = () => useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace));
   const changedIn = (paths: string[]) => paths.some((path) => path === "" || path === APP_DIR || path.startsWith(`${APP_DIR}/`));
   const reloadSlot = (workspace: Workspace | undefined) => {
@@ -166,19 +210,32 @@ export function startWorkspaceExtensions(): () => void {
       if (current.some((workspace) => workspace.id === workspaceId)) continue;
       stop();
       watches.delete(workspaceId);
+      clearTimeout(timers.get(workspaceId));
+      timers.delete(workspaceId);
+      rebuildDue.delete(workspaceId);
       for (const record of Object.values(useActiveExtensions.getState().records)) if (record.info.workspaceId === workspaceId) deactivateExtension(record.key);
+      for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) stopWanting(key);
+      for (const key of builtFrom.keys()) if (key.startsWith(`${workspaceId}|`)) builtFrom.delete(key);
       useInstalledExtensions.setState((state) => { const { [workspaceId]: _, ...byWorkspace } = state.byWorkspace; void _; return { byWorkspace }; });
     }
     for (const workspace of current) {
       if (watches.has(workspace.id)) continue;
       void reconcile(workspace, true);
       watches.set(workspace.id, watchWorkspace(workspace.path, (event) => {
-        if (!changedIn(event.paths)) return;
+        const imported = touchesBuiltFiles(workspace.id, event.paths);
+        if (!imported && !changedIn(event.paths)) return;
         const latest = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);
         if (!latest) return;
-        // Only files under extensions/ need a rebuild; settings changes just start or stop extensions.
-        const code = event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
-        later(workspace.id, () => (code ? reloadSlot(latest) : void reconcile(latest, false)));
+        // Files under extensions/, or ones an extension imports from elsewhere in the workspace, need a rebuild;
+        // settings changes just start or stop extensions.
+        const code = imported || event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
+        if (code) rebuildDue.add(workspace.id);
+        later(workspace.id, () => {
+          const current = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);
+          if (!current) return;
+          if (rebuildDue.delete(workspace.id)) reloadSlot(current);
+          else void reconcile(current, false);
+        });
       }));
     }
   };
@@ -197,5 +254,8 @@ export function startWorkspaceExtensions(): () => void {
     offStore(); offUser(); offSettings();
     for (const stop of watches.values()) stop();
     watches.clear();
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    rebuildDue.clear();
   };
 }

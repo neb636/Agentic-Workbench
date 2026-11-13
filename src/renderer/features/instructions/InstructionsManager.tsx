@@ -28,7 +28,7 @@ import { useChoiceDialog } from "../../ui/ChoiceDialog";
 import { CheckIcon, ChevronDownIcon, PlusIcon, TrashIcon } from "../../ui/icons";
 import { Button, IconButton } from "../../ui/controls";
 import { layerCopy } from "./layer-copy";
-import { saveInstructions, storedOptionsOf, useInstructionFiles } from "./repo-instructions";
+import { fileHolds, saveInstructions, storedOptionsOf, useInstructionFiles } from "./repo-instructions";
 
 type Kind = "toggle" | "select" | "text";
 
@@ -174,10 +174,12 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
   const [workspace] = useWorkbenchStore(useShallow((state) => [state.workspaces.find((w) => w.id === workspaceId)]));
   const forgetSettings = useWorkbenchStore((state) => state.forgetInstructionSettings);
   const setDisabled = useWorkbenchStore((state) => state.setInstructionDisabled);
+  const dropStored = useWorkbenchStore((state) => state.dropStoredInstruction);
+  const retained = useWorkbenchStore((state) => state.instructionOptions);
   const root = workspace?.path ?? "";
   const files = useInstructionFiles(root || undefined);
   const repoFile = files.shared;
-  const stored = storedOptionsOf(files, workspaceId);
+  const stored = storedOptionsOf(files, workspaceId, retained);
   // Until its first save in `.dimsum/`, a workspace's shared instructions still come from the old file.
   const sharedPath = files.legacyShared ? LEGACY_REPO_INSTRUCTIONS_PATH : INSTRUCTION_FILES.shared;
   const repo = workspace?.name ?? "this repo";
@@ -193,6 +195,9 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
   const missingDefaults = defaultInstructions.filter((option) => !layered.some((item) => item.option.id === option.id));
   const sharedAvailable = repoFile.status === "ok" || repoFile.status === "missing";
   const { choose, dialog } = useChoiceDialog();
+  // An instruction that is still only in the saved state (its file couldn't take it yet) is changed there, not in a file.
+  const retainedOnly = (item: typeof current): item is NonNullable<typeof current> & { layer: "global" | "personal" } =>
+    Boolean(item && item.layer !== "shared" && !fileHolds(files, item.layer, item.option.id));
 
   const writeLayer = (layer: InstructionLayer, option: PromptOptionDefinition): Promise<string | undefined> =>
     saveInstructions(layer, root, (options) => options.some((item) => item.id === option.id)
@@ -213,10 +218,14 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
     const option = taken ? { ...edited, id: createId("instruction") } : edited;
     const failure = await writeLayer(layer, option);
     if (failure) return failure;
+    // Saved to a file: a copy kept only in the saved state is no longer needed.
+    if (retainedOnly(current)) dropStored(current.layer, workspaceId, current.option.id);
     // A move: the new copy is saved, so take it out of the old place.
     if (current && moving) {
-      const removed = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
-      if (removed) return `Saved, but it is still in ${current.layer === "shared" ? sharedPath : INSTRUCTION_FILES[current.layer]}: ${removed}`;
+      if (!retainedOnly(current)) {
+        const removed = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
+        if (removed) return `Saved, but it is still in ${current.layer === "shared" ? sharedPath : INSTRUCTION_FILES[current.layer]}: ${removed}`;
+      }
       // With the same id in the new place, where it was turned off still applies.
       if (taken) forgetSettings(current.option.id);
     }
@@ -231,8 +240,11 @@ export function InstructionsManager({ workspaceId, close }: { workspaceId: strin
         `It is removed from ${sharedPath}, so everyone in ${repo} loses it once the change is committed.`, ["Cancel", "Delete"]);
       if (answer !== "Delete") return;
     }
-    const failure = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
-    if (failure) { await choose("Couldn't delete the instruction", failure, ["OK"]); return; }
+    if (retainedOnly(current)) dropStored(current.layer, workspaceId, current.option.id);
+    else {
+      const failure = await saveInstructions(current.layer, root, (options) => options.filter((item) => item.id !== current.option.id));
+      if (failure) { await choose("Couldn't delete the instruction", failure, ["OK"]); return; }
+    }
     if (current.layer !== "shared") forgetSettings(current.option.id);
     setEditing({ layer: current.layer });
   };

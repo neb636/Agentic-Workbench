@@ -125,14 +125,13 @@ function menuSummary(options: PromptOptionDefinition[], selections: PromptSelect
 
 /** Re-renders when any menu says its options may have changed. */
 function useMenuUpdates(workspaceId: string) {
-  useContributions();
+  // Any registration change (a menu added, removed, or replaced under the same id by a reload) subscribes again.
+  const revision = useContributions();
   const [, refresh] = useReducer((count: number) => count + 1, 0);
-  // Re-subscribe only when menus are added or removed.
-  const key = services.promptMenus.ordered(workspaceId).map((menu) => menu.id).join("\0");
   useEffect(() => {
     const unsubscribes = services.promptMenus.ordered(workspaceId).map((menu) => menu.subscribe?.(refresh));
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe?.());
-  }, [key, workspaceId]);
+  }, [revision, workspaceId]);
 }
 
 /** Renders every registered prompt menu as a composer button with an options popover. */

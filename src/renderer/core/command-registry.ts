@@ -5,7 +5,7 @@ export type { CommandHandler } from "@dimsum/sdk";
 
 /**
  * Commands by id. A workspace extension's commands belong to its workspace: `execute` finds them when its arguments
- * name that workspace (`{ workspaceId }`), which every workbench command does.
+ * name that workspace (`{ workspaceId }`), which every workbench command does, or when the caller passes its scope.
  */
 export class CommandRegistry {
   private readonly handlers = new Registry<{ id: string; handler: CommandHandler }>();
@@ -15,8 +15,8 @@ export class CommandRegistry {
     catch { throw new Error(`Command already exists: ${id}`); }
   }
 
-  async execute<TResult = unknown>(id: string, args?: unknown): Promise<TResult> {
-    const handler = this.handlers.get(id, scopeOf(args))?.handler;
+  async execute<TResult = unknown>(id: string, args?: unknown, scope?: string): Promise<TResult> {
+    const handler = this.handlers.get(id, scopeOf(args) ?? scope)?.handler;
     if (!handler) throw new Error(`Unknown command: ${id}`);
     return handler(args) as TResult;
   }

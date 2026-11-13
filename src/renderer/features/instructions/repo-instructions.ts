@@ -2,7 +2,7 @@ import { INSTRUCTION_FILES, type InstructionLayer } from "../../../shared/instru
 import type { ConfigLayers, ConfigScope } from "../../../shared/dimsum";
 import type { StoredPromptOption } from "../../../shared/models";
 import type { PromptOptionDefinition } from "../../../shared/prompt-options";
-import { layersOf, loadConfig, saveConfig, useConfigLayers } from "../../core/config-layers";
+import { forgetConfig, layersOf, loadConfig, saveConfig, useConfigLayers } from "../../core/config-layers";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { isFilesWorkspace } from "../../../shared/files-workspace";
 
@@ -49,11 +49,27 @@ export function useInstructionFiles(root: string | undefined): InstructionFiles 
 
 const optionsOf = (file: InstructionsFile) => (file.status === "ok" ? file.options : []);
 
-/** The person's own instructions for this workspace (everywhere, then only here), in the shape layering expects. */
-export function storedOptionsOf(files: InstructionFiles, workspaceId: string): StoredPromptOption[] {
+/** Whether the person's own file for that layer holds the instruction (otherwise it is only in the saved state). */
+export function fileHolds(files: InstructionFiles, layer: "global" | "personal", id: string): boolean {
+  return optionsOf(layer === "global" ? files.global : files.personal).some((option) => option.id === id);
+}
+
+/**
+ * The person's own instructions for this workspace (everywhere, then only here), in the shape layering expects. Ones
+ * that couldn't move to their file yet (it is unreadable, or the folder read-only) still come from the saved state;
+ * the file's copy wins when both have an id.
+ */
+export function storedOptionsOf(files: InstructionFiles, workspaceId: string, retained: StoredPromptOption[] = useWorkbenchStore.getState().instructionOptions): StoredPromptOption[] {
+  const global = optionsOf(files.global);
+  const personal = optionsOf(files.personal);
+  const globalIds = new Set(global.map((option) => option.id));
+  const personalIds = new Set(personal.map((option) => option.id));
   return [
-    ...optionsOf(files.global).map((option) => ({ scope: "global" as const, option })),
-    ...optionsOf(files.personal).map((option) => ({ scope: "workspace" as const, workspaceId, option })),
+    ...global.map((option) => ({ scope: "global" as const, option })),
+    ...retained.filter((item) => item.scope === "global" && !globalIds.has(item.option.id)).map(({ option }) => ({ scope: "global" as const, option })),
+    ...personal.map((option) => ({ scope: "workspace" as const, workspaceId, option })),
+    ...retained.filter((item) => item.scope === "workspace" && item.workspaceId === workspaceId && !personalIds.has(item.option.id))
+      .map(({ option }) => ({ scope: "workspace" as const, workspaceId, option })),
   ];
 }
 
@@ -77,12 +93,16 @@ export function saveInstructions(layer: InstructionLayer, root: string, update: 
 export function startRepoInstructions(): () => void {
   const roots = () => [...new Set(useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace)).map((workspace) => workspace.path))];
   let last = "";
+  let loaded: string[] = [];
   const onChange = () => {
     if (!useWorkbenchStore.getState().isHydrated) return;
     const current = roots();
     const key = current.join("\0");
     if (key === last) return;
     last = key;
+    // A removed workspace's documents stop being kept current: its watcher closes and its reads stop.
+    for (const root of loaded) if (!current.includes(root)) forgetConfig(root);
+    loaded = current;
     void loadConfig("instructions");
     for (const root of current) layersOf("instructions", root);
   };

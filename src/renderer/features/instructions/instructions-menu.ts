@@ -34,7 +34,8 @@ export const instructionsMenu: PromptMenuDefinition = {
     // Drafts change workspaces on every keystroke; only paths and turned-off ids matter here.
     const layersKey = (workspaces: Workspace[]) => workspaces.map((w) => `${w.id}\0${w.path}\0${(w.disabledInstructionIds ?? []).join()}`).join("\n");
     const offStore = useWorkbenchStore.subscribe((state, previous) => {
-      if (state.workspaces !== previous.workspaces && layersKey(state.workspaces) !== layersKey(previous.workspaces)) listener();
+      if (state.instructionOptions !== previous.instructionOptions) listener();
+      else if (state.workspaces !== previous.workspaces && layersKey(state.workspaces) !== layersKey(previous.workspaces)) listener();
     });
     const offRepo = useConfigLayers.subscribe(listener);
     return () => { offStore(); offRepo(); };

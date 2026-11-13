@@ -1,4 +1,5 @@
 import { promises as fs, watch, type FSWatcher } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BrowserWindow } from "electron";
 import { APP_DIR, LOCAL_SUFFIX } from "../shared/app-identity";
@@ -18,9 +19,27 @@ export function layerFile(name: ConfigName, scope: ConfigScope, root?: string): 
   return path.join(root, APP_DIR, scope === "local" ? `${name}${LOCAL_SUFFIX}.json` : `${name}.json`);
 }
 
-async function readDocument(name: ConfigName, file: string): Promise<ConfigDocument | undefined> {
+/**
+ * A workspace layer's file must really be inside its workspace: neither the file nor any folder between it and the
+ * root may be a symlink, so a `.dimsum` linked elsewhere can't be read from or written to.
+ */
+export async function assertInsideRoot(root: string, file: string): Promise<void> {
+  const base = path.resolve(root);
+  const relative = path.relative(base, path.resolve(file));
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Path is outside the workspace.");
+  let current = base;
+  for (const part of relative.split(path.sep)) {
+    current = path.join(current, part);
+    const stat = await fs.lstat(current).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
+    if (!stat) return;
+    if (stat.isSymbolicLink()) throw new Error(`${path.relative(base, current)} is a symbolic link; workspace settings must be ordinary files inside the workspace.`);
+  }
+}
+
+async function readDocument(name: ConfigName, file: string, root?: string): Promise<ConfigDocument | undefined> {
   let bytes: Buffer;
   try {
+    if (root) await assertInsideRoot(root, file);
     const stat = await fs.stat(file);
     if (!stat.isFile()) return { status: "invalid", error: "Not a file.", path: file };
     if (stat.size > READ_LIMIT) return { status: "invalid", error: "The file is larger than 2 MB.", path: file };
@@ -44,13 +63,13 @@ async function readDocument(name: ConfigName, file: string): Promise<ConfigDocum
 export async function readLayers(name: ConfigName, root?: string): Promise<ConfigLayers> {
   const layers: ConfigLayers = { user: await readDocument(name, layerFile(name, "user")) };
   if (!root) return layers;
-  layers.workspace = await readDocument(name, layerFile(name, "workspace", root));
+  layers.workspace = await readDocument(name, layerFile(name, "workspace", root), root);
   const legacy = LEGACY[name];
   if (!layers.workspace && legacy) {
-    layers.workspace = await readDocument(name, path.join(root, legacy));
+    layers.workspace = await readDocument(name, path.join(root, legacy), root);
     layers.legacyWorkspace = Boolean(layers.workspace);
   }
-  layers.local = await readDocument(name, layerFile(name, "local", root));
+  layers.local = await readDocument(name, layerFile(name, "local", root), root);
   return layers;
 }
 
@@ -65,18 +84,24 @@ export function serializeDocument(value: unknown): string {
 /** Saves one layer over the version last read (`expectedHash`; null: there must be no file yet). */
 export async function writeLayer(name: ConfigName, scope: ConfigScope, root: string | undefined, value: unknown, expectedHash: string | null): Promise<ConfigWriteResult> {
   const parsed = CONFIG_DOCUMENTS[name].parse(value);
+  // Never save what the reader would refuse: the readable file stays, and the caller learns it wasn't written.
+  assertInputBudget(parsed);
+  const text = serializeDocument(parsed);
+  if (Buffer.byteLength(text, "utf8") > READ_LIMIT) throw new Error(`The ${name} file would be larger than 2 MB, so it wasn't saved.`);
   const file = layerFile(name, scope, root);
   const previous = writing.get(file) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async (): Promise<ConfigWriteResult> => {
+    if (scope !== "user" && root) await assertInsideRoot(root, file);
     const current = await fs.readFile(file).then(contentHash, (error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return null; throw error; });
     if (current !== expectedHash) return { ok: false, reason: "changed" };
     const folder = path.dirname(file);
     await fs.mkdir(folder, { recursive: true, mode: scope === "user" ? 0o700 : 0o755 });
-    if (scope === "local") await ignoreLocalFiles(folder);
-    const text = serializeDocument(parsed);
-    const temporary = `${file}.${process.pid}.next`;
-    await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644 });
-    await fs.rename(temporary, file);
+    if (scope === "local" && root) await ignoreLocalFiles(folder, root);
+    // A fresh name, created exclusively: an existing file or symlink at that path can't redirect the write.
+    const temporary = `${file}.${randomUUID()}.next`;
+    await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644, flag: "wx" });
+    try { await fs.rename(temporary, file); }
+    catch (error) { await fs.rm(temporary, { force: true }).catch(() => undefined); throw error; }
     return { ok: true, hash: contentHash(Buffer.from(text, "utf8")) };
   });
   writing.set(file, next);
@@ -87,10 +112,18 @@ export async function writeLayer(name: ConfigName, scope: ConfigScope, root: str
  * A workspace's `.local` files are the person's own. The first one written leaves a `.gitignore` beside it: a plain
  * convention file most version-control tools honour, written once and never edited after.
  */
-export async function ignoreLocalFiles(folder: string): Promise<void> {
+export async function ignoreLocalFiles(folder: string, root: string): Promise<void> {
   const ignore = path.join(folder, ".gitignore");
-  try { await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*) stay on this machine.\n*${LOCAL_SUFFIX}.*\nnode_modules/\n`, { flag: "wx" }); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+  await assertInsideRoot(root, ignore);
+  const pattern = `*${LOCAL_SUFFIX}.*`;
+  const existing = await fs.readFile(ignore, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
+  if (existing === undefined) {
+    await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*) stay on this machine.\n${pattern}\nnode_modules/\n`, { flag: "wx" });
+    return;
+  }
+  // An existing ignore file keeps its content; the exclusion personal files rely on is added if it is missing.
+  if (existing.split(/\r?\n/).some((line) => line.trim() === pattern)) return;
+  await fs.appendFile(ignore, `${existing.endsWith("\n") || !existing ? "" : "\n"}# Personal settings stay on this machine.\n${pattern}\n`);
 }
 
 let homeWatcher: FSWatcher | undefined;
