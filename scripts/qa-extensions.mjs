@@ -57,6 +57,13 @@ export default defineExtension({
     // Widgets in the slots that aren't tied to a view: they show while this workspace is the active one.
     ctx.widgets.register({ id: "hello.footer", slot: "sidebar.footer", component: ({ workspaceId }) => <span className="qa-hello-footer">Hello footer {workspaceId}</span> });
     ctx.widgets.register({ id: "hello.settings", slot: "settings.general", component: ({ workspaceId }) => <p className="qa-hello-settings">Hello settings {workspaceId}</p> });
+    // A handler that changes the store as it hears about a view: each view is still announced once.
+    ctx.events.on("view.opened", (event) => {
+      if (event.workspaceId !== ctx.extension.workspaceId) return;
+      const seen = ((window as unknown as { helloOpened?: Record<string, number> }).helloOpened ??= {});
+      seen[event.viewId] = (seen[event.viewId] ?? 0) + 1;
+      void ctx.commands.execute("view.activate", { workspaceId: event.workspaceId, viewId: event.viewId });
+    });
     // Its own command, called with arguments of its own shape.
     ctx.commands.register("hello.double", (args: { value: number }) => args.value * 2);
     void ctx.commands.execute("hello.double", { value: 3 }).then((result) => { (window as unknown as { helloDoubled?: unknown }).helloDoubled = result; },
@@ -81,6 +88,16 @@ await mkdir(join(repo, ".dimsum", "extensions", "leaky"), { recursive: true });
 await writeFile(join(repo, ".dimsum", "extensions", "leaky", "index.tsx"), `import { defineExtension, guard, pattern } from "@dimsum/sdk";
 const block = guard("leaky.block", pattern(/LEAKY/, "Leaked guard."), { onMatch: "block" });
 export default defineExtension({ name: "Leaky", activate(ctx) { ctx.beforeSend([block, block]); } });
+`);
+// An extension that takes a while to activate: a save that lands meanwhile must still end up running.
+await mkdir(join(repo, ".dimsum", "extensions", "slow"), { recursive: true });
+await writeFile(join(repo, ".dimsum", "extensions", "slow", "label.ts"), `export const label = "slow-0";\n`);
+await writeFile(join(repo, ".dimsum", "extensions", "slow", "index.tsx"), `import { defineExtension } from "@dimsum/sdk";
+import { label } from "./label";
+export default defineExtension({ name: "Slow", async activate(ctx) {
+  await new Promise((done) => setTimeout(done, 1500));
+  ctx.widgets.register({ id: "slow.status", slot: "statusbar.end", component: () => <span className="qa-slow">{label}</span> });
+} });
 `);
 // An ignore file the team already has: the local-file exclusion is added to it, nothing is lost.
 await writeFile(join(repo, ".dimsum", ".gitignore"), "node_modules/\n");
@@ -179,6 +196,12 @@ try {
   await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hello";\n`);
   await page.getByRole("heading", { name: "Hello board in Extensions QA" }).waitFor();
   await until(async () => (await row("Hello").locator(".extension-error-text").count()) === 0, "the error to clear");
+  // A second save while the first is still starting: the newer one wins.
+  await page.locator(".qa-slow", { hasText: "slow-0" }).waitFor();
+  await writeFile(join(repo, ".dimsum", "extensions", "slow", "label.ts"), `export const label = "slow-1";\n`);
+  await page.waitForTimeout(700);
+  await writeFile(join(repo, ".dimsum", "extensions", "slow", "label.ts"), `export const label = "slow-2";\n`);
+  await page.locator(".qa-slow", { hasText: "slow-2" }).waitFor({ timeout: 15_000 });
   // The extension found its own command with arguments; the failed one left no guard behind.
   await until(async () => (await page.evaluate(() => window.helloDoubled)) === 6, "hello.double to run");
   await row("Leaky").locator(".extension-error-text").waitFor();
@@ -263,6 +286,9 @@ try {
   await page.getByRole("button", { name: "Create view" }).click();
   await page.getByRole("menuitem", { name: /Qa Made/ }).click();
   await page.getByRole("heading", { name: "Qa Made" }).waitFor();
+  const opened = await page.evaluate(() => window.helloOpened ?? {});
+  assert.ok(Object.keys(opened).length > 0, "the extension heard view.opened");
+  assert.ok(Object.values(opened).every((count) => count === 1), `each view is announced once: ${JSON.stringify(opened)}`);
   await shot("7-scaffolded");
 
   // A name that starts with a digit still makes a valid component name.

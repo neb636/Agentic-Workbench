@@ -48,6 +48,23 @@ const inflight = new Map<string, Promise<void>>();
 /** Bumped when an extension stops being wanted, so a start still bundling for it never activates. */
 const generations = new Map<string, number>();
 const generationOf = (key: string) => generations.get(key) ?? 0;
+/** A reload asked for while that extension was still starting: it runs again once the start settles. */
+const reloadAfter = new Map<string, string | undefined>();
+const stopWanting = (key: string) => { generations.set(key, generationOf(key) + 1); reloadAfter.delete(key); };
+
+/** Starts one extension, and starts it once more if a reload came in meanwhile (a newer save, or Reload). */
+function launch(key: string, listing: ExtensionListing, workspace?: Workspace): void {
+  const run = start(listing, workspace).finally(() => {
+    inflight.delete(key);
+    if (!reloadAfter.has(key)) return;
+    const workspaceId = reloadAfter.get(key);
+    reloadAfter.delete(key);
+    const latest = workspaceId === undefined ? undefined : useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
+    if (workspaceId !== undefined && !latest) return;
+    void reconcile(latest, false, new Set([listing.id]));
+  });
+  inflight.set(key, run);
+}
 
 async function start(listing: ExtensionListing, workspace?: Workspace): Promise<void> {
   const info: ExtensionInfo = {
@@ -101,9 +118,12 @@ async function reconcile(workspace: Workspace | undefined, relist: boolean, relo
     const record = useActiveExtensions.getState().records[key];
     if (record && !reload.has(listing.id) && record.status === "active") continue;
     if (record && !reload.has(listing.id) && record.status === "failed" && !relist) continue;
-    if (inflight.has(key)) continue;
-    const run = start(listing, workspace).finally(() => inflight.delete(key));
-    inflight.set(key, run);
+    if (inflight.has(key)) {
+      // The running start may have bundled an older revision: build again when it is done.
+      if (reload.has(listing.id)) reloadAfter.set(key, workspace?.id);
+      continue;
+    }
+    launch(key, listing, workspace);
   }
   // Removed, turned off, or no longer trusted: stop it.
   for (const record of Object.values(useActiveExtensions.getState().records)) {
@@ -112,7 +132,7 @@ async function reconcile(workspace: Workspace | undefined, relist: boolean, relo
   }
   for (const listing of listings) {
     const key = listingKey(listing, workspace?.id);
-    if (!wanted.has(key) && inflight.has(key)) generations.set(key, generationOf(key) + 1);
+    if (!wanted.has(key) && inflight.has(key)) stopWanting(key);
   }
   await Promise.all([...inflight.values()]);
 }
@@ -179,7 +199,7 @@ export function startWorkspaceExtensions(): () => void {
       stop();
       watches.delete(workspaceId);
       for (const record of Object.values(useActiveExtensions.getState().records)) if (record.info.workspaceId === workspaceId) deactivateExtension(record.key);
-      for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) generations.set(key, generationOf(key) + 1);
+      for (const key of inflight.keys()) if (key.startsWith(`${workspaceId}|`)) stopWanting(key);
       useInstalledExtensions.setState((state) => { const { [workspaceId]: _, ...byWorkspace } = state.byWorkspace; void _; return { byWorkspace }; });
     }
     for (const workspace of current) {

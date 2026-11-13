@@ -84,6 +84,10 @@ export function serializeDocument(value: unknown): string {
 /** Saves one layer over the version last read (`expectedHash`; null: there must be no file yet). */
 export async function writeLayer(name: ConfigName, scope: ConfigScope, root: string | undefined, value: unknown, expectedHash: string | null): Promise<ConfigWriteResult> {
   const parsed = CONFIG_DOCUMENTS[name].parse(value);
+  // Never save what the reader would refuse: the readable file stays, and the caller learns it wasn't written.
+  assertInputBudget(parsed);
+  const text = serializeDocument(parsed);
+  if (Buffer.byteLength(text, "utf8") > READ_LIMIT) throw new Error(`The ${name} file would be larger than 2 MB, so it wasn't saved.`);
   const file = layerFile(name, scope, root);
   const previous = writing.get(file) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(async (): Promise<ConfigWriteResult> => {
@@ -93,7 +97,6 @@ export async function writeLayer(name: ConfigName, scope: ConfigScope, root: str
     const folder = path.dirname(file);
     await fs.mkdir(folder, { recursive: true, mode: scope === "user" ? 0o700 : 0o755 });
     if (scope === "local" && root) await ignoreLocalFiles(folder, root);
-    const text = serializeDocument(parsed);
     // A fresh name, created exclusively: an existing file or symlink at that path can't redirect the write.
     const temporary = `${file}.${randomUUID()}.next`;
     await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644, flag: "wx" });
