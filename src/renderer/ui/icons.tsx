@@ -49,3 +49,4 @@ export const GlobeIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="
 export const UsersIcon = ({ size }: IconProps) => <Icon size={size}><circle cx="9" cy="8.5" r="3.2" /><path d="M3 19.5c.7-3.3 3-5 6-5s5.3 1.7 6 5" /><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.8c1.8.6 3 2.2 3.5 4.7" /></Icon>;
 export const LockIcon = ({ size }: IconProps) => <Icon size={size}><rect x="5" y="10.5" width="14" height="10" rx="2.2" /><path d="M8.5 10.5V7.8a3.5 3.5 0 0 1 7 0v2.7" /></Icon>;
 export const WarningIcon = ({ size }: IconProps) => <Icon size={size}><path d="M10.3 4.2a2 2 0 0 1 3.4 0l7.4 12.8a2 2 0 0 1-1.7 3H4.6a2 2 0 0 1-1.7-3z" /><path d="M12 9.5v4M12 16.8h.01" /></Icon>;
+export const PuzzleIcon = ({ size }: IconProps) => <Icon size={size}><path d="M9.5 4.5a2 2 0 1 1 4 0V6H17a1 1 0 0 1 1 1v3.5h1.5a2 2 0 1 1 0 4H18V18a1 1 0 0 1-1 1h-3.5v-1.5a2 2 0 1 0-4 0V19H6a1 1 0 0 1-1-1v-3.5h1.5a2 2 0 1 0 0-4H5V7a1 1 0 0 1 1-1h3.5z" /></Icon>;

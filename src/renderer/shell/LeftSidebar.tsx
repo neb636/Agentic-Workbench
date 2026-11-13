@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button as AriaButton, Tree, TreeItem, TreeItemContent, type Key } from "react-aria-components";
 import type { Workspace } from "../../shared/models";
 import { services } from "../core/services";
+import { useContributions } from "../core/registry";
 import { useViewStatuses, viewStatus } from "../core/view-status";
 import { useWorkbenchStore } from "../state/workbench-store";
 import { IconButton } from "../ui/controls";
@@ -11,10 +12,11 @@ import { ChevronRightIcon, FileIcon, FolderIcon, PlusIcon, SidebarLeftIcon } fro
 import { isFilesWorkspace } from "../../shared/files-workspace";
 
 function sidebarViews(workspace: Workspace) {
-  return workspace.views.filter((view) => services.views.get(view.type)?.listInSidebar);
+  return workspace.views.filter((view) => services.views.of(view)?.listInSidebar);
 }
 
 export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
+  useContributions();
   const menu = useContextMenu("Workspace and view actions");
   const stored = useWorkbenchStore((state) => state.workspaces);
   // Files opened on their own sit below every folder workspace.
@@ -66,7 +68,7 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
                 <strong>{workspace.name}</strong>
                 {isFilesWorkspace(workspace)
                   ? <small>Opened on their own</small>
-                  : <small>{sessions.length} {sessions.length === 1 ? "session" : "sessions"}{services.widgets.forSlot("sidebar.workspace.meta").map((widget) => {
+                  : <small>{sessions.length} {sessions.length === 1 ? "session" : "sessions"}{services.widgets.forSlot("sidebar.workspace.meta", workspace.id).map((widget) => {
                     const Widget = widget.component;
                     return <Widget key={widget.id} workspaceId={workspace.id} />;
                   })}</small>}

@@ -16,6 +16,8 @@ export const defaultInstructions: PromptOptionDefinition[] = [
     choice("write-new", "Write new", "Add or update unit tests that cover this change, and run them before finishing."),
     choice("skip", "Skip", "Do not add or run unit tests for this change."),
   ] }),
+  toggle("app-extension-guide", { label: "Extension guide", category: "Workbench",
+    text: "This app can be extended from this workspace. Before adding or changing the app's own views, panels, menus or send checks, read .dimsum/AGENTS.md (or the file named in $DIMSUM_GUIDE) and build the change as an extension in .dimsum/extensions/." }),
   textInput("test-focus", { label: "Test focus", category: "Verification", when: isChoice("unit-tests", "write-new"),
     placeholder: "e.g. error handling", template: "Focus the new tests on {{value}}." }),
 ];

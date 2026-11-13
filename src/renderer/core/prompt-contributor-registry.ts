@@ -1,12 +1,11 @@
 import type { PromptContribution } from "../../shared/models";
+import type { PromptContributor } from "@dimsum/sdk";
 import { Registry } from "./registry";
 
-export interface PromptContributor {
-  id: string;
-  contributions: (context: { workspaceId: string; viewId: string }) => PromptContribution[];
-}
+export type { PromptContributor } from "@dimsum/sdk";
+
 export class PromptContributorRegistry extends Registry<PromptContributor> {
   collect(context: { workspaceId: string; viewId: string }): PromptContribution[] {
-    return this.list().flatMap((contributor) => contributor.contributions(context));
+    return this.list(context.workspaceId).flatMap((contributor) => contributor.contributions(context));
   }
 }

@@ -39,6 +39,7 @@ export const promptConditionSchema: z.ZodType<PromptCondition> = z.lazy(() => z.
   z.object({ kind: z.literal("not"), condition: promptConditionSchema }),
   z.object({ kind: z.literal("isOn"), option: z.string() }),
   z.object({ kind: z.literal("isChoice"), option: z.string(), choice: z.string() }),
+  z.object({ kind: z.literal("harness"), harness: z.string() }),
 ]));
 
 const promptOptionChoiceSchema = z.object({

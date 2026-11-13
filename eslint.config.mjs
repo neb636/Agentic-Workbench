@@ -22,6 +22,16 @@ export default tseslint.config(
     },
   },
   {
+    // The SDK is the seam a future standalone package is cut along: contracts and pure builders only.
+    files: ["src/sdk/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [{
+        group: ["**/renderer/**", "**/main/**", "**/preload/**", "electron", "zustand", "zod", "react-aria-components"],
+        message: "src/sdk may import only react types and pure modules from src/shared. Implementations belong to the host.",
+      }] }],
+    },
+  },
+  {
     files: ["src/main/**/*.ts", "src/preload/**/*.ts"],
     languageOptions: { globals: { __dirname: "readonly", process: "readonly" } },
   },

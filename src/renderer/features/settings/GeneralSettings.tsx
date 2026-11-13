@@ -4,6 +4,7 @@ import { Button as AriaButton, Label, ListBox, ListBoxItem, Popover, Select, Sel
 import { services } from "../../core/services";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { ChevronDownIcon } from "../../ui/icons";
+import { relistWorkspaceExtensions } from "../../extensions/workspace-extensions";
 import { useDefaultCli } from "./default-cli";
 
 export function GeneralSettings() {
@@ -25,7 +26,7 @@ export function GeneralSettings() {
     </Select>
     <p className="settings-help">Drafts and attachments stay on this computer. Attachments remain available to saved conversations while their view exists. CLI conversation storage is managed by the CLI.</p>
     <Button onPress={() => { void window.workbench.app.storageMaintenance(true).then((bytes) => setStorageNotice(`${Math.ceil(bytes / 1024 / 1024)} MB of attachments retained for open views.`)).catch(() => setStorageNotice("Could not clean attachment storage.")); }}>Remove attachments for closed views</Button>
-    <Button onPress={() => { void window.workbench.app.revokeExecutionTrust().then(() => setStorageNotice("Workspace execution trust cleared. Running sessions keep their native permissions.")).catch(() => setStorageNotice("Could not clear execution trust.")); }}>Reset workspace execution trust</Button>
+    <Button onPress={() => { void window.workbench.app.revokeExecutionTrust().then(() => relistWorkspaceExtensions()).then(() => setStorageNotice("Workspace execution trust cleared. Workspace extensions stopped; running sessions keep their native permissions.")).catch(() => setStorageNotice("Could not clear execution trust.")); }}>Reset workspace execution trust</Button>
     {storageNotice && <p role="status" className="settings-help">{storageNotice}</p>}
     {services.widgets.forSlot("settings.general").map(({ id, component: Section }) => <Section key={id} />)}
   </div>;

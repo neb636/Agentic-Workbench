@@ -1,7 +1,11 @@
 import { services } from "../core/services";
+import { useContributions } from "../core/registry";
+import { useWorkbenchStore } from "../state/workbench-store";
 
 export function StatusBar() {
-  const render = (slot: string) => services.widgets.forSlot(slot).map((widget) => {
+  useContributions();
+  const workspaceId = useWorkbenchStore((state) => state.activeWorkspaceId ?? state.workspaces[0]?.id);
+  const render = (slot: string) => services.widgets.forSlot(slot, workspaceId).map((widget) => {
     const Widget = widget.component;
     return <Widget key={widget.id} />;
   });

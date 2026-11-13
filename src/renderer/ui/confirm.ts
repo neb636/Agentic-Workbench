@@ -1,15 +1,6 @@
-import type { ReactNode } from "react";
-
 /** A destructive action the person confirms: what goes, what is lost, and what the button says. */
-export interface DestructiveConfirmation {
-  title: string;
-  message: string;
-  /** What is lost, shown in the warning callout. */
-  warning: ReactNode;
-  /** The thing being removed. */
-  subject: { icon: ReactNode; name: string; detail?: string; meta?: string };
-  confirmLabel: string;
-}
+import type { DestructiveConfirmation } from "@dimsum/sdk";
+export type { DestructiveConfirmation } from "@dimsum/sdk";
 
 type Pending = DestructiveConfirmation & { resolve: (confirmed: boolean) => void };
 let pending: Pending | undefined;

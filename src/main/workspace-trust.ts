@@ -37,7 +37,7 @@ export async function authorizeWorkspaceExecution(root: string): Promise<void> {
   if (existing) return existing;
   const version = generation;
   const request = (async () => {
-    const result = await dialog.showMessageBox({ type: "question", title: "Trust workspace programs?", message: "Allow source-control programs in this workspace?", detail: `${canonical}\n\nSource-control actions and AI change preparation can run repository hooks, filters, and configured helpers with your account's permissions. Only trust repositories you know. This choice is remembered. Agent CLIs keep their own approval prompts.`, buttons: ["Cancel", "Trust workspace"], defaultId: 0, cancelId: 0, noLink: true });
+    const result = await dialog.showMessageBox({ type: "question", title: "Trust workspace?", message: "Allow this workspace's programs and extensions?", detail: `${canonical}\n\nSource-control actions and AI change preparation can run repository hooks, filters, and configured helpers with your account's permissions. Extensions in the workspace's .dimsum/extensions folder run inside this app with the same access it has. Only trust repositories you know. This choice is remembered. Agent CLIs keep their own approval prompts.`, buttons: ["Cancel", "Trust workspace"], defaultId: 0, cancelId: 0, noLink: true });
     if (result.response !== 1 || version !== generation) throw new Error("Workspace execution was not approved.");
     trusted.set(canonical, identity(canonical));
     saves = saves.catch(() => undefined).then(async () => {

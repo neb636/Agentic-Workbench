@@ -6,7 +6,9 @@ export type PromptCondition =
   | { kind: "any"; conditions: PromptCondition[] }
   | { kind: "not"; condition: PromptCondition }
   | { kind: "isOn"; option: string }
-  | { kind: "isChoice"; option: string; choice: string };
+  | { kind: "isChoice"; option: string; choice: string }
+  /** The composer sends to this agent harness (an agent provider id such as `claude.cli`). */
+  | { kind: "harness"; harness: string };
 
 export interface PromptOptionChoice {
   id: string;
@@ -75,6 +77,13 @@ export const anyOf = (conditions: PromptCondition[]): PromptCondition => ({ kind
 export const not = (condition: PromptCondition): PromptCondition => ({ kind: "not", condition });
 export const isOn = (optionId: string): PromptCondition => ({ kind: "isOn", option: optionId });
 export const isChoice = (optionId: string, choiceId: string): PromptCondition => ({ kind: "isChoice", option: optionId, choice: choiceId });
+export const harness = (providerId: string): PromptCondition => ({ kind: "harness", harness: providerId });
+
+/** What conditions may ask about besides the selections themselves. */
+export interface PromptConditionContext {
+  /** The agent harness the composer sends to; `harness(...)` conditions are false while it is unknown. */
+  providerId?: string;
+}
 
 export function defaultValue(definition: PromptOptionDefinition): PromptOptionValue {
   switch (definition.kind) {
@@ -120,7 +129,7 @@ export interface PromptOptionEvaluator {
  * Conditions may reference any option in the same set. A hidden option counts as off,
  * so dependent options disappear with it; cyclic or unknown references are false.
  */
-export function createEvaluator(options: PromptOptionDefinition[], selections: PromptSelections): PromptOptionEvaluator {
+export function createEvaluator(options: PromptOptionDefinition[], selections: PromptSelections, context: PromptConditionContext = {}): PromptOptionEvaluator {
   const byId = new Map(options.map((definition) => [definition.id, definition]));
   const visibility = new Map<string, boolean>();
   const visiting = new Set<string>();
@@ -154,6 +163,7 @@ export function createEvaluator(options: PromptOptionDefinition[], selections: P
         const current = value(definition);
         return Array.isArray(current) ? current.includes(condition.choice) : current === condition.choice;
       }
+      case "harness": return context.providerId === condition.harness;
     }
   };
   return { isVisible, evaluate, value };
@@ -175,8 +185,8 @@ function summaryOf(definition: PromptOptionDefinition, value: PromptOptionValue)
   return definition.label;
 }
 
-export function resolveOptions(options: PromptOptionDefinition[], selections: PromptSelections, context = options): ResolvedPromptOption[] {
-  const evaluator = createEvaluator(context, selections);
+export function resolveOptions(options: PromptOptionDefinition[], selections: PromptSelections, context = options, conditions: PromptConditionContext = {}): ResolvedPromptOption[] {
+  const evaluator = createEvaluator(context, selections, conditions);
   return options
     .filter((definition) => evaluator.isVisible(definition.id))
     .map((definition) => {

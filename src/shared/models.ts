@@ -1,6 +1,7 @@
 import type { FileOperation, FileOperationResult, FileOperationProgress } from "./file-operations";
 import type { PromptOptionDefinition, PromptSelections } from "./prompt-options";
 import type { AiUsageApi } from "./ai-usage";
+import type { DimsumApi } from "./dimsum";
 
 export type ViewType = string;
 
@@ -441,6 +442,8 @@ export interface AgentSessionSnapshot {
 export interface WorkbenchApi {
   platform: NodeJS.Platform;
   aiUsage: AiUsageApi;
+  config: DimsumApi["config"];
+  extensions: DimsumApi["extensions"];
   persistence: {
     load: () => Promise<PersistedState>;
     save: (state: PersistedState) => Promise<void>;

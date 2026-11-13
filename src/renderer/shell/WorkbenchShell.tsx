@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { services } from "../core/services";
 import { openPanel } from "../features/explorer/explorer-store";
+import { useContributions } from "../core/registry";
 import { QuickOpen } from "../features/files/QuickOpen";
 import { ConfirmDialogHost } from "../ui/ConfirmDialog";
 import { useWorkbenchStore } from "../state/workbench-store";
@@ -37,7 +38,8 @@ export function WorkbenchShell() {
   const rightRef = useCollapsible(layout.rightCollapsed);
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
   const activeView = activeWorkspace?.views.find((view) => view.id === activeWorkspace.activeViewId);
-  const definition = activeView ? services.views.get(activeView.type) : undefined;
+  useContributions();
+  const definition = activeView ? services.views.of(activeView) : undefined;
 
   useEffect(() => {
     void hydrate().then(() => {
@@ -87,7 +89,9 @@ export function WorkbenchShell() {
             ) : activeView && definition ? (
               <definition.component key={activeView.id} view={activeView} workspace={activeWorkspace} />
             ) : activeView ? (
-              <div className="missing-view"><h2>View unavailable</h2><p>No view is registered for <code>{activeView.type}</code>.</p></div>
+              <div className="missing-view"><h2>View unavailable</h2><p>No view is registered for <code>{activeView.type}</code>.</p>
+                {activeView.type.includes(".") && <><p>It may come from an extension that isn’t loaded in this workspace yet.</p>
+                  <Button className="primary-button" onPress={() => openPanel("extensions")}>Show extensions</Button></>}</div>
             ) : isFilesWorkspace(activeWorkspace) ? (
               <div className="empty-workspace"><h2>No files open</h2><p>Files you open from Finder appear here.</p></div>
             ) : (

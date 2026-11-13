@@ -7,6 +7,8 @@ import { WidgetRegistry } from "./widget-registry";
 import { PromptContributorRegistry } from "./prompt-contributor-registry";
 import { PromptMenuRegistry } from "./prompt-menu-registry";
 import { PanelRegistry } from "./panel-registry";
+import { EventBus } from "./event-bus";
+import { SendGuardRegistry } from "./send-guard-registry";
 
 export const services = {
   contextMenus: new ContextMenuRegistry(),
@@ -18,4 +20,6 @@ export const services = {
   promptContributors: new PromptContributorRegistry(),
   promptMenus: new PromptMenuRegistry(),
   panels: new PanelRegistry(),
+  sendGuards: new SendGuardRegistry(),
+  events: new EventBus(),
 };

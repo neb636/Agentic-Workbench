@@ -1,129 +1,91 @@
-import { assertInputBudget } from "../../../shared/input-budget";
-import { create } from "zustand";
-import { REPO_INSTRUCTIONS_PATH, serializeRepoInstructions } from "../../../shared/instruction-layers";
+import { INSTRUCTION_FILES, type InstructionLayer } from "../../../shared/instruction-layers";
+import type { ConfigLayers, ConfigScope } from "../../../shared/dimsum";
+import type { StoredPromptOption } from "../../../shared/models";
 import type { PromptOptionDefinition } from "../../../shared/prompt-options";
-import { repoInstructionsFileSchema } from "../../../shared/schemas";
-import { watchWorkspace } from "../../core/workspace-watch";
+import { layersOf, loadConfig, saveConfig, useConfigLayers } from "../../core/config-layers";
 import { useWorkbenchStore } from "../../state/workbench-store";
 import { isFilesWorkspace } from "../../../shared/files-workspace";
 
-/** The shared instructions file of one workspace root, as last read from disk. */
-export type RepoInstructions =
+/** One instructions file as last read from disk. */
+export type InstructionsFile =
   | { status: "loading" }
   | { status: "missing" }
-  | { status: "ok"; options: PromptOptionDefinition[]; hash: string }
-  | { status: "invalid"; error: string; hash?: string };
+  | { status: "ok"; options: PromptOptionDefinition[] }
+  | { status: "invalid"; error: string };
 
-export const useRepoInstructions = create<Record<string, RepoInstructions>>(() => ({}));
+export interface InstructionFiles {
+  global: InstructionsFile;
+  shared: InstructionsFile;
+  personal: InstructionsFile;
+  /** The shared layer still comes from `.workbench/instructions.json`; the next save moves it to `.dimsum/`. */
+  legacyShared: boolean;
+}
 
-const LOADING: RepoInstructions = { status: "loading" };
-const FOLDER = REPO_INSTRUCTIONS_PATH.split("/")[0];
+const SCOPES: Record<InstructionLayer, ConfigScope> = { global: "user", shared: "workspace", personal: "local" };
 
-export function repoInstructionsOf(root: string | undefined): RepoInstructions {
-  return (root && useRepoInstructions.getState()[root]) || LOADING;
+function fileOf(layers: ConfigLayers | undefined, scope: ConfigScope): InstructionsFile {
+  if (!layers) return { status: "loading" };
+  const document = layers[scope];
+  if (!document) return { status: "missing" };
+  if (document.status === "invalid") return { status: "invalid", error: document.error };
+  return { status: "ok", options: (document.value as { instructions: PromptOptionDefinition[] }).instructions };
+}
+
+function filesFrom(layers: ConfigLayers | undefined): InstructionFiles {
+  return { global: fileOf(layers, "user"), shared: fileOf(layers, "workspace"), personal: fileOf(layers, "local"), legacyShared: Boolean(layers?.legacyWorkspace) };
+}
+
+/** The instruction files that apply to a workspace folder (only the person's own without one). */
+export function instructionFilesOf(root: string | undefined): InstructionFiles {
+  return filesFrom(layersOf("instructions", root || undefined));
+}
+
+export function useInstructionFiles(root: string | undefined): InstructionFiles {
+  const key = `instructions\0${root ?? ""}`;
+  const layers = useConfigLayers((state) => state[key]);
+  if (!layers) layersOf("instructions", root || undefined);
+  return filesFrom(layers);
+}
+
+const optionsOf = (file: InstructionsFile) => (file.status === "ok" ? file.options : []);
+
+/** The person's own instructions for this workspace (everywhere, then only here), in the shape layering expects. */
+export function storedOptionsOf(files: InstructionFiles, workspaceId: string): StoredPromptOption[] {
+  return [
+    ...optionsOf(files.global).map((option) => ({ scope: "global" as const, option })),
+    ...optionsOf(files.personal).map((option) => ({ scope: "workspace" as const, workspaceId, option })),
+  ];
 }
 
 /** The shared options the composer offers; nothing while the file is missing, loading, or unreadable. */
 export function sharedOptionsOf(root: string | undefined): PromptOptionDefinition[] {
-  const current = repoInstructionsOf(root);
-  return current.status === "ok" ? current.options : [];
+  return optionsOf(instructionFilesOf(root).shared);
 }
 
-function parse(content: string, hash: string): RepoInstructions {
-  let json: unknown;
-  try { json = JSON.parse(content); assertInputBudget(json); } catch (error) { return { status: "invalid", error: (error as Error).message, hash }; }
-  const result = repoInstructionsFileSchema.safeParse(json);
-  if (!result.success) {
-    const issue = result.error.issues[0];
-    return { status: "invalid", error: `${issue.path.join(".") || "file"}: ${issue.message}`, hash };
-  }
-  return { status: "ok", options: result.data.instructions, hash };
+/** Where a layer's instructions are saved, for messages. */
+export function instructionsPath(layer: InstructionLayer): string {
+  return INSTRUCTION_FILES[layer];
 }
 
-const reads = new Map<string, number>();
-
-export async function loadRepoInstructions(root: string): Promise<RepoInstructions> {
-  const read = (reads.get(root) ?? 0) + 1;
-  reads.set(root, read);
-  let next: RepoInstructions;
-  try {
-    const [found] = await window.workbench.files.exists(root, [REPO_INSTRUCTIONS_PATH]);
-    if (!found) next = { status: "missing" };
-    else {
-      const file = await window.workbench.files.read(root, REPO_INSTRUCTIONS_PATH);
-      next = file.binary || file.truncated ? { status: "invalid", error: "The file is not readable text.", hash: file.hash } : parse(file.content, file.hash);
-    }
-  } catch (error) {
-    next = { status: "invalid", error: (error as Error).message };
-  }
-  // A newer read started while this one waited: it has the fresher answer.
-  if (reads.get(root) === read) useRepoInstructions.setState({ [root]: next });
-  return next;
+/** Rewrites one layer's file with `update` applied to its current options (see `saveConfig`). */
+export function saveInstructions(layer: InstructionLayer, root: string, update: (options: PromptOptionDefinition[]) => PromptOptionDefinition[]): Promise<string | undefined> {
+  return saveConfig<{ version: 1; instructions: PromptOptionDefinition[] }>("instructions", SCOPES[layer], root || undefined,
+    (current) => ({ version: 1, instructions: update(current?.instructions ?? []) }));
 }
 
-/**
- * Rewrites the shared file with `update` applied to its current options. Writes only over the version last read;
- * when the file changed on disk meanwhile, nothing is written, the new version is loaded, and an error comes back.
- */
-export async function saveRepoInstructions(
-  root: string,
-  update: (options: PromptOptionDefinition[]) => PromptOptionDefinition[],
-): Promise<string | undefined> {
-  const current = repoInstructionsOf(root);
-  if (current.status === "invalid") return `Fix ${REPO_INSTRUCTIONS_PATH} before changing shared instructions.`;
-  if (current.status === "loading") return "Shared instructions are still loading. Try again.";
-  const options = update(current.status === "ok" ? current.options : []);
-  try {
-    if (current.status === "missing") {
-      const [folder] = await window.workbench.files.exists(root, [FOLDER]);
-      if (!folder) await window.workbench.files.create(root, FOLDER, "directory").catch(() => undefined);
-    }
-    const result = await window.workbench.files.write(root, REPO_INSTRUCTIONS_PATH, serializeRepoInstructions(options),
-      current.status === "ok" ? current.hash : null);
-    if (!result.ok) {
-      await loadRepoInstructions(root);
-      return `${REPO_INSTRUCTIONS_PATH} changed on disk and was reloaded. Try again.`;
-    }
-    reads.set(root, (reads.get(root) ?? 0) + 1);
-    useRepoInstructions.setState({ [root]: { status: "ok", options, hash: result.hash } });
-    return undefined;
-  } catch (error) {
-    return (error as Error).message;
-  }
-}
-
-/** Keeps every workspace's shared instructions loaded and current, so prompts include them before Manage opens. */
+/** Keeps every workspace's instructions loaded and current, so prompts include them before Manage opens. */
 export function startRepoInstructions(): () => void {
-  const watching = new Map<string, () => void>();
-  const sync = (roots: string[]) => {
-    for (const [root, stop] of watching) {
-      if (roots.includes(root)) continue;
-      stop();
-      watching.delete(root);
-    }
-    for (const root of roots) {
-      if (watching.has(root)) continue;
-      void loadRepoInstructions(root);
-      watching.set(root, watchWorkspace(root, (event) => {
-        if (event.paths.some((path) => path === FOLDER || path.startsWith(`${FOLDER}/`))) void loadRepoInstructions(root);
-      }));
-    }
-  };
-  const rootsOf = () => [...new Set(useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace)).map((workspace) => workspace.path))];
+  const roots = () => [...new Set(useWorkbenchStore.getState().workspaces.filter((workspace) => !isFilesWorkspace(workspace)).map((workspace) => workspace.path))];
   let last = "";
   const onChange = () => {
     if (!useWorkbenchStore.getState().isHydrated) return;
-    const roots = rootsOf();
-    const key = roots.join("\0");
+    const current = roots();
+    const key = current.join("\0");
     if (key === last) return;
     last = key;
-    sync(roots);
+    void loadConfig("instructions");
+    for (const root of current) layersOf("instructions", root);
   };
   onChange();
-  const unsubscribe = useWorkbenchStore.subscribe(onChange);
-  return () => {
-    unsubscribe();
-    for (const stop of watching.values()) stop();
-    watching.clear();
-  };
+  return useWorkbenchStore.subscribe(onChange);
 }

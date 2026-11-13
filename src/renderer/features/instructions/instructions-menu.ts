@@ -5,15 +5,16 @@ import { useWorkbenchStore } from "../../state/workbench-store";
 import { ListChecksIcon } from "../../ui/icons";
 import { layerCopy } from "./layer-copy";
 import { InstructionsManager } from "./InstructionsManager";
-import { sharedOptionsOf, useRepoInstructions } from "./repo-instructions";
+import { instructionFilesOf, storedOptionsOf } from "./repo-instructions";
+import { useConfigLayers } from "../../core/config-layers";
 
 /** Every instruction for a workspace, with its layer and whether it is on there. */
 export function workspaceInstructions(workspaceId: string): LayeredInstruction[] {
-  const state = useWorkbenchStore.getState();
-  const workspace = state.workspaces.find((item) => item.id === workspaceId);
+  const workspace = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspaceId);
+  const files = instructionFilesOf(workspace?.path);
   return layerInstructions({
-    stored: state.instructionOptions,
-    shared: sharedOptionsOf(workspace?.path),
+    stored: storedOptionsOf(files, workspaceId),
+    shared: files.shared.status === "ok" ? files.shared.options : [],
     workspaceId,
     disabledIds: workspace?.disabledInstructionIds ?? [],
   });
@@ -33,10 +34,9 @@ export const instructionsMenu: PromptMenuDefinition = {
     // Drafts change workspaces on every keystroke; only paths and turned-off ids matter here.
     const layersKey = (workspaces: Workspace[]) => workspaces.map((w) => `${w.id}\0${w.path}\0${(w.disabledInstructionIds ?? []).join()}`).join("\n");
     const offStore = useWorkbenchStore.subscribe((state, previous) => {
-      if (state.instructionOptions !== previous.instructionOptions
-        || (state.workspaces !== previous.workspaces && layersKey(state.workspaces) !== layersKey(previous.workspaces))) listener();
+      if (state.workspaces !== previous.workspaces && layersKey(state.workspaces) !== layersKey(previous.workspaces)) listener();
     });
-    const offRepo = useRepoInstructions.subscribe(listener);
+    const offRepo = useConfigLayers.subscribe(listener);
     return () => { offStore(); offRepo(); };
   },
   // Everywhere is the usual case, so only the other layers are marked.

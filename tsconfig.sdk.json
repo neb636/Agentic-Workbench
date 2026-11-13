@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist-electron/sdk/types",
+    "rootDir": "src",
+    "types": ["node"]
+  },
+  "include": ["src/sdk/index.ts"]
+}

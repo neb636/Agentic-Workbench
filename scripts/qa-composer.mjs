@@ -10,7 +10,8 @@ import { assertQaWindowVisibility, qaEnvironment } from "./qa-environment.mjs";
 
 // QA inventory: shell layout and sidebar sessions, launcher with a new worktree, Persona and
 // Instructions menus (including a conditional option and a migrated instruction), the three instruction
-// layers (everywhere, shared in .workbench/instructions.json, only me in this repo) and their manager, composed
+// layers (everywhere in ~/.dimsum, shared in .dimsum/instructions.json, read from the older .workbench/ until the first
+// save, only me in .dimsum/instructions.local.json) and their manager, composed
 // prompt order, title from the first prompt, recall, attachments (picker, drop, paste,
 // limit, restart, cleanup), resuming after a restart (the tab the app opens on resumes, others wait for a click; draft and attachments stay),
 // uncertain delivery handoff, an uncertain delivery the CLI takes late, Plan chosen before the CLI starts,
@@ -32,6 +33,8 @@ await writeFile(join(repo, "src", "app.ts"), "export const answer: number = 42;\
 // Instructions checked into the repo and shared with everyone who works in it.
 const SHARED_TEXT = "Follow the team style guide in docs/style.md.";
 const sharedFile = join(repo, ".workbench", "instructions.json");
+// Where shared instructions go from the first save on; the older file is no longer read once it exists.
+const dimsumShared = join(repo, ".dimsum", "instructions.json");
 await mkdir(join(repo, ".workbench"));
 await writeFile(sharedFile, JSON.stringify({ version: 1, instructions: [
   { id: "team-style", kind: "toggle", label: "Follow the team style", category: "Team", defaultOn: false, text: SHARED_TEXT },
@@ -404,7 +407,9 @@ try {
   await page.waitForFunction(() => document.querySelector(".code-footer")?.textContent.includes("diff vs last commit"));
   await shot("source-control");
   await page.getByRole("textbox", { name: "Commit message" }).fill("QA commit");
-  await page.getByRole("button", { name: "Commit 3 changes" }).click();
+  // The fourth is .dimsum/.gitignore, left by moving this profile's "only me" instructions to .dimsum/instructions.local.json.
+  await changes.getByRole("row", { name: /\.gitignore/ }).waitFor();
+  await page.getByRole("button", { name: "Commit 4 changes" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Commit", exact: true }).click();
   await page.getByText("No uncommitted changes.").waitFor();
   assert.equal(git("log", "-1", "--format=%s").trim(), "QA commit");
@@ -442,11 +447,11 @@ try {
   await page.getByRole("button", { name: "Manage", exact: true }).click();
   const manager = page.getByRole("dialog", { name: "Manage instructions" });
   const summary = manager.locator(".instructions-summary");
-  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 7 instructions: 5 everywhere, 1 shared, 1 only yours.");
+  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 8 instructions: 6 everywhere, 1 shared, 1 only yours.");
   const everywhere = manager.getByRole("grid", { name: "Everywhere" });
   const sharedList = manager.getByRole("grid", { name: "Shared in Composer QA" });
   const onlyMe = manager.getByRole("grid", { name: "Only me in Composer QA" });
-  for (const label of ["Create issue", "Open PR", "Write report", "Unit tests", "Test focus"]) await everywhere.getByRole("row", { name: label }).waitFor();
+  for (const label of ["Create issue", "Open PR", "Write report", "Unit tests", "Extension guide", "Test focus"]) await everywhere.getByRole("row", { name: label }).waitFor();
   await sharedList.getByRole("row", { name: "Follow the team style" }).waitFor();
   await onlyMe.getByRole("row", { name: "Explain the tradeoffs." }).waitFor();
   await shot("instructions-manager");
@@ -456,7 +461,7 @@ try {
   assert.equal(await writeReport.getByRole("switch", { name: "On in Composer QA" }).isChecked(), true);
   await writeReport.locator(".instruction-row-switch").click();
   await everywhere.getByRole("row", { name: "Write report" }).getByText("Off in Composer QA").waitFor();
-  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 6 instructions: 4 everywhere, 1 shared, 1 only yours. 1 turned off here.");
+  assert.equal(await summary.innerText(), "In Composer QA, the composer offers 7 instructions: 5 everywhere, 1 shared, 1 only yours. 1 turned off here.");
 
   // Former built-ins are ordinary instructions: edit one.
   const EDITED_PR = "Open a draft pull request and link it in your reply.";
@@ -482,13 +487,13 @@ try {
   await everywhere.getByRole("row", { name: "Create issue" }).locator(".instruction-row-switch").click();
   await everywhere.getByRole("row", { name: "Create issue" }).click();
   await manager.getByRole("radio", { name: "Shared in repo" }).click();
-  await manager.getByText("Saved to .workbench/instructions.json in Composer QA. Commit it to share it with everyone who works there.", { exact: false }).waitFor();
+  await manager.getByText("Saved to .dimsum/instructions.json in Composer QA. Commit it to share it with everyone who works there.", { exact: false }).waitFor();
   await manager.getByRole("button", { name: "Save instruction" }).click();
   await sharedList.getByRole("row", { name: "Create issue" }).waitFor();
   assert.equal(await everywhere.getByRole("row", { name: "Create issue" }).count(), 0);
   await sharedList.getByRole("row", { name: "Create issue" }).getByText("Off in Composer QA").waitFor();
   await sharedList.getByRole("row", { name: "Create issue" }).locator(".instruction-row-switch").click();
-  const written = await readFile(sharedFile, "utf8");
+  const written = await readFile(dimsumShared, "utf8");
   assert.deepEqual(JSON.parse(written).instructions.map((option) => option.id), ["team-style", "create-issue"]);
   assert.match(written, /^\{\n {2}"version": 1,\n {2}"instructions": \[\n/);
 
@@ -503,7 +508,8 @@ try {
   // A deleted default can be restored.
   await everywhere.getByRole("row", { name: "Write report" }).click();
   await manager.getByRole("button", { name: "Delete instruction" }).click();
-  assert.equal(await everywhere.getByRole("row", { name: "Write report" }).count(), 0);
+  // Deleting rewrites ~/.dimsum/instructions.json, so the row goes once the file is saved.
+  await everywhere.getByRole("row", { name: "Write report" }).waitFor({ state: "detached" });
   await manager.getByRole("button", { name: "Restore 1 default instruction" }).click();
   await everywhere.getByRole("row", { name: "Write report" }).waitFor();
   await shot("instructions-manager-edited");
@@ -515,11 +521,11 @@ try {
   assert(composed.trimEnd().endsWith("Explain the tradeoffs.\n\nMention QA-1 in the summary."), composed);
 
   // An unreadable shared file is reported in the manager and contributes nothing.
-  await writeFile(sharedFile, "{ not json");
+  await writeFile(dimsumShared, "{ not json");
   await openInstructions();
   await page.getByRole("switch", { name: /Follow the team style/ }).waitFor({ state: "detached" });
   await page.getByRole("button", { name: "Manage", exact: true }).click();
-  await manager.getByRole("alert").filter({ hasText: "Couldn’t read .workbench/instructions.json" }).waitFor();
+  await manager.getByRole("alert").filter({ hasText: "Couldn’t read .dimsum/instructions.json" }).waitFor();
   assert.equal(await manager.getByRole("button", { name: "Add to Shared in Composer QA" }).isDisabled(), true);
   await shot("instructions-invalid-file");
   await manager.getByRole("button", { name: "Done", exact: true }).click();
