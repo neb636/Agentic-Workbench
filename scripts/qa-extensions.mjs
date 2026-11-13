@@ -54,6 +54,9 @@ export default defineExtension({
     ])] }));
     ctx.beforeSend(guard("hello.no-forbidden", pattern(/FORBIDDEN/, "Hello says no."), { onMatch: "block" }));
     ctx.events.on("prompt.sent", (event) => { (window as unknown as { helloSent?: string }).helloSent = event.prompt; });
+    // Widgets in the slots that aren't tied to a view: they show while this workspace is the active one.
+    ctx.widgets.register({ id: "hello.footer", slot: "sidebar.footer", component: ({ workspaceId }) => <span className="qa-hello-footer">Hello footer {workspaceId}</span> });
+    ctx.widgets.register({ id: "hello.settings", slot: "settings.general", component: ({ workspaceId }) => <p className="qa-hello-settings">Hello settings {workspaceId}</p> });
     // Its own command, called with arguments of its own shape.
     ctx.commands.register("hello.double", (args: { value: number }) => args.value * 2);
     void ctx.commands.execute("hello.double", { value: 3 }).then((result) => { (window as unknown as { helloDoubled?: unknown }).helloDoubled = result; },
@@ -105,7 +108,7 @@ await writeFile(join(directory, "workbench-state.json"), JSON.stringify({
     { id: "qa", name: "Extensions QA", path: repo, activeViewId: "board", views: [{ id: "board", workspaceId: "qa", type: "hello.board", title: "Board" }, agent] },
     { id: "copy", name: "Copy", path: copy, views: [] },
     { id: "other", name: "Other", path: other, views: [] },
-    { id: "linked", name: "Linked", path: linked, views: [] },
+    { id: "linked", name: "Linked", path: linked, activeViewId: "linked-agent", views: [{ ...agent, id: "linked-agent", workspaceId: "linked", title: "Linked agent" }] },
   ],
   activeWorkspaceId: "qa", personas: [], seededInstructionIds: [],
   // An older profile: instructions in the saved state, one everywhere and one for this workspace only.
@@ -205,6 +208,19 @@ try {
   for (const label of ["Team style", "Mine everywhere", "Mine here"]) await page.getByRole("dialog").getByText(label, { exact: true }).waitFor();
   await shot("5-instruction-layers");
   await page.keyboard.press("Escape");
+  // Slots outside views: the footer and General settings show this workspace's extension widgets.
+  await page.locator(".qa-hello-footer", { hasText: "Hello footer qa" }).waitFor();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("dialog", { name: "Settings" }).locator(".qa-hello-settings", { hasText: "Hello settings qa" }).waitFor();
+  await page.getByRole("dialog", { name: "Settings" }).getByRole("button", { name: "Done" }).click();
+
+  // An instruction that couldn't move to its file (Linked's .dimsum is a link) is still offered from the saved state.
+  await selectWorkspace("Linked");
+  await page.getByRole("tab", { name: "Linked agent" }).click();
+  await page.getByRole("button", { name: /^Instructions/ }).click();
+  await page.getByRole("dialog").getByText("Mine linked", { exact: true }).waitFor();
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator(".qa-hello-footer").count(), 0, "an untrusted workspace shows no extension widgets");
 
   // Worktrees run their own copy; an untrusted workspace offers none of it.
   await selectWorkspace("Copy");

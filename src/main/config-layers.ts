@@ -1,4 +1,5 @@
 import { promises as fs, watch, type FSWatcher } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BrowserWindow } from "electron";
 import { APP_DIR, LOCAL_SUFFIX } from "../shared/app-identity";
@@ -93,9 +94,11 @@ export async function writeLayer(name: ConfigName, scope: ConfigScope, root: str
     await fs.mkdir(folder, { recursive: true, mode: scope === "user" ? 0o700 : 0o755 });
     if (scope === "local" && root) await ignoreLocalFiles(folder, root);
     const text = serializeDocument(parsed);
-    const temporary = `${file}.${process.pid}.next`;
-    await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644 });
-    await fs.rename(temporary, file);
+    // A fresh name, created exclusively: an existing file or symlink at that path can't redirect the write.
+    const temporary = `${file}.${randomUUID()}.next`;
+    await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644, flag: "wx" });
+    try { await fs.rename(temporary, file); }
+    catch (error) { await fs.rm(temporary, { force: true }).catch(() => undefined); throw error; }
     return { ok: true, hash: contentHash(Buffer.from(text, "utf8")) };
   });
   writing.set(file, next);

@@ -98,9 +98,9 @@ export function LeftSidebar({ onCollapse }: { onCollapse: () => void }) {
     </Tree>
     {folders === 0 && <p className="sidebar-empty">Local folders you add will appear here.</p>}
     <nav className="sidebar-footer" aria-label="App">
-      {services.widgets.forSlot("sidebar.footer").map((widget) => {
+      {services.widgets.forSlot("sidebar.footer", activeWorkspaceId).map((widget) => {
         const Widget = widget.component;
-        return <Widget key={widget.id} />;
+        return <Widget key={widget.id} workspaceId={activeWorkspaceId} />;
       })}
     </nav>
   </aside>;
