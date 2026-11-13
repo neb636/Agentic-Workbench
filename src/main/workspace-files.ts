@@ -188,7 +188,13 @@ export class WorkspaceFiles {
    * outside every workspace (granted one file at a time, so a sibling is refused).
    */
   private async fileBase(root: string, relative: string): Promise<string> {
-    if (!this.roots.isAllowed(root) && this.roots.isGrantedFile(root, relative)) return fs.realpath(path.resolve(root));
+    if (!this.roots.isAllowed(root) && this.roots.isGrantedFile(root, relative)) {
+      // The grant is for that exact file: if it has since become a symlink (to a sibling, say), it no longer is.
+      const granted = path.resolve(root, relative);
+      const actual = await fs.realpath(granted).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return granted; throw error; });
+      if (actual !== granted) throw new Error("That file is no longer the one that was opened.");
+      return fs.realpath(path.resolve(root));
+    }
     return this.roots.resolve(root);
   }
 
