@@ -54,6 +54,10 @@ export default defineExtension({
     ])] }));
     ctx.beforeSend(guard("hello.no-forbidden", pattern(/FORBIDDEN/, "Hello says no."), { onMatch: "block" }));
     ctx.events.on("prompt.sent", (event) => { (window as unknown as { helloSent?: string }).helloSent = event.prompt; });
+    // Its own command, called with arguments of its own shape.
+    ctx.commands.register("hello.double", (args: { value: number }) => args.value * 2);
+    void ctx.commands.execute("hello.double", { value: 3 }).then((result) => { (window as unknown as { helloDoubled?: unknown }).helloDoubled = result; },
+      (error: unknown) => { (window as unknown as { helloDoubled?: unknown }).helloDoubled = String(error); });
   },
 });
 `),
@@ -69,6 +73,12 @@ await mkdir(join(repo, ".workbench"));
 await writeFile(join(repo, ".workbench", "instructions.json"), JSON.stringify({ version: 1, instructions: [
   { id: "team-style", kind: "toggle", label: "Team style", category: "Team", defaultOn: false, text: "TEAM-STYLE" },
 ] }));
+// An extension whose second guard can't register: it fails, and its first guard must not stay behind.
+await mkdir(join(repo, ".dimsum", "extensions", "leaky"), { recursive: true });
+await writeFile(join(repo, ".dimsum", "extensions", "leaky", "index.tsx"), `import { defineExtension, guard, pattern } from "@dimsum/sdk";
+const block = guard("leaky.block", pattern(/LEAKY/, "Leaked guard."), { onMatch: "block" });
+export default defineExtension({ name: "Leaky", activate(ctx) { ctx.beforeSend([block, block]); } });
+`);
 // An ignore file the team already has: the local-file exclusion is added to it, nothing is lost.
 await writeFile(join(repo, ".dimsum", ".gitignore"), "node_modules/\n");
 // A workspace whose .dimsum links outside it: nothing is ever read or written through the link.
@@ -160,12 +170,15 @@ try {
   await page.getByRole("heading", { name: "Howdy board in Extensions QA" }).waitFor();
   await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Broken;\n`);
   await row("Howdy").or(row("Hello")).locator(".extension-error-text").waitFor();
-  assert.match(await panel.locator(".extension-error-text").innerText(), /label\.ts:1/);
+  assert.match(await row("Howdy").or(row("Hello")).locator(".extension-error-text").innerText(), /label\.ts:1/);
   await page.getByRole("heading", { name: "Howdy board in Extensions QA" }).waitFor();
   await shot("3-reload-error");
   await writeFile(join(repo, ".dimsum", "extensions", "hello", "label.ts"), `export const label = "Hello";\n`);
   await page.getByRole("heading", { name: "Hello board in Extensions QA" }).waitFor();
-  await until(async () => (await panel.locator(".extension-error-text").count()) === 0, "the error to clear");
+  await until(async () => (await row("Hello").locator(".extension-error-text").count()) === 0, "the error to clear");
+  // The extension found its own command with arguments; the failed one left no guard behind.
+  await until(async () => (await page.evaluate(() => window.helloDoubled)) === 6, "hello.double to run");
+  await row("Leaky").locator(".extension-error-text").waitFor();
 
   // Composer: the extension's menu (harness condition), its guard, and the built-in guards.
   await page.getByRole("tab", { name: "Agent" }).click();
@@ -175,7 +188,7 @@ try {
   await prompt().fill("/help");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await feedback("Use native commands directly in the terminal.");
-  await prompt().fill("Use key AKIAABCDEFGHIJKLMNOP to deploy");
+  await prompt().fill("Use key AKIAABCDEFGHIJKLMNOP to deploy LEAKY");
   await page.getByRole("button", { name: "Send prompt", exact: true }).click();
   await page.getByRole("alertdialog").getByText(/an AWS access key/).waitFor();
   await shot("4-secret-warning");

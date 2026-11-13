@@ -48,14 +48,16 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
     widgets: { register: (definition) => { owned(definition.id); return track(services.widgets.register({ ...definition, component: component(definition.component) }, scope)); } },
     commands: {
       register: (id, handler) => track(services.commands.register(owned(id), handler, scope)),
-      execute: (id, args) => services.commands.execute(id, scope && args === undefined ? { workspaceId: scope } : args),
+      // The lookup uses the extension's own workspace whatever the arguments look like, so its commands are found.
+      execute: (id, args) => services.commands.execute(id, scope && args === undefined ? { workspaceId: scope } : args, scope),
     },
     promptMenus: { register: (menu) => { owned(menu.id); return track(services.promptMenus.register(menu.manage && !builtin ? { ...menu, manage: { ...menu.manage, component: guarded(info.id, menu.manage.component) } } : menu, scope)); } },
     promptContributors: { register: (contributor) => { owned(contributor.id); return track(services.promptContributors.register(contributor, scope)); } },
     contextMenus: { register: (contribution) => { owned(contribution.id); return track(services.contextMenus.register(contribution, scope)); } },
     beforeSend: (guards) => {
-      const added = (Array.isArray(guards) ? guards : [guards]).map((guard) => services.sendGuards.register({ ...guard, id: owned(guard.id) }, scope));
-      return track(() => added.forEach((remove) => remove()));
+      // Each guard is tracked as soon as it is installed, so one failing registration can't leave the earlier ones behind.
+      const added = (Array.isArray(guards) ? guards : [guards]).map((guard) => track(services.sendGuards.register({ ...guard, id: owned(guard.id) }, scope)));
+      return once(() => added.forEach((guard) => guard.dispose()));
     },
     events: { on: (name, handler) => { const subscription = services.events.on(name, handler); return track(() => subscription.dispose()); } },
     files,
