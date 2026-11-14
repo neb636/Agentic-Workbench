@@ -68,6 +68,7 @@ function view(ctx: ExtensionContext, url: string) {
     const [connections, setConnections] = useState(0);
     const [last, setLast] = useState("");
     const [stale, setStale] = useState<LocalPreviewConnection>();
+    const [shown, setShown] = useState(url);
     const send = (data: unknown) => connection.current?.post(data);
     return <div style={{ display: "grid", gridTemplateRows: "auto 1fr", height: "100%" }}>
       <div className="qa-preview-bar">
@@ -79,8 +80,9 @@ function view(ctx: ExtensionContext, url: string) {
         <button type="button" onClick={() => send({ top: true })}>Top</button>
         <button type="button" onClick={() => { setStale(() => connection.current); send({ reload: true }); }}>Reload</button>
         <button type="button" onClick={() => stale?.post({ ping: 99 })}>Stale ping</button>
+        <button type="button" onClick={() => setShown(url.replace(/#.*/, "#/game"))}>Hash</button>
       </div>
-      <ctx.ui.LocalPreview url={url} title="Local game"
+      <ctx.ui.LocalPreview url={shown} title="Local game"
         onConnect={(next) => { connection.current = next; setConnections((n) => n + 1); }}
         onMessage={(data) => setLast(JSON.stringify(data))} />
     </div>;
@@ -149,6 +151,13 @@ try {
   await window.getByRole("button", { name: "Stale ping" }).click();
   await window.waitForTimeout(500);
   assert.equal(await last(), JSON.stringify({ pong: 1, loads: loads + 1 }), "a stale connection sends nothing");
+
+  // A new fragment only: the same document, so the same connection keeps working.
+  await window.getByRole("button", { name: "Hash" }).click();
+  await until(async () => (await frameUrls()).some((url) => url.endsWith("#/game")), "fragment change");
+  await window.getByRole("button", { name: "Probe" }).click();
+  await until(async () => (await last()).includes("probe"), "probe after a fragment change");
+  await window.locator(".qa-connections", { hasText: "connections 2" }).waitFor();
 
   // Frames the page opens itself (outside the app's CSP): a local one loads, one off the allowed hosts doesn't.
   await window.getByRole("button", { name: "Nest" }).click();

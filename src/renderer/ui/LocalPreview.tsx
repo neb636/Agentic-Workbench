@@ -15,10 +15,13 @@ export function LocalPreview({ url, title, onConnect, onMessage, className, styl
   const handlers = useRef({ onConnect, onMessage });
   handlers.current = { onConnect, onMessage };
   const src = localPreviewUrl(url, window.location.origin)?.href;
+  const shown = Boolean(src);
 
+  // Keyed on the frame being there, not on its URL: a change of only the fragment navigates within the same document,
+  // which never says hello again, so the connection must outlive it. A page that does load anew says hello itself.
   useEffect(() => {
     const element = frame.current;
-    if (!src || !element) return;
+    if (!shown || !element) return;
     let port: MessagePort | undefined;
     const hello = (event: MessageEvent) => {
       if (event.source !== element.contentWindow || (event.data as { dimsum?: unknown } | null)?.dimsum !== LOCAL_PREVIEW_HELLO) return;
@@ -39,7 +42,7 @@ export function LocalPreview({ url, title, onConnect, onMessage, className, styl
       port?.close();
       port = undefined;
     };
-  }, [src]);
+  }, [shown]);
 
   if (!src) {
     return <div role="alert" className={["wb-local-preview-refused", className].filter(Boolean).join(" ")} style={style}>
