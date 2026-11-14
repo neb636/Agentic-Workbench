@@ -239,7 +239,7 @@ export function FilesPanel({ workspace }: PanelProps) {
       { id: "undo", label: fileActions.history.undo ? `Undo ${fileActions.history.undo}` : "Undo", disabled: !fileActions.history.undo, section: "history", run: () => operateFiles({ kind: "undo" }) },
       { id: "redo", label: fileActions.history.redo ? `Redo ${fileActions.history.redo}` : "Redo", disabled: !fileActions.history.redo, section: "history", run: () => operateFiles({ kind: "redo" }) },
       ...(entry ? [{ id: "trash", label: multiple ? `Move ${paths.length} Items to Trash…` : "Move to Trash…", section: "trash", destructive: true, run: async () => {
-        if (await choose("Move to Trash?", "Selected files and folder contents will move to system Trash. Restore them through your system file manager; Workbench Undo does not restore Trash.", ["Cancel", "Move to Trash"]) === "Move to Trash") await operateFiles({ kind: "trash", sources: paths });
+        if (await choose("Move to Trash?", "Selected files and folder contents will move to system Trash. Restore them through your system file manager; DimSum's Undo does not restore Trash.", ["Cancel", "Move to Trash"]) === "Move to Trash") await operateFiles({ kind: "trash", sources: paths });
       } }] : [
         { id: "refresh", label: "Refresh", section: "tree", run: () => { Object.keys(listings).forEach(load); loadIgnored(); } },
         { id: "collapse", label: "Collapse All", section: "tree", run: () => setExpanded(new Set()) },

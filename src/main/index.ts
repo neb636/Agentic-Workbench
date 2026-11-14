@@ -23,8 +23,9 @@ import { SourceControlService } from "./source-control/source-control-provider";
 import { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
 import { createAiUsage, registerAiUsage } from "./ai-usage";
 import { registerDimsum } from "./extensions";
+import { chooseUserData } from "./user-data";
 
-if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
+chooseUserData();
 if (app.isPackaged) adoptLoginShellPath();
 
 const ptyManager = new PtyManager();

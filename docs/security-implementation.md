@@ -32,8 +32,8 @@ The final ad hoc package passed launch smoke, signature verification, ASAR manif
 Before release, inspect fuses and verify the final signature:
 
 ```sh
-npx @electron/fuses read --app "release/mac-arm64/Agent Workbench.app"
-codesign --verify --deep --strict "release/mac-arm64/Agent Workbench.app"
+npx @electron/fuses read --app "release/mac-arm64/DimSum.app"
+codesign --verify --deep --strict "release/mac-arm64/DimSum.app"
 ```
 
 Developer ID signing/notarization requires `CSC_NAME`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. The local ad hoc package verifies packaging behavior but does not establish notarized distribution readiness. Do not share a development package as a verified signed release.

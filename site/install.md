@@ -34,7 +34,7 @@ npm run dev
 npm run dist
 ```
 
-This builds a DMG and an app bundle in `release/`, then opens `release/mac-arm64/Agent Workbench.app`. It is signed ad hoc only, so macOS may ask you to confirm the first time you open it. To build only the app bundle, without a DMG, run `npm run dist:dir`.
+This builds a DMG and an app bundle in `release/`, then opens `release/mac-arm64/DimSum.app`. It is signed ad hoc only, so macOS may ask you to confirm the first time you open it. To build only the app bundle, without a DMG, run `npm run dist:dir`.
 
 ## Finding the agent CLIs
 

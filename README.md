@@ -1,4 +1,4 @@
-# Agent Workbench
+# DimSum
 
 A local, extensible Electron workbench. Coding sessions run native Codex or Claude Code CLIs above a prompt composer.
 
@@ -17,7 +17,7 @@ The composer supports personas, appended instructions, and file attachments (the
 
 Sessions keep running across tab and workspace switches while the app is open. Closing the view or app stops its owned process. Reopening the app restores your drafts and layout; use Resume to choose a saved native session.
 
-Executable discovery checks PATH and common local installation directories. Override discovery with `WORKBENCH_CODEX_PATH` or `WORKBENCH_CLAUDE_PATH` before launching Workbench. `WORKBENCH_USER_DATA_DIR` selects an isolated Workbench profile for testing.
+Executable discovery checks PATH and common local installation directories. Override discovery with `WORKBENCH_CODEX_PATH` or `WORKBENCH_CLAUDE_PATH` before launching DimSum. `WORKBENCH_USER_DATA_DIR` selects an isolated profile for testing.
 
 ## Checks
 
@@ -34,4 +34,4 @@ See [architecture and extension seams](docs/architecture.md) for provider, termi
 
 ## Security and releases
 
-Workbench remembers execution trust for source-control actions and AI change preparation. Reset trust and clean attachments for closed views in Settings. Native agent approval prompts remain authoritative. See [security controls and release prerequisites](docs/security-implementation.md) and [security reporting](SECURITY.md).
+DimSum remembers execution trust for source-control actions and AI change preparation. Reset trust and clean attachments for closed views in Settings. Native agent approval prompts remain authoritative. See [security controls and release prerequisites](docs/security-implementation.md) and [security reporting](SECURITY.md).
