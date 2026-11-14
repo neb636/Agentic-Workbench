@@ -82,7 +82,8 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "package.json"
+      "package.json",
+      "!dist-electron/sdk/**"
     ],
     "asarUnpack": [
       "node_modules/node-pty/**/*",
@@ -182,6 +183,12 @@
         "name": "Source code",
         "role": "Editor",
         "rank": "Alternate"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "dist-electron/sdk",
+        "to": "sdk"
       }
     ]
   },
