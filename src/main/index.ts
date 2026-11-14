@@ -25,7 +25,11 @@ import { createAiUsage, registerAiUsage } from "./ai-usage";
 import { registerDimsum } from "./extensions";
 import { chooseUserData } from "./user-data";
 
-chooseUserData();
+try { chooseUserData(); }
+catch (error) {
+  dialog.showErrorBox("Profile migration failed", error instanceof Error ? error.message : String(error));
+  app.exit(1);
+}
 if (app.isPackaged) adoptLoginShellPath();
 
 const ptyManager = new PtyManager();

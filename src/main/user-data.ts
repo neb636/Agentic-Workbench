@@ -40,8 +40,13 @@ export function chooseUserData(): void {
     rebaseState(path.join(partial, STATE_FILE), legacy, target);
     renameSync(partial, target);
   } catch (error) {
-    console.warn(`Could not copy the ${legacy} profile:`, String(error));
-    rmSync(partial, { recursive: true, force: true });
+    try { rmSync(partial, { recursive: true, force: true }); }
+    catch (cleanupError) { console.warn(`Could not remove the incomplete profile ${partial}:`, String(cleanupError)); }
+    throw new Error(
+      `Could not migrate your profile from "${legacy}" to "${target}".\n\n` +
+      `Your old profile has been left in place. Fix the problem below, then restart ${APP_NAME} to retry.\n\n${String(error)}`,
+      { cause: error },
+    );
   }
 }
 
