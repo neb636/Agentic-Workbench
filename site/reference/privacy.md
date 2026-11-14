@@ -19,7 +19,7 @@ DimSum itself connects to the network only to read your [plan usage](/guide/ai-u
 
 On macOS the profile is `~/Library/Application Support/DimSum` (`DimSum Dev` when you run from source). Set `WORKBENCH_USER_DATA_DIR` to use a different folder.
 
-DimSum used to be called Agent Workbench. The first time it starts without a profile, it copies the old one (`Agent Workbench`, or `agent-workbench` from source) so your workspaces, views, attachments and trusted workspaces carry over. The old folder is left in place; delete it once you no longer run the old app.
+DimSum used to be called Agent Workbench. The first time it starts without a profile, it copies the old one (`Agent Workbench`, or `agent-workbench` from source) so your workspaces, views, draft attachments and trusted workspaces carry over, with saved attachment paths pointing into the new folder. The old folder is left in place; delete it once you no longer run the old app.
 
 ## Cleaning up
 
