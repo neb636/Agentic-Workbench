@@ -13,6 +13,7 @@ export interface ExtensionRecord {
   description?: string;
   status: "active" | "failed";
   error?: string;
+  stack?: string;
 }
 
 export const useActiveExtensions = create<{ records: Record<string, ExtensionRecord> }>(() => ({ records: {} }));
@@ -141,7 +142,7 @@ export async function activateExtension(definition: ExtensionDefinition, info: E
   } catch (error) {
     disposeAll(subscriptions);
     running.delete(key);
-    const record: ExtensionRecord = { ...base, status: "failed", error: errorMessage(error) };
+    const record: ExtensionRecord = { ...base, status: "failed", error: errorMessage(error), stack: error instanceof Error ? error.stack : undefined };
     setRecord(record);
     services.events.emit("extension.failed", { extensionId: info.id, workspaceId: info.workspaceId, error: record.error ?? "" });
     if (info.layer === "builtin") throw error;

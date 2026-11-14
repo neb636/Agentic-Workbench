@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { ExtensionInfo } from "@dimsum/sdk";
-import { APP_DIR, EXTENSIONS_DIR } from "../../shared/app-identity";
-import type { DimsumSettings, ExtensionListing } from "../../shared/dimsum";
+import { APP_DIR, EXTENSIONS_DIR, EXTENSION_STATUS_FILE } from "../../shared/app-identity";
+import type { DimsumSettings, ExtensionListing, ExtensionStatusReport } from "../../shared/dimsum";
 import { isFilesWorkspace } from "../../shared/files-workspace";
 import type { Workspace } from "../../shared/models";
 import { layersOf, layerValue, loadConfig, saveConfig, useConfigLayers } from "../core/config-layers";
@@ -59,6 +59,21 @@ const touchesBuiltFiles = (workspaceId: string, paths: string[]) => {
   return false;
 };
 
+/** The last report written per extension, so an unchanged one (disabled, waiting for trust) isn't written again. */
+const reported = new Map<string, string>();
+/**
+ * Leaves the extension's status where an agent editing it can read it (`.status.json`). A load or activation always
+ * writes, so the time moves with every save; the states that last until something changes write once.
+ */
+function report(listing: ExtensionListing, status: ExtensionStatusReport, always = false): void {
+  const clipped = { ...status, ...(status.error ? { error: status.error.slice(0, 9_000) } : {}), ...(status.stack ? { stack: status.stack.slice(0, 19_000) } : {}) };
+  const key = `${listing.root ?? ""}|${listing.id}`;
+  const body = JSON.stringify(clipped);
+  if (!always && reported.get(key) === body) return;
+  reported.set(key, body);
+  window.workbench.extensions.reportStatus(listing.id, listing.root, clipped).catch(() => undefined);
+}
+
 /** Starts one extension, and starts it once more if a reload came in meanwhile (a newer save, or Reload). */
 function launch(key: string, listing: ExtensionListing, workspace?: Workspace): void {
   const run = start(listing, workspace).finally(() => {
@@ -86,16 +101,19 @@ async function start(listing: ExtensionListing, workspace?: Workspace): Promise<
   const fail = (error: string) => {
     const running = useActiveExtensions.getState().records[key];
     useActiveExtensions.setState((state) => ({ records: { ...state.records, [key]: { key, info, title: running?.title ?? listing.name, description: running?.description, status: running?.status === "active" ? "active" : "failed", error } } }));
+    // The file says what the newest save did, even while the last good version keeps running.
+    report(listing, { status: "failed", error }, true);
   };
   if (stale()) return;
   if (!loaded.ok) { fail(loaded.error); return; }
   if (listing.layer === "workspace") builtFrom.set(key, new Set(loaded.inputs));
   let definition;
   try { definition = await loadExtensionScript(loaded.url); }
-  catch (error) { fail(errorMessage(error)); return; }
+  catch (error) { if (!stale()) fail(errorMessage(error)); return; }
   // Trust was reset, it was turned off, or its workspace closed while it was loading.
   if (stale()) return;
-  await activateExtension(definition, info);
+  const record = await activateExtension(definition, info);
+  report(listing, record.status === "active" ? { status: "running" } : { status: "failed", error: record.error, stack: record.stack }, true);
 }
 
 /** Lists, and starts or stops, the extensions of one workspace (and the user's, with `workspace` undefined). */
@@ -121,7 +139,8 @@ async function reconcile(workspace: Workspace | undefined, relist: boolean, relo
   const wanted = new Set<string>();
   for (const listing of listings) {
     const key = listingKey(listing, workspace?.id);
-    if (!listing.trusted || disabled.has(listing.id)) continue;
+    if (!listing.trusted) { report(listing, { status: "waiting-for-trust" }); continue; }
+    if (disabled.has(listing.id)) { report(listing, { status: "disabled" }); continue; }
     wanted.add(key);
     const record = useActiveExtensions.getState().records[key];
     if (record && !reload.has(listing.id) && record.status === "active") continue;
@@ -222,13 +241,16 @@ export function startWorkspaceExtensions(): () => void {
       if (watches.has(workspace.id)) continue;
       void reconcile(workspace, true);
       watches.set(workspace.id, watchWorkspace(workspace.path, (event) => {
-        const imported = touchesBuiltFiles(workspace.id, event.paths);
-        if (!imported && !changedIn(event.paths)) return;
+        // The status file is written after every load: reacting to it would reload the extension, forever.
+        const paths = event.paths.filter((path) => !path.split("/").pop()?.startsWith(EXTENSION_STATUS_FILE));
+        if (event.paths.length && !paths.length) return;
+        const imported = touchesBuiltFiles(workspace.id, paths);
+        if (!imported && !changedIn(paths)) return;
         const latest = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);
         if (!latest) return;
         // Files under extensions/, or ones an extension imports from elsewhere in the workspace, need a rebuild;
         // settings changes just start or stop extensions.
-        const code = imported || event.paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
+        const code = imported || paths.some((path) => path === "" || path.startsWith(`${APP_DIR}/${EXTENSIONS_DIR}`));
         if (code) rebuildDue.add(workspace.id);
         later(workspace.id, () => {
           const current = useWorkbenchStore.getState().workspaces.find((item) => item.id === workspace.id);

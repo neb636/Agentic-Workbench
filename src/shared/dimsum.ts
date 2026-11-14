@@ -16,6 +16,7 @@ export const DIMSUM_IPC = {
   extensionsLoad: "dimsum:extensions-load",
   extensionsTrust: "dimsum:extensions-trust",
   extensionsScaffold: "dimsum:extensions-scaffold",
+  extensionsStatus: "dimsum:extensions-status",
 } as const;
 
 export type ConfigScope = "user" | "workspace" | "local";
@@ -81,6 +82,14 @@ export type ExtensionLoadResult = { ok: true; url: string; inputs: string[] } | 
 
 export const extensionsListSchema = z.object({ root: z.string().optional() });
 export const extensionLoadSchema = z.object({ id: z.string().regex(/^(user|workspace):[A-Za-z0-9][A-Za-z0-9._-]*$/), root: z.string().optional() });
+export const EXTENSION_STATUSES = ["running", "failed", "waiting-for-trust", "disabled"] as const;
+/** What an extension is doing, as written to its `.status.json` (the file adds `at`, the time of the report). */
+export interface ExtensionStatusReport { status: (typeof EXTENSION_STATUSES)[number]; error?: string; stack?: string }
+export const extensionStatusSchema = extensionLoadSchema.extend({
+  status: z.enum(EXTENSION_STATUSES),
+  error: z.string().max(10_000).optional(),
+  stack: z.string().max(20_000).optional(),
+});
 export const extensionNameSchema = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "Use lowercase letters, digits and dashes.");
 export const extensionScaffoldSchema = z.object({ root: z.string(), name: extensionNameSchema });
 
@@ -100,5 +109,7 @@ export interface DimsumApi {
     trust: (root: string) => Promise<void>;
     /** Creates `.dimsum/extensions/<name>/` with a starter extension, its types, and the guide for agents. */
     scaffold: (root: string, name: string) => Promise<{ entry: string }>;
+    /** Writes the extension's `.status.json` so an agent editing it can see whether it runs. Does nothing if its folder is gone. */
+    reportStatus: (id: string, root: string | undefined, report: ExtensionStatusReport) => Promise<void>;
   };
 }
