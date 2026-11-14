@@ -2,7 +2,7 @@
 
 A local, extensible Electron workbench. Coding sessions run native Codex or Claude Code CLIs above a prompt composer.
 
-**Documentation:** https://neb636.github.io/Agentic-Workbench/ (source in [`site/`](site/)).
+**Documentation:** https://neb636.github.io/DimSum/ (source in [`site/`](site/)).
 
 ## Run
 

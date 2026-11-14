@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type DefaultTheme } from "vitepress";
 
-const REPO = "https://github.com/neb636/Agentic-Workbench";
+const REPO = "https://github.com/neb636/DimSum";
 const root = fileURLToPath(new URL("..", import.meta.url));
 
 /** One slug rule for both the heading anchors and the sidebar links built from them, so they always match. */
@@ -77,10 +77,10 @@ export default defineConfig({
   titleTemplate: ":title · DimSum Docs",
   description: "A local workbench that runs coding agents in their own native CLIs.",
   lang: "en-US",
-  base: "/Agentic-Workbench/",
+  base: "/DimSum/",
   cleanUrls: true,
   lastUpdated: true,
-  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/Agentic-Workbench/favicon.svg" }]],
+  head: [["link", { rel: "icon", type: "image/svg+xml", href: "/DimSum/favicon.svg" }]],
   markdown: {
     anchor: { slugify },
     theme: { light: "github-light", dark: "github-dark-dimmed" },
