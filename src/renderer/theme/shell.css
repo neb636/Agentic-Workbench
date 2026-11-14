@@ -21,8 +21,9 @@
   background: transparent;
   transition: background 120ms;
 }
-.shell-resize[data-resize-handle-state="hover"]::after,
-.shell-resize[data-resize-handle-state="drag"]::after { background: var(--wb-border); }
+.shell-resize[data-separator="hover"]::after,
+.shell-resize[data-separator="active"]::after,
+.shell-resize[data-separator="focus"]::after { background: var(--wb-border); }
 
 .sidebar-card, .center-column {
   display: flex;

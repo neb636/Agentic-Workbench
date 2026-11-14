@@ -5,7 +5,7 @@
 .agent-composer-panel { display: flex; flex-direction: column; min-height: 0; }
 .dock-resize { display: grid; place-items: center; height: 10px; outline: none; }
 .dock-resize span { width: 36px; height: 3px; border-radius: 2px; background: transparent; transition: background 120ms; }
-.dock-resize[data-resize-handle-state="hover"] span, .dock-resize[data-resize-handle-state="drag"] span { background: var(--wb-border); }
+.dock-resize[data-separator="hover"] span, .dock-resize[data-separator="active"] span, .dock-resize[data-separator="focus"] span { background: var(--wb-border); }
 
 .terminal-card, .terminal-view .terminal-host {
   display: flex;

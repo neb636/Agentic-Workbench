@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
+import { Group, Panel, Separator, type PanelImperativeHandle } from "react-resizable-panels";
 import { services } from "../core/services";
 import { openPanel } from "../features/explorer/explorer-store";
 import { useContributions } from "../core/registry";
@@ -16,7 +16,7 @@ import { ViewTabs } from "./ViewTabs";
 
 /** Keeps a collapsible panel in step with its persisted collapsed flag. */
 function useCollapsible(collapsed: boolean) {
-  const ref = useRef<ImperativePanelHandle>(null);
+  const ref = useRef<PanelImperativeHandle>(null);
   useEffect(() => {
     const panel = ref.current;
     if (!panel || panel.isCollapsed() === collapsed) return;
@@ -36,6 +36,10 @@ export function WorkbenchShell() {
   const updateLayout = useWorkbenchStore((state) => state.updateLayout);
   const leftRef = useCollapsible(layout.leftCollapsed);
   const rightRef = useCollapsible(layout.rightCollapsed);
+  // A panel resized to nothing is collapsed; record it only when the saved flag differs.
+  const syncCollapsed = (key: "leftCollapsed" | "rightCollapsed", collapsed: boolean) => {
+    if (layout[key] !== collapsed) updateLayout({ [key]: collapsed });
+  };
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId) ?? workspaces[0];
   const activeView = activeWorkspace?.views.find((view) => view.id === activeWorkspace.activeViewId);
   useContributions();
@@ -62,19 +66,19 @@ export function WorkbenchShell() {
 
   return <div className={`app-shell ${layout.leftCollapsed ? "is-left-collapsed" : ""}`}>
     {persistenceError && <p className="confirm-warning" role="alert">Changes could not be saved: {persistenceError}</p>}
-    <PanelGroup direction="horizontal" className="shell-panels" onLayout={([left, , right]) => {
+    <Group orientation="horizontal" className="shell-panels" onLayoutChanged={({ left = 0, right = 0 }) => {
       const patch: { leftSize?: number; rightSize?: number } = {};
       if (left > 0 && Math.abs(left - (layout.leftSize ?? 0)) > 0.2) patch.leftSize = left;
       if (right > 0 && Math.abs(right - (layout.rightSize ?? 0)) > 0.2) patch.rightSize = right;
       if (patch.leftSize !== undefined || patch.rightSize !== undefined) updateLayout(patch);
     }}>
-      <Panel id="left" order={1} ref={leftRef} className="shell-panel" collapsible collapsedSize={0} minSize={14} maxSize={32}
-        defaultSize={layout.leftCollapsed ? 0 : layout.leftSize ?? 18}
-        onCollapse={() => updateLayout({ leftCollapsed: true })} onExpand={() => updateLayout({ leftCollapsed: false })}>
+      <Panel id="left" panelRef={leftRef} className="shell-panel" collapsible collapsedSize="0%" minSize="14%" maxSize="32%"
+        defaultSize={`${layout.leftCollapsed ? 0 : layout.leftSize ?? 18}%`}
+        onResize={({ asPercentage }) => syncCollapsed("leftCollapsed", asPercentage === 0)}>
         <LeftSidebar onCollapse={() => updateLayout({ leftCollapsed: true })} />
       </Panel>
-      <PanelResizeHandle className="shell-resize" aria-label="Resize workspaces sidebar" />
-      <Panel id="center" order={2} className="shell-panel" minSize={36}>
+      <Separator className="shell-resize" aria-label="Resize workspaces sidebar" />
+      <Panel id="center" className="shell-panel" minSize="36%">
         <main className="center-column">
           <ViewTabs workspace={activeWorkspace} showLeftToggle={layout.leftCollapsed} showRightToggle={layout.rightCollapsed}
             onShowLeft={() => updateLayout({ leftCollapsed: false })} onShowRight={() => updateLayout({ rightCollapsed: false })} />
@@ -106,13 +110,13 @@ export function WorkbenchShell() {
           </div>
         </main>
       </Panel>
-      <PanelResizeHandle className="shell-resize" aria-label="Resize side panel" />
-      <Panel id="right" order={3} ref={rightRef} className="shell-panel" collapsible collapsedSize={0} minSize={16} maxSize={36}
-        defaultSize={layout.rightCollapsed ? 0 : layout.rightSize ?? 21}
-        onCollapse={() => updateLayout({ rightCollapsed: true })} onExpand={() => updateLayout({ rightCollapsed: false })}>
+      <Separator className="shell-resize" aria-label="Resize side panel" />
+      <Panel id="right" panelRef={rightRef} className="shell-panel" collapsible collapsedSize="0%" minSize="16%" maxSize="36%"
+        defaultSize={`${layout.rightCollapsed ? 0 : layout.rightSize ?? 21}%`}
+        onResize={({ asPercentage }) => syncCollapsed("rightCollapsed", asPercentage === 0)}>
         <RightSidebar workspace={activeWorkspace} onCollapse={() => updateLayout({ rightCollapsed: true })} />
       </Panel>
-    </PanelGroup>
+    </Group>
     <StatusBar />
     <QuickOpen />
     <ConfirmDialogHost />
