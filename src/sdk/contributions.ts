@@ -1,6 +1,6 @@
 // What features and extensions contribute to the workbench. These are contracts only: the app's registries implement
 // them, and first-party features use exactly the same shapes as extensions loaded from a workspace.
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType, CSSProperties, ReactNode } from "react";
 import type { FileLocation } from "../shared/file-operations";
 import type { PromptContribution, WorkbenchView, Workspace } from "../shared/models";
 import type { PromptOptionDefinition } from "../shared/prompt-options";
@@ -154,6 +154,31 @@ export type MenuContext =
   | { kind: "selection"; workspace: Workspace; selection: TextSelection };
 
 export interface MenuContribution { id: string; kind: MenuContext["kind"]; items: (context: MenuContext) => ContextAction[] }
+
+// Local previews ---------------------------------------------------------------------------------------------------
+
+/** The app's end of a local preview's connection. Once the page reconnects (a reload or a navigation), it does nothing. */
+export interface LocalPreviewConnection {
+  /** Sends a structured-cloneable value to the page. */
+  post(data: unknown): void;
+}
+
+/**
+ * A web page served on this machine, shown inside an extension's view: `ctx.ui.LocalPreview`. The page runs in a
+ * sandboxed frame with its own origin and none of the app's access; the two talk only through `onConnect`/`onMessage`.
+ */
+export interface LocalPreviewProps {
+  /** http(s) on 127.0.0.1 or localhost, such as a game's development server. Anything else is refused. */
+  url: string;
+  /** The frame's accessible name. */
+  title: string;
+  /** The page asked to connect (see the guide); called again with a new connection after each reload or navigation. */
+  onConnect?: (connection: LocalPreviewConnection) => void;
+  /** Whatever the page sent. It is the page's data, unchecked: validate it before acting on it. */
+  onMessage?: (data: unknown) => void;
+  className?: string;
+  style?: CSSProperties;
+}
 
 // Commands ---------------------------------------------------------------------------------------------------------
 

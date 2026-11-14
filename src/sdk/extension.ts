@@ -1,7 +1,8 @@
 // An extension is a typed object with an `activate` function. The workbench's own features are extensions too: they
 // receive the same context, so anything a first-party feature can contribute, a workspace extension can as well.
+import type { ComponentType } from "react";
 import type {
-  CommandHandler, MenuContribution, PanelDefinition, PromptContributor, PromptMenuDefinition, ViewDefinition, WidgetDefinition,
+  CommandHandler, LocalPreviewProps, MenuContribution, PanelDefinition, PromptContributor, PromptMenuDefinition, ViewDefinition, WidgetDefinition,
 } from "./contributions";
 import type { WorkbenchEventHandler, WorkbenchEventName } from "./events";
 import type { SendGuard } from "./guards";
@@ -65,6 +66,11 @@ export interface ExtensionContext {
   events: { on<K extends WorkbenchEventName>(name: K, handler: WorkbenchEventHandler<K>): Disposable };
   /** Undefined outside a workspace extension. */
   files?: ExtensionFiles;
+  /** Components the app draws for an extension's own views and panels. */
+  ui: {
+    /** A page served on this machine (a development server), in a sandboxed frame. */
+    LocalPreview: ComponentType<LocalPreviewProps>;
+  };
 }
 
 export interface ExtensionDefinition {

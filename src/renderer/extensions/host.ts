@@ -3,6 +3,7 @@ import type { Disposable, ExtensionContext, ExtensionDefinition, ExtensionInfo }
 import { services } from "../core/services";
 import { errorMessage } from "../core/errors";
 import { guarded, guardedIcon, guardedNode } from "./ExtensionBoundary";
+import { LocalPreview } from "../ui/LocalPreview";
 
 /** One extension as the host knows it: running, or failed with the reason. */
 export interface ExtensionRecord {
@@ -112,6 +113,7 @@ function createContext(info: ExtensionInfo, subscriptions: Disposable[]): Extens
     },
     events: { on: (name, handler) => { const subscription = services.events.on(name, handler); return track(() => subscription.dispose()); } },
     files,
+    ui: { LocalPreview },
   };
 }
 
