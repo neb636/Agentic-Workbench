@@ -1,6 +1,6 @@
 # Extending this app
 
-This workspace is open in an agent workbench (working name DimSum). You can change what the app shows here
+This workspace is open in DimSum, a workbench for coding agents. You can change what the app shows here
 (views, side panels, composer menus, checks before a prompt is sent) by writing a TypeScript extension. The app
 picks it up as soon as you save the file. You don't build, install or restart anything.
 

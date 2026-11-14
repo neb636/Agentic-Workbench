@@ -105,7 +105,7 @@ function readRateLimits(executable: string, signal: AbortSignal): Promise<unknow
         }
       }
     });
-    send({ id: 1, method: "initialize", params: { clientInfo: { name: "agent-workbench", version: "1.0.0" } } });
+    send({ id: 1, method: "initialize", params: { clientInfo: { name: "dimsum", version: "1.0.0" } } });
   });
 }
 

@@ -117,7 +117,7 @@ function ResourcesTab({ groups }: { groups: Group[] }) {
     {app && <div role="rowgroup">
       <div className="resource-row resource-group" role="row">
         <AriaButton className="resource-name" onPress={() => toggle("app")} aria-expanded={!collapsed.has("app")}>
-          {collapsed.has("app") ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}<span>Agent Workbench</span>
+          {collapsed.has("app") ? <ChevronRightIcon size={12} /> : <ChevronDownIcon size={12} />}<span>DimSum</span>
         </AriaButton>
         <Sparkline samples={app.history} />
         <UsageCells usage={app} />

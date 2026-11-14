@@ -1,8 +1,8 @@
 {
-  "name": "agent-workbench",
+  "name": "dimsum",
   "version": "0.1.0",
   "private": true,
-  "description": "A generic local workbench for agent-first applications",
+  "description": "DimSum: a local workbench for working with coding agents",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "dev": "npm run build:electron && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
@@ -24,7 +24,7 @@
     "postinstall": "electron-rebuild -f -w node-pty",
     "dist": "npm run build && electron-builder --mac && npm run open:app",
     "dist:dir": "npm run build && electron-builder --mac --dir && npm run open:app",
-    "open:app": "open \"release/mac-arm64/Agent Workbench.app\"",
+    "open:app": "open \"release/mac-arm64/DimSum.app\"",
     "release": "npm run build && node scripts/release.mjs",
     "qa:security": "npm run build && node scripts/qa-security.mjs",
     "qa:extensions": "npm run build && node scripts/qa-extensions.mjs"
@@ -73,8 +73,8 @@
     "wait-on": "^9.5.1"
   },
   "build": {
-    "appId": "dev.local.agent-workbench",
-    "productName": "Agent Workbench",
+    "appId": "dev.local.dimsum",
+    "productName": "DimSum",
     "directories": {
       "output": "release"
     },

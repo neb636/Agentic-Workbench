@@ -8,12 +8,12 @@ import { claudeWindow } from "./claude-usage-parse";
 
 /**
  * Claude Code passes its status line command a JSON payload that includes the plan's rate limits. A session started
- * from Workbench gets a status line command, through --settings for that session only, that keeps the latest payload
- * in Workbench's own folder. When the person has a status line of their own, the payload goes on to their command and
+ * from DimSum gets a status line command, through --settings for that session only, that keeps the latest payload
+ * in DimSum's own folder. When the person has a status line of their own, the payload goes on to their command and
  * its output is the status line, as before; otherwise nothing is printed. Their Claude settings are never edited.
  */
 const SCRIPT = `#!/bin/sh
-# Agent Workbench: keeps the plan usage Claude Code reports, then runs the person's own status line command, if any.
+# DimSum: keeps the plan usage Claude Code reports, then runs the person's own status line command, if any.
 umask 077
 payload=$(head -c 1048576)
 case "$payload" in

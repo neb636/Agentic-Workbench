@@ -23,8 +23,13 @@ import { SourceControlService } from "./source-control/source-control-provider";
 import { WorkspaceFiles, WorkspaceRoots } from "./workspace-files";
 import { createAiUsage, registerAiUsage } from "./ai-usage";
 import { registerDimsum } from "./extensions";
+import { chooseUserData } from "./user-data";
 
-if (process.env.WORKBENCH_USER_DATA_DIR) app.setPath("userData", process.env.WORKBENCH_USER_DATA_DIR);
+try { chooseUserData(); }
+catch (error) {
+  dialog.showErrorBox("Profile migration failed", error instanceof Error ? error.message : String(error));
+  app.exit(1);
+}
 if (app.isPackaged) adoptLoginShellPath();
 
 const ptyManager = new PtyManager();

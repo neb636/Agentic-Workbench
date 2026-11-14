@@ -6,7 +6,7 @@ title: What is DimSum
 
 DimSum is a local workbench for working with coding agents. It runs the agents you already use, such as Claude Code and Codex, in their own native command-line interfaces, and adds a prompt composer, a file editor, source control and room for your own tools around them.
 
-DimSum is a working name. On disk it appears as `~/.dimsum` and `.dimsum/`, and the packaged app is called Agent Workbench.
+On disk DimSum keeps your own configuration in `~/.dimsum` and a workspace's in `.dimsum/`.
 
 ## How it works
 

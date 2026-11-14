@@ -6,7 +6,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 const profile = await mkdtemp(path.join(tmpdir(), 'workbench-packaged-security-'));
-const executable = path.resolve('release/mac-arm64/Agent Workbench.app/Contents/MacOS/Agent Workbench');
+const executable = path.resolve('release/mac-arm64/DimSum.app/Contents/MacOS/DimSum');
 const port = 20000 + Math.floor(Math.random() * 30000);
 const child = spawn(executable, [`--remote-debugging-port=${port}`], { env: { ...process.env, WORKBENCH_QA_HIDDEN: '1', WORKBENCH_USER_DATA_DIR: profile, WORKBENCH_CODEX_PATH: path.join(profile,'missing'), WORKBENCH_CLAUDE_PATH: path.join(profile,'missing'), VITE_DEV_SERVER_URL: 'https://example.invalid' }, stdio: ['ignore','pipe','pipe'] });
 let diagnostic = '';

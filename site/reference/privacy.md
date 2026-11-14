@@ -17,7 +17,11 @@ DimSum itself connects to the network only to read your [plan usage](/guide/ai-u
 | A workspace's shared and local configuration | `<workspace>/.dimsum/` |
 | Agent conversations | Wherever each CLI keeps them, managed by the CLI |
 
-On macOS the profile is a folder named after the app in `~/Library/Application Support/` (`agent-workbench` when you run from source). Set `WORKBENCH_USER_DATA_DIR` to use a different folder.
+On macOS the profile is `~/Library/Application Support/DimSum` (`DimSum Dev` when you run from source). Set `WORKBENCH_USER_DATA_DIR` to use a different folder.
+
+DimSum used to be called Agent Workbench. The first time it starts without a profile, it copies the old one (`Agent Workbench`, or `agent-workbench` from source) so your workspaces, views, draft attachments and trusted workspaces carry over, with saved attachment paths pointing into the new folder. The old folder is left in place; delete it once you no longer run the old app.
+
+If the copy fails, DimSum shows the profile paths and the error, then stops. Fix the reported problem and restart to retry the migration; the old profile stays in place.
 
 ## Cleaning up
 

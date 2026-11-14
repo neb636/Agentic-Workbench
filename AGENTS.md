@@ -1,6 +1,6 @@
-# Agent Workbench engineering invariants
+# DimSum engineering invariants
 
-- This repository is a generic, local Agent Workbench. It is not a Codex-specific coding application.
+- This repository is DimSum, a generic, local agent workbench. It is not a Codex-specific coding application.
 - Workbench core must not depend on Codex, Claude, Devin, GitHub, Git, Snowflake, Data Vault, or any other concrete integration. Integration-specific behavior belongs behind adapters.
 - First-party features use the same registries, commands, slots, prompt contributions, and provider seams intended for later extensions.
 - A View is persisted UI state; a Session is a runtime resource. They are separate concepts, and not every View needs a Session.
