@@ -20,8 +20,8 @@ DimSum doesn't sign you in or ask for an API key. It runs the CLI you already us
 ## Run from source
 
 ```sh
-git clone https://github.com/neb636/Agentic-Workbench.git
-cd Agentic-Workbench
+git clone https://github.com/neb636/DimSum.git
+cd DimSum
 npm install
 npm run dev
 ```
