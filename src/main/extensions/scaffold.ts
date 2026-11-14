@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { AGENT_GUIDE_FILE, APP_DIR, EXTENSIONS_DIR, SDK_MODULE } from "../../shared/app-identity";
+import { AGENT_GUIDE_FILE, APP_DIR, EXTENSIONS_DIR, SDK_MODULE, SDK_TYPES_DIR } from "../../shared/app-identity";
 import { sdkFolder } from "../dimsum-home";
 import { assertInsideRoot, ignorePersonalFiles } from "../config-layers";
 
@@ -79,14 +79,14 @@ export async function scaffoldExtension(root: string, name: string): Promise<{ e
   }
   const types = path.join(sdk, "types");
   if (await fs.stat(types).then(() => true, () => false)) {
-    await assertInsideRoot(root, path.join(base, ".sdk"));
-    await fs.rm(path.join(base, ".sdk"), { recursive: true, force: true });
-    await copyTree(types, path.join(base, ".sdk"));
+    await assertInsideRoot(root, path.join(base, SDK_TYPES_DIR));
+    await fs.rm(path.join(base, SDK_TYPES_DIR), { recursive: true, force: true });
+    await copyTree(types, path.join(base, SDK_TYPES_DIR));
   }
   await writeIfMissing(root, path.join(base, "tsconfig.json"), `${JSON.stringify({
     compilerOptions: {
       target: "ES2022", module: "ESNext", moduleResolution: "Bundler", jsx: "react-jsx", strict: true, noEmit: true, skipLibCheck: true,
-      paths: { [SDK_MODULE]: ["./.sdk/sdk/index.d.ts"] },
+      paths: { [SDK_MODULE]: [`./${SDK_TYPES_DIR}/sdk/index.d.ts`] },
     },
     include: [`${EXTENSIONS_DIR}/**/*`],
   }, null, 2)}\n`);

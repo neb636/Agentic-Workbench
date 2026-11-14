@@ -2,7 +2,7 @@ import { promises as fs, watch, type FSWatcher } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BrowserWindow } from "electron";
-import { APP_DIR, EXTENSION_STATUS_FILE, LOCAL_SUFFIX } from "../shared/app-identity";
+import { APP_DIR, EXTENSION_STATUS_FILE, LOCAL_SUFFIX, SDK_TYPES_DIR } from "../shared/app-identity";
 import { assertInputBudget } from "../shared/input-budget";
 import { CONFIG_DOCUMENTS, DIMSUM_IPC, type ConfigDocument, type ConfigLayers, type ConfigName, type ConfigScope, type ConfigWriteResult } from "../shared/dimsum";
 import { contentHash } from "./workspace-files";
@@ -123,16 +123,17 @@ export function ignorePersonalFiles(folder: string, root: string): Promise<void>
 async function writeIgnoreFile(folder: string, root: string): Promise<void> {
   const ignore = path.join(folder, ".gitignore");
   await assertInsideRoot(root, ignore);
-  const patterns = [`*${LOCAL_SUFFIX}.*`, EXTENSION_STATUS_FILE];
+  // The SDK's types are copied from whichever app version each person runs, so they aren't shared either.
+  const patterns = [`*${LOCAL_SUFFIX}.*`, EXTENSION_STATUS_FILE, `${SDK_TYPES_DIR}/`];
   const existing = await fs.readFile(ignore, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
   if (existing === undefined) {
-    await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*) and extension status files stay on this machine.\n${patterns.join("\n")}\nnode_modules/\n`, { flag: "wx" });
+    await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*), extension status files and the SDK's types stay on this machine.\n${patterns.join("\n")}\nnode_modules/\n`, { flag: "wx" });
     return;
   }
   const lines = new Set(existing.split(/\r?\n/).map((line) => line.trim()));
   const missing = patterns.filter((pattern) => !lines.has(pattern));
   if (!missing.length) return;
-  await fs.appendFile(ignore, `${existing.endsWith("\n") || !existing ? "" : "\n"}# Personal settings and extension status files stay on this machine.\n${missing.join("\n")}\n`);
+  await fs.appendFile(ignore, `${existing.endsWith("\n") || !existing ? "" : "\n"}# Personal settings, extension status files and the SDK's types stay on this machine.\n${missing.join("\n")}\n`);
 }
 
 let homeWatcher: FSWatcher | undefined;

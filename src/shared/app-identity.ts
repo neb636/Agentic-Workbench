@@ -13,5 +13,7 @@ export const SDK_MODULE = "@dimsum/sdk";
 export const EXTENSIONS_DIR = "extensions";
 /** Written into an extension's folder after every build and activation: whether it is running, and why not. Never committed. */
 export const EXTENSION_STATUS_FILE = ".status.json";
+/** Inside `.dimsum`: the SDK's types, copied from the running app for editors and type checking. Never committed. */
+export const SDK_TYPES_DIR = ".sdk";
 /** The guide for agents, written beside a workspace's extensions. */
 export const AGENT_GUIDE_FILE = "AGENTS.md";

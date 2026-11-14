@@ -12,9 +12,9 @@ DimSum creates:
 | --- | --- |
 | `.dimsum/extensions/level-editor/index.tsx` | The extension, with a starter view. |
 | `.dimsum/AGENTS.md` | The [SDK guide](/extend/sdk), for you and for agents. |
-| `.dimsum/.sdk/` | Type definitions for `@dimsum/sdk`. These are refreshed each time. |
+| `.dimsum/.sdk/` | Type definitions for `@dimsum/sdk`, from the version of DimSum you run. These are refreshed each time and kept out of Git. |
 | `.dimsum/tsconfig.json`, `.dimsum/package.json` | Type checking for your editor. Optional. |
-| `.dimsum/.gitignore` | Keeps your `*.local.json` files and the extensions' [`.status.json`](/extend/#the-status-file) files out of Git. |
+| `.dimsum/.gitignore` | Keeps your `*.local.json` files, the extensions' [`.status.json`](/extend/#the-status-file) files and `.sdk/` out of Git. |
 
 ## Look at the starter
 

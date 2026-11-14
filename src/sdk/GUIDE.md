@@ -154,7 +154,8 @@ but it can check `event.origin` on the connect message (`workbench://app` in the
 
 ## Types
 
-The types are in `.dimsum/.sdk/` and `.dimsum/tsconfig.json` maps `@dimsum/sdk` to them. To type-check, run
+The types are in `.dimsum/.sdk/` and `.dimsum/tsconfig.json` maps `@dimsum/sdk` to them. They come from the app the
+person runs and are kept out of Git, so don't commit them. To type-check, run
 `npm install` and then `npm run typecheck` inside `.dimsum/`. That step is optional, because the app compiles the
 extension itself.
 

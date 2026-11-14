@@ -11,7 +11,8 @@ export function dimsumHome(): string {
 
 /** The SDK types and agent guide this build ships, written by `scripts/build-sdk.mjs`. */
 export function sdkFolder(): string {
-  return path.join(app.getAppPath(), "dist-electron", "sdk");
+  // Packaged, it ships as a resource beside the archive: electron-builder leaves every *.d.ts out of the archive itself.
+  return app.isPackaged ? path.join(process.resourcesPath, "sdk") : path.join(app.getAppPath(), "dist-electron", "sdk");
 }
 
 /** The guide agents read; undefined in a build that has none. */
