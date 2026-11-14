@@ -14,7 +14,7 @@ DimSum creates:
 | `.dimsum/AGENTS.md` | The [SDK guide](/extend/sdk), for you and for agents. |
 | `.dimsum/.sdk/` | Type definitions for `@dimsum/sdk`. These are refreshed each time. |
 | `.dimsum/tsconfig.json`, `.dimsum/package.json` | Type checking for your editor. Optional. |
-| `.dimsum/.gitignore` | Keeps your `*.local.json` files out of Git. |
+| `.dimsum/.gitignore` | Keeps your `*.local.json` files and the extensions' [`.status.json`](/extend/#the-status-file) files out of Git. |
 
 ## Look at the starter
 

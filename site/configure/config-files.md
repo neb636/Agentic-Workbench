@@ -12,7 +12,7 @@ Each configuration file can exist in three places:
 | Workspace | `<workspace>/.dimsum/<name>.json` | Settings for everyone in the repository. Check this file in. |
 | Local | `<workspace>/.dimsum/<name>.local.json` | Your own settings for one workspace. Never commit this file. |
 
-The first time DimSum writes a local file, it makes sure `.dimsum/.gitignore` keeps `*.local.json` files out of Git. If you already have that `.gitignore`, the rule is added to it.
+The first time DimSum writes a local file, it makes sure `.dimsum/.gitignore` keeps `*.local.json` files out of Git. It does the same for the `.status.json` files that extensions write about themselves. If you already have that `.gitignore`, the missing rules are added to it.
 
 Workspace files must be ordinary files inside the workspace. If `.dimsum`, or anything inside it, is a symbolic link, DimSum won't read from it or write to it.
 

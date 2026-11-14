@@ -1,4 +1,4 @@
-import { DIMSUM_IPC, configReadSchema, configWriteSchema, extensionLoadSchema, extensionScaffoldSchema, extensionsListSchema } from "../../shared/dimsum";
+import { DIMSUM_IPC, configReadSchema, configWriteSchema, extensionLoadSchema, extensionScaffoldSchema, extensionStatusSchema, extensionsListSchema } from "../../shared/dimsum";
 import { readLayers, watchDimsumHome, writeLayer } from "../config-layers";
 import { handle } from "../ipc";
 import type { WorkspaceRoots } from "../workspace-files";
@@ -6,6 +6,7 @@ import { authorizeWorkspaceExecution, isWorkspaceTrusted } from "../workspace-tr
 import { dimsumHome } from "../dimsum-home";
 import { bundleExtension } from "./bundler";
 import { newBundleToken, storeBundle } from "./bundles";
+import { writeExtensionStatus } from "./status";
 import { findExtension, listExtensions, layerFolder } from "./catalog";
 import path from "node:path";
 
@@ -51,6 +52,11 @@ export function registerDimsum(roots: WorkspaceRoots): void {
     const { root, name } = extensionScaffoldSchema.parse(input);
     const { scaffoldExtension } = await import("./scaffold");
     return scaffoldExtension(await roots.resolve(root), name);
+  });
+  handle(DIMSUM_IPC.extensionsStatus, async (_event, input) => {
+    const { id, root, ...report } = extensionStatusSchema.parse(input);
+    if (id.startsWith("workspace:") && !root) throw new Error("Workspace extensions belong to a workspace.");
+    await writeExtensionStatus(id, id.startsWith("workspace:") ? await granted(root) : undefined, report);
   });
   watchDimsumHome();
 }

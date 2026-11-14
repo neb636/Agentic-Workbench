@@ -81,6 +81,11 @@ Rules:
 - **Failure.** If `activate` throws, nothing it registered stays behind and the Extensions panel shows the error.
   A view that throws while rendering shows its error in place, and the rest of the app keeps working. A save that
   doesn't compile keeps the last version that did.
+- **Did it run?** After every build and activation the app writes `.status.json` into the extension's folder
+  (`.dimsum/extensions/<name>/.status.json`, or the same under `~/.dimsum`). After saving, read it to see whether
+  your extension is running: `{ "status": "running" | "failed" | "waiting-for-trust" | "disabled", "error"?, "stack"?, "at" }`.
+  `error` is the compile or activation message; `at` is when it was written, so wait for it to change after a save.
+  The file is only a report, is kept out of Git, and is never something to edit.
 
 ## What `ctx` offers
 

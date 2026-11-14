@@ -41,6 +41,16 @@ The Extensions panel in the right sidebar lists **Built in**, **Yours everywhere
 - A view that fails while rendering shows its error in place. The rest of the app keeps working.
 - A save that doesn't compile is reported, and the last version that compiled keeps running.
 
+## The status file
+
+After every build and activation, DimSum writes `.status.json` into the extension's folder (`.dimsum/extensions/<name>/.status.json`, or the same under `~/.dimsum/extensions/` for your own extensions). An agent that has just saved the extension reads it to see whether the extension is running, and can fix an error without asking you to read the panel.
+
+```json
+{ "status": "failed", "error": "Unexpected token (12:4)", "at": "2026-11-14T18:02:11.000Z" }
+```
+
+`status` is `running`, `failed`, `waiting-for-trust` or `disabled`. `error` and `stack` appear when it failed, and `at` is when the file was written. It is a report only: don't edit it. DimSum keeps it out of Git by adding `.status.json` to `.dimsum/.gitignore`.
+
 ## Asking an agent to write one
 
 Agents can write extensions too. DimSum writes `.dimsum/AGENTS.md` into the workspace and sets `DIMSUM_GUIDE` in every session, so the agent can read the [SDK guide](/extend/sdk). Turn on the *Extension guide* instruction to point the agent at it.

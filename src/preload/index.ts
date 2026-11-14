@@ -41,6 +41,7 @@ const api: WorkbenchApi = {
     load: (id, root) => ipcRenderer.invoke(DIMSUM_IPC.extensionsLoad, { id, root }),
     trust: (root) => ipcRenderer.invoke(DIMSUM_IPC.extensionsTrust, { root }),
     scaffold: (root, name) => ipcRenderer.invoke(DIMSUM_IPC.extensionsScaffold, { root, name }),
+    reportStatus: (id, root, report) => ipcRenderer.invoke(DIMSUM_IPC.extensionsStatus, { id, root, ...report }),
   },
   persistence: {
     load: () => ipcRenderer.invoke(IPC.persistenceLoad) as Promise<PersistedState>,

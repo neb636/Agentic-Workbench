@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { AGENT_GUIDE_FILE, APP_DIR, EXTENSIONS_DIR, SDK_MODULE } from "../../shared/app-identity";
 import { sdkFolder } from "../dimsum-home";
-import { assertInsideRoot, ignoreLocalFiles } from "../config-layers";
+import { assertInsideRoot, ignorePersonalFiles } from "../config-layers";
 
 const starter = (name: string) => `import { useState } from "react";
 import { defineExtension, type ViewComponentProps } from "${SDK_MODULE}";
@@ -96,7 +96,7 @@ export async function scaffoldExtension(root: string, name: string): Promise<{ e
     scripts: { typecheck: "tsc -p ." },
     devDependencies: { typescript: "^5.9.2", "@types/react": "^19.1.12" },
   }, null, 2)}\n`);
-  await ignoreLocalFiles(base, root);
+  await ignorePersonalFiles(base, root);
   const entry = path.join(folder, "index.tsx");
   await writeIfMissing(root, entry, starter(name));
   return { entry: path.relative(root, entry).split(path.sep).join("/") };

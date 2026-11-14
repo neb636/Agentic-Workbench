@@ -11,5 +11,7 @@ export const LOCAL_SUFFIX = ".local";
 export const SDK_MODULE = "@dimsum/sdk";
 /** Extensions live in `<layer folder>/extensions/<name>/index.ts(x)`. */
 export const EXTENSIONS_DIR = "extensions";
+/** Written into an extension's folder after every build and activation: whether it is running, and why not. Never committed. */
+export const EXTENSION_STATUS_FILE = ".status.json";
 /** The guide for agents, written beside a workspace's extensions. */
 export const AGENT_GUIDE_FILE = "AGENTS.md";

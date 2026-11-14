@@ -2,7 +2,7 @@ import { promises as fs, watch, type FSWatcher } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { BrowserWindow } from "electron";
-import { APP_DIR, LOCAL_SUFFIX } from "../shared/app-identity";
+import { APP_DIR, EXTENSION_STATUS_FILE, LOCAL_SUFFIX } from "../shared/app-identity";
 import { assertInputBudget } from "../shared/input-budget";
 import { CONFIG_DOCUMENTS, DIMSUM_IPC, type ConfigDocument, type ConfigLayers, type ConfigName, type ConfigScope, type ConfigWriteResult } from "../shared/dimsum";
 import { contentHash } from "./workspace-files";
@@ -96,7 +96,7 @@ export async function writeLayer(name: ConfigName, scope: ConfigScope, root: str
     if (current !== expectedHash) return { ok: false, reason: "changed" };
     const folder = path.dirname(file);
     await fs.mkdir(folder, { recursive: true, mode: scope === "user" ? 0o700 : 0o755 });
-    if (scope === "local" && root) await ignoreLocalFiles(folder, root);
+    if (scope === "local" && root) await ignorePersonalFiles(folder, root);
     // A fresh name, created exclusively: an existing file or symlink at that path can't redirect the write.
     const temporary = `${file}.${randomUUID()}.next`;
     await fs.writeFile(temporary, text, { encoding: "utf8", mode: scope === "user" ? 0o600 : 0o644, flag: "wx" });
@@ -109,21 +109,30 @@ export async function writeLayer(name: ConfigName, scope: ConfigScope, root: str
 }
 
 /**
- * A workspace's `.local` files are the person's own. The first one written leaves a `.gitignore` beside it: a plain
- * convention file most version-control tools honour, written once and never edited after.
+ * A workspace's personal files stay out of version control: its `.local` settings and the status files extensions
+ * write about themselves. A `.gitignore` beside them is a plain convention most version-control tools honour; an
+ * existing one keeps its content and only gains the lines it lacks.
  */
-export async function ignoreLocalFiles(folder: string, root: string): Promise<void> {
+let ignoring: Promise<void> = Promise.resolve();
+export function ignorePersonalFiles(folder: string, root: string): Promise<void> {
+  const run = ignoring.then(() => writeIgnoreFile(folder, root));
+  ignoring = run.catch(() => undefined);
+  return run;
+}
+
+async function writeIgnoreFile(folder: string, root: string): Promise<void> {
   const ignore = path.join(folder, ".gitignore");
   await assertInsideRoot(root, ignore);
-  const pattern = `*${LOCAL_SUFFIX}.*`;
+  const patterns = [`*${LOCAL_SUFFIX}.*`, EXTENSION_STATUS_FILE];
   const existing = await fs.readFile(ignore, "utf8").catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return undefined; throw error; });
   if (existing === undefined) {
-    await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*) stay on this machine.\n${pattern}\nnode_modules/\n`, { flag: "wx" });
+    await fs.writeFile(ignore, `# Personal settings (${APP_DIR}/*${LOCAL_SUFFIX}.*) and extension status files stay on this machine.\n${patterns.join("\n")}\nnode_modules/\n`, { flag: "wx" });
     return;
   }
-  // An existing ignore file keeps its content; the exclusion personal files rely on is added if it is missing.
-  if (existing.split(/\r?\n/).some((line) => line.trim() === pattern)) return;
-  await fs.appendFile(ignore, `${existing.endsWith("\n") || !existing ? "" : "\n"}# Personal settings stay on this machine.\n${pattern}\n`);
+  const lines = new Set(existing.split(/\r?\n/).map((line) => line.trim()));
+  const missing = patterns.filter((pattern) => !lines.has(pattern));
+  if (!missing.length) return;
+  await fs.appendFile(ignore, `${existing.endsWith("\n") || !existing ? "" : "\n"}# Personal settings and extension status files stay on this machine.\n${missing.join("\n")}\n`);
 }
 
 let homeWatcher: FSWatcher | undefined;
@@ -140,7 +149,11 @@ export function watchDimsumHome(): void {
   };
   const start = () => {
     try {
-      homeWatcher = watch(dimsumHome(), { recursive: true }, notify);
+      homeWatcher = watch(dimsumHome(), { recursive: true }, (_event, filename) => {
+        // An extension's status file is written after every load: reacting to it would reload the extension, forever.
+        if (filename && path.basename(String(filename)).startsWith(EXTENSION_STATUS_FILE)) return;
+        notify();
+      });
       homeWatcher.on("error", () => { homeWatcher?.close(); homeWatcher = undefined; });
     } catch { /* No folder yet: watched once something creates it. */ }
   };
