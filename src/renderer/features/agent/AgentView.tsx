@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Group, Panel, Separator } from "react-resizable-panels";
 import { savedConversation } from "../../../shared/agent-conversations";
 import type { AgentProviderInfo, AgentViewState } from "../../../shared/models";
 import { services } from "../../core/services";
@@ -88,10 +88,10 @@ export function AgentView({ view, workspace }: ViewComponentProps) {
 
   const split = Math.min(100 - composerMinimum, Math.max(25, typeof state.split === "number" ? state.split : 62));
   return <section ref={layoutRef} className="agent-view" aria-label="Agent session">
-    <PanelGroup direction="vertical" onLayout={([height]) => { if (Math.abs(height - split) > .01) patch({ split: height }); }}>
-      <Panel className="agent-display" defaultSize={split} minSize={25}>{top}</Panel>
-      <PanelResizeHandle className="dock-resize" aria-label="Composer height"><span /></PanelResizeHandle>
-      <Panel className="agent-composer-panel" defaultSize={100 - split} minSize={composerMinimum}>{composer}</Panel>
-    </PanelGroup>
+    <Group orientation="vertical" onLayoutChanged={({ display: height = split }) => { if (Math.abs(height - split) > .01) patch({ split: height }); }}>
+      <Panel id="display" className="agent-display" defaultSize={`${split}%`} minSize="25%">{top}</Panel>
+      <Separator className="dock-resize" aria-label="Composer height"><span /></Separator>
+      <Panel id="composer" className="agent-composer-panel" defaultSize={`${100 - split}%`} minSize={`${composerMinimum}%`}>{composer}</Panel>
+    </Group>
   </section>;
 }
