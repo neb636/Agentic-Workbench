@@ -15,6 +15,7 @@ DimSum's own features use the same API, so an extension can do what the built-in
 - **Send checks**: guards that warn about a prompt, or block it, before it is sent.
 - **Commands and events**: run the app's commands and react when views open, close or change status.
 - **Workspace files**: read and write text files in the workspace.
+- **Local previews**: show a page from a development server on your machine (`127.0.0.1` or `localhost`) inside a view, and exchange messages with it. See [Showing a local page](/extend/sdk#showing-a-local-page).
 
 ## Where extensions live
 

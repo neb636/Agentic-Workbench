@@ -97,9 +97,55 @@ Rules:
 | `ctx.events.on(name, fn)` | Notifications: `workspace.opened`, `workspace.closed`, `view.opened`, `view.closed`, `view.activated`, `view.status`, `prompt.sent`, `extension.activated` and `extension.failed`. A handler can't stop what happened. Only guards can refuse a send. |
 | `ctx.files` | `read`, `list` and `write` text files of this workspace (workspace extensions only). Writes are checked against the hash you last read. |
 | `ctx.extension` | Who you are: `id`, `name`, `layer` and, for a workspace extension, `workspaceId` and `root`. |
+| `ctx.ui.LocalPreview` | A component that shows a page served on this machine (a development server) inside your view. See below. |
 
 A workspace extension's contributions appear only in its own workspace. Two worktrees of one repository each run
 their own copy.
+
+## Showing a local page
+
+`ctx.ui.LocalPreview` shows a page from a server on this machine, such as a game's or a site's development server,
+inside one of your views or panels. Use it when the thing you are building a tool for is itself a web page.
+
+```tsx
+function Game({ workspace }: ViewComponentProps) {
+  const [snapshot, setSnapshot] = useState<unknown>();
+  const connection = useRef<LocalPreviewConnection>();
+  return <ctx.ui.LocalPreview
+    url="http://127.0.0.1:5174/#/lab?feel=1"
+    title="Game"
+    onConnect={(next) => { connection.current = next; next.post({ type: "snapshot" }); }}
+    onMessage={(data) => setSnapshot(data)} />;
+}
+```
+
+`ctx` is the one `activate` received, so declare such components inside `activate` (or pass `ctx.ui.LocalPreview` to
+them).
+
+- **Only this machine.** The URL must be `http` or `https` on `127.0.0.1` or `localhost`. Anything else shows an
+  error instead of a frame. The page, and any frame it opens, can't navigate anywhere else.
+- **No access to the app.** The page runs in a sandboxed frame with its own origin. It can't reach the app, open
+  popups, download, or use the clipboard, camera or other permissions. The app doesn't start the server; the person
+  (or a terminal view) does.
+- **Talking to the page.** The page posts `{ dimsum: "local-preview.hello" }` to its parent when it is ready to talk.
+  The app answers with `{ dimsum: "local-preview.connect" }` and a `MessagePort` in `event.ports[0]`, and calls your
+  `onConnect` with a connection whose `post(data)` sends to that port. Whatever the page sends on the port reaches
+  `onMessage`. After a reload or a navigation the page says hello again and you get a new connection; the old one
+  does nothing. What the page sends is its own data: check it before acting on it.
+
+The page's side:
+
+```ts
+addEventListener("message", (event) => {
+  if (event.source !== parent || event.data?.dimsum !== "local-preview.connect") return;
+  const port = event.ports[0];
+  port.onmessage = ({ data }) => { if (data.type === "snapshot") port.postMessage(readSnapshot()); };
+});
+if (parent !== window) parent.postMessage({ dimsum: "local-preview.hello" }, "*");
+```
+
+The hello carries nothing, so posting it to `"*"` gives nothing away. The page doesn't need to know the app's origin,
+but it can check `event.origin` on the connect message (`workbench://app` in the installed app).
 
 ## Types
 
